@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' https://cdn.jsdelivr.net;
@@ -45,7 +46,12 @@
 
   <header class="app-header">
     <div class="plate">
-      <button class="btn-logout-icon" id="btnLogout" type="button" title="Se déconnecter" aria-label="Se déconnecter">⏻</button>
+      <button class="btn-logout-icon" id="btnLogout" type="button" title="Se déconnecter" aria-label="Se déconnecter">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3v7"/>
+          <path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>
+        </svg>
+      </button>
       <p class="eyebrow">EOLE · Koesio · Reconditionnement</p>
       <h1>EOLE Toolkit</h1>
       <p class="sub">Pièces de référence + suivi de service</p>

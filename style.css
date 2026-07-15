@@ -565,6 +565,7 @@ textarea{ resize: vertical; min-height: 70px; }
   line-height: 1;
   cursor: pointer;
 }
+.btn-logout-icon svg{ width: 18px; height: 18px; }
 .btn-logout-icon:hover, .btn-logout-icon:focus-visible{
   color: var(--warn);
   border-color: var(--warn);
