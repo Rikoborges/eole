@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EOLE Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src https://fonts.gstatic.com;
+    img-src 'self' data: https://eole.koesio.com https://*.supabase.co;
+    connect-src 'self' https://ddyekeeuaynqipdmlqhq.supabase.co;
+    frame-ancestors 'none';
+    base-uri 'self';
+    form-action 'none';
+  ">
+</head>
+<body>
+
+  <!-- ===================== ÉCRAN DE CONNEXION ===================== -->
+  <div id="auth-gate">
+    <div class="auth-box">
+      <p class="eyebrow">EOLE · Koesio</p>
+      <h1>EOLE Toolkit</h1>
+      <p class="sub">Connectez-vous pour accéder à vos données</p>
+
+      <label class="field-label" for="authEmail">Email</label>
+      <input type="email" id="authEmail" placeholder="vous@exemple.com" autocomplete="email">
+
+      <label class="field-label" for="authPassword">Mot de passe</label>
+      <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
+
+      <p class="auth-error" id="authError" hidden></p>
+
+      <button type="button" class="btn-primary auth-btn-full" id="btnLogin">Se connecter</button>
+    </div>
+  </div>
+
+  <!-- ===================== APPLICATION ===================== -->
+  <div id="app-shell" hidden>
+
+  <header class="app-header">
+    <div class="plate">
+      <button class="btn-logout-icon" id="btnLogout" type="button" title="Se déconnecter" aria-label="Se déconnecter">⏻</button>
+      <p class="eyebrow">EOLE · Koesio · Reconditionnement</p>
+      <h1>EOLE Toolkit</h1>
+      <p class="sub">Pièces de référence + suivi de service</p>
+    </div>
+
+    <nav class="tabs" aria-label="Navigation principale">
+      <button class="tab active" data-view="pecas" aria-selected="true">Pièces</button>
+      <button class="tab" data-view="registro" aria-selected="false">Suivi</button>
+      <button class="tab" data-view="analyse" aria-selected="false">Analyse</button>
+    </nav>
+    <div class="stripe" aria-hidden="true"></div>
+  </header>
+
+  <main>
+
+    <!-- ===================== SECTION : PIÈCES ===================== -->
+    <section class="view active" id="view-pecas" aria-labelledby="tab-pecas">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <label for="search" class="visually-hidden">Rechercher une pièce</label>
+        <input id="search" type="text" placeholder="Rechercher une pièce (FR, PT ou EN)..." autocomplete="off">
+      </div>
+
+      <nav class="filters" id="filters" aria-label="Filtrer par catégorie">
+        <button class="chip active" data-cat="all">Toutes</button>
+        <button class="chip chip-top" data-cat="top">★ Top 10</button>
+        <button class="chip" data-cat="limpeza">Nettoyage</button>
+        <button class="chip" data-cat="montagem">Montage</button>
+        <button class="chip" data-cat="eletrica">Électrique</button>
+      </nav>
+
+      <details class="guide">
+        <summary>Guide rapide — nettoyage &amp; montage <span class="chev">›</span></summary>
+        <ol>
+          <li><b>Avant de toucher :</b> éteignez et débranchez l'équipement. Laissez le four refroidir — il fonctionne très chaud.</li>
+          <li><b>Tambour :</b> ne l'exposez jamais longtemps à la lumière directe et ne touchez pas la surface à main nue. Utilisez un chiffon/brosse dédiés, sans alcool fort.</li>
+          <li><b>Toner répandu :</b> ne soufflez pas et n'utilisez pas d'aspirateur classique — utilisez un aspirateur avec filtre adapté au toner (HEPA).</li>
+          <li><b>Ordre général de démontage :</b> ADF → Cartouche → CTI → BD → Laser → Four.</li>
+          <li><b>Avant de remonter :</b> vérifiez que les contacts électriques sont propres et secs, les ressorts bien en place, et qu'aucune vis ne manque.</li>
+          <li><b>Pièce incertaine :</b> en cas de doute sur le nom ou la fonction, vérifiez avec votre responsable.</li>
+        </ol>
+        <p class="note">L'auto-contrôle complet (checklist officielle EOLE) apparaît à la fin du service, dans l'onglet Suivi.</p>
+      </details>
+
+      <p class="count" id="count" aria-live="polite"></p>
+      <ul id="list" class="parts-list"></ul>
+      <p class="empty" id="empty" hidden>Aucune pièce trouvée.</p>
+    </section>
+
+    <!-- ===================== SECTION : SUIVI DE SERVICE ===================== -->
+    <section class="view" id="view-registro" aria-labelledby="tab-registro">
+      <p id="reg-loading" class="loading">Chargement…</p>
+
+      <!-- État : aucun service en cours -->
+      <div id="state-idle" hidden>
+        <p class="today-total">Aujourd'hui : <b id="today-total-val">0h00</b> travaillées</p>
+        <button class="btn-new" id="btnNewJob" type="button">+ Nouveau Service</button>
+
+        <h2 class="hist-label">Historique</h2>
+        <ul id="history-list" class="history-list"></ul>
+        <p class="empty" id="history-empty" hidden>Aucun service enregistré pour l'instant.</p>
+      </div>
+
+      <!-- État : formulaire de nouveau service -->
+      <div id="state-form" hidden>
+        <form class="form-box" id="jobForm">
+          <div class="field-label">Photo du bon de commande</div>
+          <input type="file" id="photoInput" accept="image/*" capture="environment" class="visually-hidden">
+          <button type="button" class="photo-btn" id="photoBtn">📷 Prendre / choisir une photo</button>
+          <img class="photo-preview" id="photoPreview" alt="Aperçu de la photo du bon">
+          <p class="ocr-status" id="ocrStatus" hidden>Lecture de la photo…</p>
+
+          <label class="field-label" for="fieldName">Votre nom</label>
+          <input type="text" id="fieldName" name="name" placeholder="Nom du technicien" required>
+
+          <label class="field-label" for="fieldBrand">Marque</label>
+          <select id="fieldBrand" name="brand" required>
+            <option value="">Sélectionnez…</option>
+            <option>Canon</option><option>Toshiba</option><option>Kyocera</option>
+            <option>Konica Minolta</option><option>Sharp</option><option>Ricoh</option><option>Autre</option>
+          </select>
+
+          <label class="field-label" for="fieldModel">Modèle</label>
+          <input type="text" id="fieldModel" name="model" placeholder="Ex : MP C3503" required>
+
+          <div class="btn-row">
+            <button type="button" class="btn-secondary" id="btnCancelForm">Annuler</button>
+            <button type="submit" class="btn-primary" id="btnStart">Démarrer</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- État : chronomètre en cours -->
+      <div id="state-running" hidden>
+        <div class="running-wrap">
+          <div class="running-col">
+            <p class="warn-banner" id="warnBanner" role="alert" hidden>⚠ En cours depuis plus de 6h sans pause — vous avez oublié de pauser ?</p>
+            <div class="running-top">
+              <img class="running-thumb" id="runningThumb" alt="Photo du bon de commande">
+              <p class="running-brand" id="runningBrand"></p>
+            </div>
+            <p class="timer-display" id="timerDisplay" aria-live="off">00:00:00</p>
+            <p class="timer-status" id="timerStatus">● En cours</p>
+          </div>
+          <div class="actions-col">
+            <div class="shortcut-row">
+              <button class="btn-shortcut" data-label="Matin" type="button">☕ Matin</button>
+              <button class="btn-shortcut" data-label="Déjeuner" type="button">🍽 Déjeuner</button>
+              <button class="btn-shortcut" data-label="Après-midi" type="button">☕ Après-midi</button>
+            </div>
+            <button class="btn-pause" id="btnPause" type="button">⏸ Pause</button>
+            <button class="btn-finish" id="btnFinish" type="button">Terminer le Service</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- État : note finale -->
+      <div id="state-finish" hidden>
+        <form class="form-box" id="finishForm">
+          <div class="field-label">Auto-contrôle avant envoi (checklist officielle)</div>
+          <ul class="checklist" id="autoControlList">
+            <li><label><input type="checkbox"> Propreté intérieur et extérieur</label></li>
+            <li><label><input type="checkbox"> Propreté CCD + sous la vitre scanner</label></li>
+            <li><label><input type="checkbox"> Remontage de tous les carters</label></li>
+            <li><label><input type="checkbox"> Propreté unités internes (Tambour/BD/CTI/Four, grille ventilateur)</label></li>
+            <li><label><input type="checkbox"> Changement bac de récup + bac récup d'avance</label></li>
+            <li><label><input type="checkbox"> Câble d'alimentation + câble fax ajoutés</label></li>
+            <li><label><input type="checkbox"> Carters non rayés (cache charnière, poignet, baguette laser)</label></li>
+            <li><label><input type="checkbox"> N° de série et modèle vérifiés (fiche REP ↔ machine)</label></li>
+            <li><label><input type="checkbox"> PATIN K7 + PATIN ADF changés</label></li>
+            <li><label><input type="checkbox"> Panel dépoussiéré et non rayé</label></li>
+            <li><label><input type="checkbox"> Étiquette QR code bien placée</label></li>
+            <li><label><input type="checkbox"> Vis fixation socle 2/3 K7 vérifiées</label></li>
+          </ul>
+          <p class="checklist-count" id="checklistCount">0 / 12 vérifiés</p>
+
+          <label class="field-label" for="finishEtape">Étape (officielle EOLE)</label>
+          <select id="finishEtape">
+            <option value="">— Aucune / autre —</option>
+            <option value="Vaisselle des carters démontés">Vaisselle des carters démontés</option>
+            <option value="Nettoyage du multifonction + Remise en état complet">Nettoyage du multifonction + Remise en état complet</option>
+            <option value="Emballage">Emballage</option>
+            <option value="5S">5S</option>
+            <option value="Réunion">Réunion</option>
+            <option value="Formation">Formation</option>
+          </select>
+
+          <label class="field-label" for="finishNote">Qu'avez-vous fait ? (facultatif)</label>
+          <textarea id="finishNote" placeholder="Ex : remplacement du rouleau de transfert, nettoyage du tambour…"></textarea>
+          <div class="btn-row">
+            <button type="button" class="btn-secondary" id="btnBackToRunning">Retour</button>
+            <button type="submit" class="btn-primary" id="btnSaveFinish">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===================== SECTION : ANALYSE ===================== -->
+    <section class="view" id="view-analyse" aria-labelledby="tab-analyse">
+      <p id="analyse-loading" class="loading">Chargement…</p>
+
+      <div id="analyse-content" hidden>
+        <div class="summary-grid" id="summaryGrid"></div>
+
+        <div class="chart-box">
+          <div class="chart-head">
+            <h2 class="hist-label" style="margin:0;">Heures travaillées</h2>
+            <div class="period-toggle" role="group" aria-label="Période">
+              <button class="period-btn active" data-period="semaine" type="button">Semaine</button>
+              <button class="period-btn" data-period="mois" type="button">Mois</button>
+            </div>
+          </div>
+          <div id="timeChart"></div>
+        </div>
+
+        <div class="chart-box">
+          <h2 class="hist-label">Répartition par marque</h2>
+          <div id="brandChart"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
