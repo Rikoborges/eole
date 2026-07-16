@@ -500,7 +500,7 @@ async function setSetting(key, value){
 
 async function uploadJobPhoto(jobIdOrTemp, base64DataUrl){
   const { data: userData } = await sb.auth.getUser();
-  const blob = await (await fetch(base64DataUrl)).blob();
+  const blob = dataUrlToBlob(base64DataUrl);
   const path = `${userData.user.id}/${jobIdOrTemp}.jpg`;
   const { error } = await sb.storage.from('job-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
   if(error){ console.error('Erreur uploadJobPhoto:', error); return null; }
@@ -537,6 +537,16 @@ function fmtHMS(totalSeconds){
 function fmtHShort(totalSeconds){
   const s = Math.max(0, Math.floor(totalSeconds));
   return `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`;
+}
+
+/* --- Conversion data URL -> Blob (sans fetch, car bloqué par la CSP connect-src) --- */
+function dataUrlToBlob(dataUrl){
+  const [header, base64] = dataUrl.split(',');
+  const mime = header.match(/:(.*?);/)[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for(let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
 }
 
 /* --- Compression d'image avant upload --- */
@@ -740,23 +750,28 @@ function wireFormEvents(){
     submitBtn.disabled = true;
     submitBtn.textContent = 'Démarrage…';
 
-    await setSetting('last_name', name);
-    const startedAt = new Date().toISOString();
+    try{
+      await setSetting('last_name', name);
+      const startedAt = new Date().toISOString();
 
-    let photoUrl = null;
-    if(pendingPhotoBase64){
-      photoUrl = await uploadJobPhoto('tmp_' + Date.now(), pendingPhotoBase64);
+      let photoUrl = null;
+      if(pendingPhotoBase64){
+        photoUrl = await uploadJobPhoto('tmp_' + Date.now(), pendingPhotoBase64);
+      }
+
+      const job = await createJob({ name, brand, model, photoUrl, startedAt });
+      if(!job){
+        alert('Impossible de démarrer le service (erreur de connexion). Réessayez.');
+        return;
+      }
+      showRunning(job);
+    }catch(err){
+      console.error('Erreur au démarrage du service:', err);
+      alert('Impossible de démarrer le service (erreur inattendue). Réessayez.');
+    }finally{
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Démarrer';
     }
-
-    const job = await createJob({ name, brand, model, photoUrl, startedAt });
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Démarrer';
-
-    if(!job){
-      alert('Impossible de démarrer le service (erreur de connexion). Réessayez.');
-      return;
-    }
-    showRunning(job);
   });
 }
 
