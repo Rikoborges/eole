@@ -19,6 +19,18 @@ if(typeof supabase === 'undefined'){
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+/* E-mails autorisés à voir l'onglet Admin — ajoutez le(s) vôtre(s) ici.
+   Note : ceci masque juste l'onglet dans l'interface. Les données ne sont pas
+   filtrées par utilisateur côté base (le Suivi affiche déjà l'historique de
+   toute l'équipe) — ce n'est donc pas une barrière de sécurité, seulement
+   une organisation de l'écran. */
+const ADMIN_EMAILS = ['rico3036@gmail.com'];
+
+function updateAdminTabVisibility(email){
+  const isAdmin = !!email && ADMIN_EMAILS.some(e => e.toLowerCase() === email.toLowerCase());
+  document.getElementById('tab-admin-btn').hidden = !isAdmin;
+}
+
 /* --- Autenticação --- */
 function initAuth(){
   // Conecta os botões IMEDIATAMENTE — antes de qualquer chamada de rede,
@@ -30,7 +42,12 @@ function initAuth(){
   // registra (cobre o carregamento da página) e depois "SIGNED_IN"/"SIGNED_OUT"
   // conforme o usuário loga/desloga. Não precisa checar a sessão duas vezes.
   sb.auth.onAuthStateChange((_event, session) => {
-    if(session){ showApp(); } else { showAuthGate(); }
+    if(session){
+      showApp();
+      updateAdminTabVisibility(session.user.email);
+    } else {
+      showAuthGate();
+    }
   });
 }
 
@@ -279,6 +296,25 @@ const ICONS = {
 };
 function iconFor(shape){ return ICONS[shape] || ICONS.box; }
 
+/* Modèles connus par marque — juste des suggestions (datalist), le champ reste libre.
+   Complétez cette liste au fil du temps avec les modèles que vous croisez le plus. */
+const MODELS_BY_BRAND = {
+  Canon: ['iR-ADV C256i','iR-ADV C257i','iR-ADV C259i','iR-ADV C3525i','iR-ADV C3530i','iR-ADV C5535i','iR-ADV C5540i','iR2625i','iR2630i','iR2635i','iR2645i','iR-ADV DX C3826i','iR-ADV DX C3830i','iR-ADV DX C5850i'],
+  Toshiba: ['e-STUDIO2523A','e-STUDIO2528A','e-STUDIO3528A','e-STUDIO5528A','e-STUDIO2515AC','e-STUDIO2518A','e-STUDIO3018A','e-STUDIO2020AC','e-STUDIO4525AC'],
+  Kyocera: ['TASKalfa 2553ci','TASKalfa 2554ci','TASKalfa 3212i','TASKalfa 3253ci','TASKalfa 3552ci','TASKalfa 4053ci','TASKalfa 5053ci'],
+  'Konica Minolta': ['bizhub 227','bizhub 287','bizhub 367','bizhub C258','bizhub C308','bizhub C368','bizhub C458','bizhub C558','bizhub C658'],
+  Sharp: ['MX-2614N','MX-2651','MX-3051','MX-3114N','MX-3551','MX-4051','MX-M3550'],
+  Ricoh: ['MP C3003','MP C3503','MP C4503','MP C5503','IM 350F','IM C3000','IM C3500','IM C4500'],
+};
+
+function updateModelSuggestions(){
+  const brand = document.getElementById('fieldBrand').value;
+  const models = MODELS_BY_BRAND[brand] || [];
+  document.getElementById('modelsList').innerHTML =
+    models.map(m => `<option value="${escapeHtml(m)}"></option>`).join('');
+}
+document.getElementById('fieldBrand').addEventListener('change', updateModelSuggestions);
+
 const CAT_LABEL = { limpeza:"Nettoyage", montagem:"Montage", eletrica:"Électrique" };
 
 const listEl = document.getElementById('list');
@@ -387,6 +423,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 
     if(tab.dataset.view === 'registro') initRegistro();
     if(tab.dataset.view === 'analyse') initAnalyse();
+    if(tab.dataset.view === 'admin') initAdmin();
   });
 });
 
@@ -423,6 +460,7 @@ function mapJobFromDb(row){
     brand: row.brand,
     model: row.model,
     photoBase64: row.photo_url,
+    photoFinalBase64: row.photo_url_final,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     activeSeconds: row.active_seconds,
@@ -469,11 +507,10 @@ async function closeOpenPause(jobId, endAt){
   if(error) console.error('Erreur closeOpenPause:', error);
 }
 
-async function finishJobInDb(jobId, finishedAt, activeSeconds, note){
-  const { error } = await sb
-    .from('jobs')
-    .update({ finished_at: finishedAt, active_seconds: Math.round(activeSeconds), note })
-    .eq('id', jobId);
+async function finishJobInDb(jobId, finishedAt, activeSeconds, note, photoFinalUrl){
+  const fields = { finished_at: finishedAt, active_seconds: Math.round(activeSeconds), note };
+  if(photoFinalUrl) fields.photo_url_final = photoFinalUrl;
+  const { error } = await sb.from('jobs').update(fields).eq('id', jobId);
   if(error) console.error('Erreur finishJobInDb:', error);
 }
 
@@ -603,6 +640,7 @@ async function tryOCR(base64){
       if(parsed.brand){
         const opt = Array.from(brandSelect.options).find(o => o.value.toLowerCase() === parsed.brand.toLowerCase());
         brandSelect.value = opt ? opt.value : 'Autre';
+        updateModelSuggestions();
       }
       if(parsed.model) document.getElementById('fieldModel').value = parsed.model;
       statusEl.textContent = '✓ Suggestion remplie — vérifiez avant de démarrer';
@@ -618,6 +656,7 @@ async function tryOCR(base64){
 let regInited = false;
 let tickInterval = null;
 let pendingPhotoBase64 = null;
+let pendingPhotoFinalBase64 = null;
 
 function showState(name){
   ['idle', 'form', 'running', 'finish'].forEach(s => {
@@ -663,8 +702,11 @@ async function refreshIdleView(){
     const thumb = job.photoBase64
       ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoBase64)}" alt="Photo du bon">`
       : `<div class="job-thumb" aria-hidden="true">📷</div>`;
+    const thumbFinal = job.photoFinalBase64
+      ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoFinalBase64)}" alt="Photo machine terminée">`
+      : '';
     li.innerHTML = `
-      ${thumb}
+      <div class="job-thumbs">${thumb}${thumbFinal}</div>
       <div class="job-info">
         <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
         <p class="job-meta">${fmtHShort(job.activeSeconds)} · ${dateStr}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
@@ -716,6 +758,7 @@ function wireFormEvents(){
     document.getElementById('ocrStatus').hidden = true;
     document.getElementById('fieldBrand').value = '';
     document.getElementById('fieldModel').value = '';
+    updateModelSuggestions();
     document.getElementById('fieldName').value = (await getSetting('last_name')) || '';
     showState('form');
   });
@@ -821,6 +864,8 @@ function showRunning(job){
     document.getElementById('finishNote').value = '';
     document.getElementById('finishEtape').value = '';
     document.querySelectorAll('#autoControlList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    pendingPhotoFinalBase64 = null;
+    document.getElementById('photoFinalPreview').removeAttribute('src');
     updateChecklistCount();
     showState('finish');
   };
@@ -856,6 +901,22 @@ function updateChecklistCount(){
 function wireFinishEvents(){
   document.getElementById('autoControlList').addEventListener('change', updateChecklistCount);
 
+  document.getElementById('photoFinalBtn').addEventListener('click', () => {
+    document.getElementById('photoFinalInput').click();
+  });
+
+  document.getElementById('photoFinalInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    try{
+      const base64 = await compressImage(file, 800, 0.6);
+      pendingPhotoFinalBase64 = base64;
+      document.getElementById('photoFinalPreview').src = base64;
+    }catch(err){
+      alert('Impossible de traiter la photo. Réessayez ou continuez sans photo.');
+    }
+  });
+
   document.getElementById('btnBackToRunning').addEventListener('click', async () => {
     const current = await getCurrentJob();
     if(current) showRunning(current);
@@ -881,7 +942,13 @@ function wireFinishEvents(){
     const etape = document.getElementById('finishEtape').value;
     const noteText = document.getElementById('finishNote').value.trim();
     const note = etape ? `${etape}${noteText ? ' — ' + noteText : ''}` : noteText;
-    await finishJobInDb(current.id, now.toISOString(), activeSeconds, note);
+
+    let photoFinalUrl = null;
+    if(pendingPhotoFinalBase64){
+      photoFinalUrl = await uploadJobPhoto('tmp_final_' + Date.now(), pendingPhotoFinalBase64);
+    }
+    await finishJobInDb(current.id, now.toISOString(), activeSeconds, note, photoFinalUrl);
+    pendingPhotoFinalBase64 = null;
 
     submitBtn.disabled = false;
     submitBtn.textContent = 'Enregistrer';
@@ -1037,4 +1104,111 @@ function renderBrandChart(history){
       </div>
     </div>
   `).join('');
+}
+
+/* ======================= ADMIN (vue d'ensemble équipe) ======================= */
+let adminInited = false;
+let adminAllJobs = [];
+
+async function initAdmin(){
+  document.getElementById('admin-loading').hidden = false;
+  document.getElementById('admin-content').hidden = true;
+
+  const [history, current] = await Promise.all([getHistory(), getCurrentJob()]);
+  adminAllJobs = current ? [current, ...history] : history;
+
+  renderAdminSummary(adminAllJobs);
+  renderAdminList(adminAllJobs);
+
+  if(!adminInited){
+    adminInited = true;
+    document.getElementById('adminSearch').addEventListener('input', () => renderAdminList(adminAllJobs));
+    document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+    document.getElementById('lightbox').addEventListener('click', (e) => {
+      if(e.target.id === 'lightbox') closeLightbox();
+    });
+  }
+
+  document.getElementById('admin-loading').hidden = true;
+  document.getElementById('admin-content').hidden = false;
+}
+
+function renderAdminSummary(jobs){
+  const finished = jobs.filter(j => j.finishedAt);
+  const totalSeconds = finished.reduce((sum, j) => sum + (j.activeSeconds || 0), 0);
+  const technicians = new Set(jobs.map(j => j.name).filter(Boolean));
+
+  document.getElementById('adminSummaryGrid').innerHTML = `
+    <div class="summary-card">
+      <p class="summary-value">${finished.length}</p>
+      <p class="summary-label">Services terminés</p>
+    </div>
+    <div class="summary-card">
+      <p class="summary-value">${fmtHShort(totalSeconds)}</p>
+      <p class="summary-label">Total d'heures</p>
+    </div>
+    <div class="summary-card">
+      <p class="summary-value">${technicians.size}</p>
+      <p class="summary-label">Techniciens</p>
+    </div>
+  `;
+}
+
+function renderAdminList(jobs){
+  const q = normalize(document.getElementById('adminSearch').value.trim());
+  const filtered = jobs.filter(j => {
+    if(!q) return true;
+    return normalize(`${j.name || ''} ${j.brand || ''} ${j.model || ''} ${j.note || ''}`).includes(q);
+  });
+
+  const listEl3 = document.getElementById('adminList');
+  const emptyEl3 = document.getElementById('adminEmpty');
+  document.getElementById('adminCount').textContent = `${filtered.length} service(s)`;
+  listEl3.innerHTML = '';
+  emptyEl3.hidden = filtered.length > 0;
+
+  filtered.forEach(job => {
+    const li = document.createElement('li');
+    li.className = 'job-card';
+    const isRunning = !job.finishedAt;
+    const dateStr = job.finishedAt ? new Date(job.finishedAt).toLocaleDateString('fr-FR') : null;
+
+    const thumb = job.photoBase64
+      ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoBase64)}" alt="Photo du bon">`
+      : `<div class="job-thumb" aria-hidden="true">📷</div>`;
+    const thumbFinal = job.photoFinalBase64
+      ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoFinalBase64)}" alt="Photo machine terminée">`
+      : '';
+
+    const metaParts = [];
+    if(job.name) metaParts.push(escapeHtml(job.name));
+    if(job.activeSeconds) metaParts.push(fmtHShort(job.activeSeconds));
+    metaParts.push(isRunning ? '● en cours' : dateStr);
+
+    li.innerHTML = `
+      <div class="job-thumbs">${thumb}${thumbFinal}</div>
+      <div class="job-info">
+        <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
+        <p class="job-meta">${metaParts.join(' · ')}</p>
+        ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
+      </div>`;
+    listEl3.appendChild(li);
+  });
+
+  listEl3.querySelectorAll('img[data-photo-path]').forEach(async (img) => {
+    const url = await resolvePhotoUrl(img.dataset.photoPath);
+    if(!url) return;
+    img.src = url;
+    img.classList.add('zoomable');
+    img.addEventListener('click', () => openLightbox(url));
+  });
+}
+
+function openLightbox(url){
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightbox').hidden = false;
+}
+function closeLightbox(){
+  document.getElementById('lightbox').hidden = true;
+  document.getElementById('lightboxImg').removeAttribute('src');
 }

@@ -62,6 +62,7 @@
       <button class="tab active" data-view="pecas" aria-selected="true">Pièces</button>
       <button class="tab" data-view="registro" aria-selected="false">Suivi</button>
       <button class="tab" data-view="analyse" aria-selected="false">Analyse</button>
+      <button class="tab" data-view="admin" id="tab-admin-btn" aria-selected="false" hidden>Admin</button>
     </nav>
     <div class="stripe" aria-hidden="true"></div>
   </header>
@@ -138,7 +139,8 @@
           </select>
 
           <label class="field-label" for="fieldModel">Modèle</label>
-          <input type="text" id="fieldModel" name="model" placeholder="Ex : MP C3503" required>
+          <input type="text" id="fieldModel" name="model" list="modelsList" placeholder="Ex : MP C3503" required autocomplete="off">
+          <datalist id="modelsList"></datalist>
 
           <div class="btn-row">
             <button type="button" class="btn-secondary" id="btnCancelForm">Annuler</button>
@@ -174,6 +176,11 @@
       <!-- État : note finale -->
       <div id="state-finish" hidden>
         <form class="form-box" id="finishForm">
+          <div class="field-label">Photo de la machine terminée (optionnel)</div>
+          <input type="file" id="photoFinalInput" accept="image/*" capture="environment" class="visually-hidden">
+          <button type="button" class="photo-btn" id="photoFinalBtn">📷 Prendre / choisir une photo</button>
+          <img class="photo-preview" id="photoFinalPreview" alt="Aperçu de la photo de la machine terminée">
+
           <div class="field-label">Auto-contrôle avant envoi (checklist officielle)</div>
           <ul class="checklist" id="autoControlList">
             <li><label><input type="checkbox"> Propreté intérieur et extérieur</label></li>
@@ -237,7 +244,34 @@
       </div>
     </section>
 
+    <!-- ===================== SECTION : ADMIN ===================== -->
+    <section class="view" id="view-admin" aria-labelledby="tab-admin">
+      <p id="admin-loading" class="loading">Chargement…</p>
+
+      <div id="admin-content" hidden>
+        <div class="summary-grid" id="adminSummaryGrid"></div>
+
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <label for="adminSearch" class="visually-hidden">Rechercher un service</label>
+          <input id="adminSearch" type="text" placeholder="Rechercher (technicien, marque, modèle)..." autocomplete="off">
+        </div>
+
+        <p class="count" id="adminCount" aria-live="polite"></p>
+        <ul id="adminList" class="history-list admin-list"></ul>
+        <p class="empty" id="adminEmpty" hidden>Aucun résultat.</p>
+      </div>
+    </section>
+
   </main>
+
+  <!-- ===================== VISIONNEUSE PHOTO (ADMIN) ===================== -->
+  <div id="lightbox" class="lightbox" hidden>
+    <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Fermer">✕</button>
+    <img id="lightboxImg" alt="Photo agrandie">
+  </div>
 
   </div>
 
