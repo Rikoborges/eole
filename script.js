@@ -443,6 +443,18 @@ async function getCurrentJob(){
   return data ? mapJobFromDb(data) : null;
 }
 
+/* Admin uniquement : avec les données de tous les techniciens, plusieurs services
+   peuvent tourner en même temps (un par technicien), donc pas de .limit(1) ici. */
+async function getAllCurrentJobs(){
+  const { data, error } = await sb
+    .from('jobs')
+    .select('*, job_pauses(*)')
+    .is('finished_at', null)
+    .order('started_at', { ascending: false });
+  if(error){ console.error('Erreur getAllCurrentJobs:', error); return []; }
+  return data.map(mapJobFromDb);
+}
+
 async function getHistory(){
   const { data, error } = await sb
     .from('jobs')
@@ -1114,8 +1126,8 @@ async function initAdmin(){
   document.getElementById('admin-loading').hidden = false;
   document.getElementById('admin-content').hidden = true;
 
-  const [history, current] = await Promise.all([getHistory(), getCurrentJob()]);
-  adminAllJobs = current ? [current, ...history] : history;
+  const [history, currentJobs] = await Promise.all([getHistory(), getAllCurrentJobs()]);
+  adminAllJobs = [...currentJobs, ...history];
 
   renderAdminSummary(adminAllJobs);
   renderAdminList(adminAllJobs);
