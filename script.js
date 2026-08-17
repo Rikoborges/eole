@@ -5,7 +5,11 @@
    ========================================================= */
 
 const SUPABASE_URL = 'https://ddyekeeuaynqipdmlqhq.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_SBtxarlyHjUf8PcsPaik4w_t-CTwkqJ';
+// Clé publique "publishable" (préfixe sb_publishable_) : conçue pour être exposée
+// côté client, comme la clé publique Stripe. Elle n'autorise rien par elle-même —
+// la sécurité réelle des données dépend des politiques Row Level Security (RLS)
+// activées sur les tables "jobs" et "settings" dans le dashboard Supabase.
+const SUPABASE_KEY = 'sb_publishable_SBtxarlyHjUf8PcsPaik4w_t-CTwkqJ'; // gitleaks:allow
 
 if(typeof supabase === 'undefined'){
   const errEl = document.getElementById('authError');
