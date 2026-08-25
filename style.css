@@ -1,6 +1,6 @@
 /* =========================================================
-   EOLE Toolkit — style.css
-   Paleta: petróleo + cobre (inspirada na Koesio, sem copiar)
+   ReproBench — style.css
+   Paleta: petróleo + cobre
    Contraste: mínimo 4.5:1 em todo texto sobre fundo
    Técnicas modernas: oklch(), container queries, :has(), clamp()
    ========================================================= */
@@ -330,11 +330,11 @@ main{
 }
 .photo-link:focus-visible{ outline: 2px solid var(--copper-text); outline-offset: 2px; }
 .photo-link svg{ width: 13px; height: 13px; stroke: var(--copper-text); }
-.eole-photo{
+.ref-photo{
   width: 100%; height: 130px; object-fit: cover; border-radius: 8px;
   margin-top: 9px; display: block; border: 1px solid var(--line);
 }
-.eole-badge{ font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--clean); margin-top: 5px; }
+.ref-badge{ font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--clean); margin-top: 5px; }
 
 .empty, .loading{ text-align: center; color: var(--text-dim); font-size: 14px; padding: 40px 10px; }
 

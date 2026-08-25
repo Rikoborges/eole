@@ -1,5 +1,5 @@
 -- ============================================================
--- EOLE Toolkit — Admin voit tout, chaque technicien ne voit que le sien
+-- ReproBench — Admin voit tout, chaque technicien ne voit que le sien
 --
 -- Comment l'utiliser :
 --   1. Ouvrez le projet sur https://supabase.com/dashboard

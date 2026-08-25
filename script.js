@@ -1,5 +1,5 @@
 /* =========================================================
-   EOLE Toolkit — script.js
+   ReproBench — script.js
    Français en priorité (fr-name), PT/EN en légende
    Registro de Serviço agora usa Supabase (banco Postgres + login)
    ========================================================= */
@@ -99,8 +99,7 @@ initAuth();
 /* ======================= DONNÉES : PIÈCES ======================= */
 const PARTS = [
   { cat:"limpeza", fr:"Tambour", pt:"Tambor", en:"Drum unit", shape:"roller",
-    desc:"Cylindre photosensible qui forme l'image. Très sensible aux rayures et à la lumière directe.",
-    eoleImg:"https://eole.koesio.com/wp-content/uploads/2025/11/tambour.jpg" },
+    desc:"Cylindre photosensible qui forme l'image. Très sensible aux rayures et à la lumière directe." },
   { cat:"limpeza", fr:"Racle de nettoyage", pt:"Lâmina de limpeza", en:"Cleaning blade", shape:"blade", photoQuery:"cleaning blade printer drum part",
     desc:"Racle le toner résiduel du tambour après le transfert." },
   { cat:"limpeza", fr:"Brosse de nettoyage", pt:"Escova de limpeza", en:"Cleaning brush", shape:"brush", photoQuery:"cleaning brush printer copier part",
@@ -119,24 +118,21 @@ const PARTS = [
     desc:"Collecte le toner excédentaire racié du tambour/de la toile." },
 
   { cat:"montagem", fr:"Chargeur automatique de documents (ADF)", pt:"Alimentador automático de documentos", en:"Automatic Document Feeder (ADF)", shape:"tray", photoQuery:"automatic document feeder ADF copier assembly", top:1,
-    desc:"Tire les feuilles automatiquement pour la numérisation/copie. 1ère étape du démontage officiel EOLE." },
+    desc:"Tire les feuilles automatiquement pour la numérisation/copie. 1ère étape du démontage officiel." },
   { cat:"montagem", fr:"Cartouche de toner", pt:"Cartucho de toner", en:"Toner cartridge", shape:"cartridge", photoQuery:"toner cartridge printer part", top:2,
-    desc:"Réservoir de toner qui alimente l'unité d'image. 2ème étape du démontage officiel EOLE." },
+    desc:"Réservoir de toner qui alimente l'unité d'image. 2ème étape du démontage officiel." },
   { cat:"montagem", fr:"Toile de transfert (CTI)", pt:"Correia de transferência", en:"Transfer belt", shape:"belt", top:3,
-    desc:"Transporte l'image de toner jusqu'au papier (équipements couleur). Sigle interne EOLE : \"CTI\". 3ème étape du démontage officiel.",
-    eoleImg:"https://eole.koesio.com/wp-content/uploads/2025/11/Toile-de-transfert.jpg" },
+    desc:"Transporte l'image de toner jusqu'au papier (équipements couleur). Sigle courant : \"CTI\". 3ème étape du démontage officiel." },
   { cat:"montagem", fr:"Bloc développeur (BD)", pt:"Unidade de imagem (bloco developer)", en:"Developer block / imaging unit", shape:"box", top:4,
-    desc:"Ensemble qui applique le toner sur le tambour. Sigle interne EOLE : \"BD\". 4ème étape du démontage officiel.",
-    eoleImg:"https://eole.koesio.com/wp-content/uploads/2025/11/Bloc-Dev.jpg" },
+    desc:"Ensemble qui applique le toner sur le tambour. Sigle courant : \"BD\". 4ème étape du démontage officiel." },
   { cat:"montagem", fr:"Baguette laser", pt:"Barra/unidade laser", en:"Laser scan unit", shape:"laser", top:5,
-    desc:"Unité optique qui trace l'image sur le tambour photosensible. 5ème étape du démontage officiel EOLE — pièce sensible, évitez poussière et rayures sur la vitre de protection." },
+    desc:"Unité optique qui trace l'image sur le tambour photosensible. 5ème étape du démontage officiel — pièce sensible, évitez poussière et rayures sur la vitre de protection." },
   { cat:"montagem", fr:"Four (fusor)", pt:"Fusor", en:"Fuser unit", shape:"box", top:6,
-    desc:"Chauffe et presse le toner sur le papier pour le fixer. Appelé \"four\" en interne à l'EOLE.",
-    eoleImg:"https://eole.koesio.com/wp-content/uploads/2025/11/four.jpg" },
+    desc:"Chauffe et presse le toner sur le papier pour le fixer. Appelé \"four\" dans le jargon technique." },
   { cat:"montagem", fr:"Patin K7", pt:"Patim K7 (separador)", en:"K7 separator pad", shape:"pad", top:7,
-    desc:"Patin séparateur en caoutchouc qui empêche l'entraînement de plusieurs feuilles à la fois depuis le bac principal. Pièce d'usure fréquente — changement systématique au reconditionnement (checklist officielle EOLE)." },
+    desc:"Patin séparateur en caoutchouc qui empêche l'entraînement de plusieurs feuilles à la fois depuis le bac principal. Pièce d'usure fréquente — changement systématique au reconditionnement (checklist officielle)." },
   { cat:"montagem", fr:"Patin ADF", pt:"Patim ADF (separador)", en:"ADF separator pad", shape:"pad", top:8,
-    desc:"Patin séparateur du chargeur automatique de documents (ADF), empêche l'entraînement de plusieurs feuilles pendant la numérisation. Changement systématique au reconditionnement (checklist officielle EOLE)." },
+    desc:"Patin séparateur du chargeur automatique de documents (ADF), empêche l'entraînement de plusieurs feuilles pendant la numérisation. Changement systématique au reconditionnement (checklist officielle)." },
   { cat:"montagem", fr:"Rouleau du four", pt:"Rolo do fusor", en:"Fuser roller", shape:"roller", photoQuery:"fuser roller printer part",
     desc:"Rouleau chauffant/presseur à l'intérieur du four." },
   { cat:"montagem", fr:"Rouleau de transfert", pt:"Rolo de transferência", en:"Transfer roller", shape:"roller", photoQuery:"transfer roller printer part", top:9,
@@ -154,18 +150,16 @@ const PARTS = [
   { cat:"montagem", fr:"Nappe / câble plat", pt:"Cabo flat / nappe", en:"Flat cable / ribbon cable", shape:"cable", photoQuery:"flat ribbon cable printer part",
     desc:"Câble plat qui relie les cartes aux capteurs/moteurs." },
   { cat:"montagem", fr:"Vis", pt:"Parafuso", en:"Screw", shape:"screw", photoQuery:"printer copier screw part kit",
-    desc:"Fixation standard des châssis et modules. Vérifier en particulier la vis de fixation du socle K7 (checklist officielle EOLE)." },
+    desc:"Fixation standard des châssis et modules. Vérifier en particulier la vis de fixation du socle K7 (checklist officielle)." },
   { cat:"montagem", fr:"Châssis", pt:"Chassi", en:"Chassis / frame", shape:"frame", photoQuery:"printer copier chassis frame part",
     desc:"Structure métallique/plastique qui soutient tous les modules." },
   { cat:"montagem", fr:"Kit d'entretien", pt:"Kit de manutenção", en:"Maintenance kit", shape:"box", photoQuery:"maintenance kit printer copier",
     desc:"Ensemble de pièces d'usure remplacées ensemble (rouleaux, four, etc.)." },
   { cat:"montagem", fr:"Écran / panneau de contrôle", pt:"Painel de controle", en:"Control panel", shape:"screen", top:10,
-    desc:"Écran/clavier de commande de l'équipement.",
-    eoleImg:"https://eole.koesio.com/wp-content/uploads/2025/11/Ecran.jpg" },
+    desc:"Écran/clavier de commande de l'équipement." },
 
   { cat:"eletrica", fr:"Carte mère", pt:"Placa-mãe", en:"Mainboard", shape:"board",
-    desc:"Carte principale qui contrôle toute la machine. Terme court utilisé à l'EOLE : \"carte\".",
-    eoleImg:"https://eole.koesio.com/wp-content/uploads/2025/11/carte.jpg" },
+    desc:"Carte principale qui contrôle toute la machine. Terme courant : \"carte\"." },
   { cat:"eletrica", fr:"Carte contrôleur", pt:"Placa controladora", en:"Controller board", shape:"board", photoQuery:"controller board printer copier part",
     desc:"Contrôle des modules spécifiques (image, moteur, réseau)." },
   { cat:"eletrica", fr:"Bloc d'alimentation", pt:"Fonte de alimentação", en:"Power supply unit (PSU)", shape:"plug", photoQuery:"power supply unit printer copier part",
@@ -363,11 +357,11 @@ function renderParts(){
 
     const photoQuery = encodeURIComponent(p.photoQuery || `${p.en} printer part`);
     const photoUrl = `https://www.google.com/search?tbm=isch&q=${photoQuery}`;
-    const photoBlock = p.eoleImg
-      ? `<a href="${p.eoleImg}" target="_blank" rel="noopener">
-           <img class="eole-photo" src="${p.eoleImg}" alt="${p.fr}" loading="lazy">
+    const photoBlock = p.refPhoto
+      ? `<a href="${p.refPhoto}" target="_blank" rel="noopener">
+           <img class="ref-photo" src="${p.refPhoto}" alt="${p.fr}" loading="lazy">
          </a>
-         <p class="eole-badge">📷 photo officielle EOLE (nécessite internet)</p>`
+         <p class="ref-badge">📷 photo de référence (nécessite internet)</p>`
       : `<a class="photo-link" href="${photoUrl}" target="_blank" rel="noopener">
            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
