@@ -676,6 +676,7 @@ async function initRegistro(){
   wireFormEvents();
   wireRunningStaticEvents();
   wireFinishEvents();
+  wireExportEvent();
   await refreshIdleView();
 }
 
@@ -753,6 +754,65 @@ async function refreshIdleView(){
   clearInterval(tickInterval);
   showState('idle');
   document.getElementById('reg-loading').hidden = true;
+}
+
+/* --- Export RGPD : mes propres données, au format JSON --- */
+function wireExportEvent(){
+  document.getElementById('btnExportData').addEventListener('click', async () => {
+    const btn = document.getElementById('btnExportData');
+    btn.disabled = true;
+    btn.textContent = 'Préparation…';
+    try{
+      await exportMyData();
+    }catch(err){
+      console.error('Erreur export RGPD:', err);
+      alert('Impossible de préparer l\'export. Réessayez.');
+    }finally{
+      btn.disabled = false;
+      btn.textContent = '⬇ Exporter mes données';
+    }
+  });
+}
+
+async function exportMyData(){
+  const { data: userData } = await sb.auth.getUser();
+  const [current, history, lastName] = await Promise.all([
+    getCurrentJob(),
+    getHistory(),
+    getSetting('last_name')
+  ]);
+
+  const jobs = current ? [current, ...history] : history;
+
+  const payload = {
+    exported_at: new Date().toISOString(),
+    account_email: userData.user.email,
+    saved_name_preference: lastName || null,
+    // Les photos ne sont pas incluses ici (liens temporaires, pas de fichier stable) —
+    // demandez-les séparément si besoin.
+    services: jobs.map(j => ({
+      id: j.id,
+      technician_name: j.name,
+      brand: j.brand,
+      model: j.model,
+      started_at: j.startedAt,
+      finished_at: j.finishedAt,
+      active_seconds: j.activeSeconds,
+      note: j.note,
+      has_initial_photo: !!j.photoBase64,
+      has_final_photo: !!j.photoFinalBase64
+    }))
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mes-donnees-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /* --- Formulaire "Nouveau Service" --- */

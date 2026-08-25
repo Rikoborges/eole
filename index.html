@@ -39,6 +39,12 @@
       <p class="auth-error" id="authError" hidden></p>
 
       <button type="button" class="btn-primary auth-btn-full" id="btnLogin">Se connecter</button>
+
+      <details class="guide privacy-note">
+        <summary>Confidentialité de vos données <span class="chev">›</span></summary>
+        <p>Cette application enregistre votre nom, les marques/modèles des machines traitées, les horaires de service, vos notes et les photos que vous ajoutez (bon de commande, machine terminée). Ces données servent au suivi interne des services et à l'analyse d'activité, et ne sont visibles que par vous et les comptes administrateurs.</p>
+        <p>Vous pouvez exporter vos propres données à tout moment depuis l'onglet <b>Suivi</b> une fois connecté(e). Pour toute question, contactez la personne responsable de cette application.</p>
+      </details>
     </div>
   </div>
 
@@ -117,6 +123,10 @@
         <h2 class="hist-label">Historique</h2>
         <ul id="history-list" class="history-list"></ul>
         <p class="empty" id="history-empty" hidden>Aucun service enregistré pour l'instant.</p>
+
+        <div class="account-box">
+          <button type="button" class="btn-export" id="btnExportData">⬇ Exporter mes données</button>
+        </div>
       </div>
 
       <!-- État : formulaire de nouveau service -->

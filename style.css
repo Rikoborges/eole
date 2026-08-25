@@ -591,6 +591,21 @@ textarea{ resize: vertical; min-height: 70px; }
 }
 .auth-btn-full{ width: 100%; margin-top: 16px; }
 
+.privacy-note{ text-align: left; margin: 16px 0 0; }
+.privacy-note p{ font-size: 13px; line-height: 19px; color: var(--text-dim); margin: 10px 0 0; }
+.privacy-note p:first-of-type{ margin-top: 12px; }
+.privacy-note b{ color: var(--copper-text); }
+
+.account-box{ margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.btn-export{
+  display: block; width: 100%; padding: 12px;
+  min-height: var(--touch-min); background: transparent;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;
+  cursor: pointer;
+}
+.btn-export:hover, .btn-export:focus-visible{ border-color: var(--copper); color: var(--copper-text); }
+
 .checklist{
   list-style: none;
   margin: 0 0 4px;
