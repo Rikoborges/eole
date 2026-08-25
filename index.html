@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EOLE Toolkit</title>
+  <title>ReproBench</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
@@ -13,7 +13,7 @@
     script-src 'self' https://cdn.jsdelivr.net;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src https://fonts.gstatic.com;
-    img-src 'self' data: https://eole.koesio.com https://*.supabase.co;
+    img-src 'self' data: https://*.supabase.co;
     connect-src 'self' https://ddyekeeuaynqipdmlqhq.supabase.co;
     frame-ancestors 'none';
     base-uri 'self';
@@ -25,9 +25,9 @@
   <!-- ===================== ÉCRAN DE CONNEXION ===================== -->
   <div id="auth-gate">
     <div class="auth-box">
-      <div class="auth-mark" aria-hidden="true">E</div>
-      <p class="eyebrow">EOLE · Koesio</p>
-      <h1>EOLE Toolkit</h1>
+      <div class="auth-mark" aria-hidden="true">R</div>
+      <p class="eyebrow">Reconditionnement</p>
+      <h1>ReproBench</h1>
       <p class="sub">Connectez-vous pour accéder à vos données</p>
 
       <label class="field-label" for="authEmail">Email</label>
@@ -53,8 +53,8 @@
           <path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>
         </svg>
       </button>
-      <p class="eyebrow">EOLE · Koesio · Reconditionnement</p>
-      <h1>EOLE Toolkit</h1>
+      <p class="eyebrow">Reconditionnement · Suivi</p>
+      <h1>ReproBench</h1>
       <p class="sub">Pièces de référence + suivi de service</p>
     </div>
 
@@ -62,6 +62,7 @@
       <button class="tab active" data-view="pecas" aria-selected="true">Pièces</button>
       <button class="tab" data-view="registro" aria-selected="false">Suivi</button>
       <button class="tab" data-view="analyse" aria-selected="false">Analyse</button>
+      <button class="tab" data-view="admin" id="tab-admin-btn" aria-selected="false" hidden>Admin</button>
     </nav>
     <div class="stripe" aria-hidden="true"></div>
   </header>
@@ -96,7 +97,7 @@
           <li><b>Avant de remonter :</b> vérifiez que les contacts électriques sont propres et secs, les ressorts bien en place, et qu'aucune vis ne manque.</li>
           <li><b>Pièce incertaine :</b> en cas de doute sur le nom ou la fonction, vérifiez avec votre responsable.</li>
         </ol>
-        <p class="note">L'auto-contrôle complet (checklist officielle EOLE) apparaît à la fin du service, dans l'onglet Suivi.</p>
+        <p class="note">L'auto-contrôle complet (checklist officielle) apparaît à la fin du service, dans l'onglet Suivi.</p>
       </details>
 
       <p class="count" id="count" aria-live="polite"></p>
@@ -138,7 +139,8 @@
           </select>
 
           <label class="field-label" for="fieldModel">Modèle</label>
-          <input type="text" id="fieldModel" name="model" placeholder="Ex : MP C3503" required>
+          <input type="text" id="fieldModel" name="model" list="modelsList" placeholder="Ex : MP C3503" required autocomplete="off">
+          <datalist id="modelsList"></datalist>
 
           <div class="btn-row">
             <button type="button" class="btn-secondary" id="btnCancelForm">Annuler</button>
@@ -174,6 +176,11 @@
       <!-- État : note finale -->
       <div id="state-finish" hidden>
         <form class="form-box" id="finishForm">
+          <div class="field-label">Photo de la machine terminée (optionnel)</div>
+          <input type="file" id="photoFinalInput" accept="image/*" capture="environment" class="visually-hidden">
+          <button type="button" class="photo-btn" id="photoFinalBtn">📷 Prendre / choisir une photo</button>
+          <img class="photo-preview" id="photoFinalPreview" alt="Aperçu de la photo de la machine terminée">
+
           <div class="field-label">Auto-contrôle avant envoi (checklist officielle)</div>
           <ul class="checklist" id="autoControlList">
             <li><label><input type="checkbox"> Propreté intérieur et extérieur</label></li>
@@ -191,7 +198,7 @@
           </ul>
           <p class="checklist-count" id="checklistCount">0 / 12 vérifiés</p>
 
-          <label class="field-label" for="finishEtape">Étape (officielle EOLE)</label>
+          <label class="field-label" for="finishEtape">Étape (officielle)</label>
           <select id="finishEtape">
             <option value="">— Aucune / autre —</option>
             <option value="Vaisselle des carters démontés">Vaisselle des carters démontés</option>
@@ -237,7 +244,34 @@
       </div>
     </section>
 
+    <!-- ===================== SECTION : ADMIN ===================== -->
+    <section class="view" id="view-admin" aria-labelledby="tab-admin">
+      <p id="admin-loading" class="loading">Chargement…</p>
+
+      <div id="admin-content" hidden>
+        <div class="summary-grid" id="adminSummaryGrid"></div>
+
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <label for="adminSearch" class="visually-hidden">Rechercher un service</label>
+          <input id="adminSearch" type="text" placeholder="Rechercher (technicien, marque, modèle)..." autocomplete="off">
+        </div>
+
+        <p class="count" id="adminCount" aria-live="polite"></p>
+        <ul id="adminList" class="history-list admin-list"></ul>
+        <p class="empty" id="adminEmpty" hidden>Aucun résultat.</p>
+      </div>
+    </section>
+
   </main>
+
+  <!-- ===================== VISIONNEUSE PHOTO (ADMIN) ===================== -->
+  <div id="lightbox" class="lightbox" hidden>
+    <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Fermer">✕</button>
+    <img id="lightboxImg" alt="Photo agrandie">
+  </div>
 
   </div>
 
