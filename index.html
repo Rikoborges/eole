@@ -211,12 +211,21 @@
           <label class="field-label" for="finishEtape">Étape (officielle)</label>
           <select id="finishEtape">
             <option value="">— Aucune / autre —</option>
+            <option value="Test machine + effacement des données">Test machine + effacement des données</option>
+            <option value="Démontage des carters">Démontage des carters</option>
             <option value="Vaisselle des carters démontés">Vaisselle des carters démontés</option>
             <option value="Nettoyage du multifonction + Remise en état complet">Nettoyage du multifonction + Remise en état complet</option>
+            <option value="Partie technique machine nettoyée">Partie technique machine nettoyée</option>
+            <option value="Partie technique machine FULL">Partie technique machine FULL</option>
+            <option value="Contrôle qualité">Contrôle qualité</option>
+            <option value="Saisie dans SAGE">Saisie dans SAGE</option>
             <option value="Emballage">Emballage</option>
-            <option value="5S">5S</option>
+            <option value="Installation imprimante neuve">Installation imprimante neuve</option>
+            <option value="Mise en route imprimante neuve">Mise en route imprimante neuve</option>
             <option value="Réunion">Réunion</option>
             <option value="Formation">Formation</option>
+            <option value="Congés">Congés</option>
+            <option value="5S">5S</option>
           </select>
 
           <label class="field-label" for="finishNote">Qu'avez-vous fait ? (facultatif)</label>
@@ -250,6 +259,11 @@
         <div class="chart-box">
           <h2 class="hist-label">Répartition par marque</h2>
           <div id="brandChart"></div>
+        </div>
+
+        <div class="chart-box">
+          <h2 class="hist-label">Répartition par étape</h2>
+          <div id="etapeChart"></div>
         </div>
       </div>
     </section>

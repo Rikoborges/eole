@@ -471,6 +471,7 @@ function mapJobFromDb(row){
     finishedAt: row.finished_at,
     activeSeconds: row.active_seconds,
     note: row.note,
+    etape: row.etape,
     pausedIntervals: (row.job_pauses || []).map(p => ({
       id: p.id, start: p.start_at, end: p.end_at, label: p.label
     })),
@@ -513,8 +514,8 @@ async function closeOpenPause(jobId, endAt){
   if(error) console.error('Erreur closeOpenPause:', error);
 }
 
-async function finishJobInDb(jobId, finishedAt, activeSeconds, note, photoFinalUrl){
-  const fields = { finished_at: finishedAt, active_seconds: Math.round(activeSeconds), note };
+async function finishJobInDb(jobId, finishedAt, activeSeconds, note, etape, photoFinalUrl){
+  const fields = { finished_at: finishedAt, active_seconds: Math.round(activeSeconds), note, etape: etape || null };
   if(photoFinalUrl) fields.photo_url_final = photoFinalUrl;
   const { error } = await sb.from('jobs').update(fields).eq('id', jobId);
   if(error) console.error('Erreur finishJobInDb:', error);
@@ -717,6 +718,7 @@ async function refreshIdleView(){
       <div class="job-info">
         <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
         <p class="job-meta">${fmtHShort(job.activeSeconds)} · ${dateStr}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
+        ${job.etape ? `<p class="job-etape">${escapeHtml(job.etape)}</p>` : ''}
         ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
       </div>
       <div class="job-actions">
@@ -798,6 +800,7 @@ async function exportMyData(){
       started_at: j.startedAt,
       finished_at: j.finishedAt,
       active_seconds: j.activeSeconds,
+      etape: j.etape,
       note: j.note,
       has_initial_photo: !!j.photoBase64,
       has_final_photo: !!j.photoFinalBase64
@@ -1006,14 +1009,13 @@ function wireFinishEvents(){
 
     const activeSeconds = getActiveSeconds(current, now);
     const etape = document.getElementById('finishEtape').value;
-    const noteText = document.getElementById('finishNote').value.trim();
-    const note = etape ? `${etape}${noteText ? ' — ' + noteText : ''}` : noteText;
+    const note = document.getElementById('finishNote').value.trim();
 
     let photoFinalUrl = null;
     if(pendingPhotoFinalBase64){
       photoFinalUrl = await uploadJobPhoto('tmp_final_' + Date.now(), pendingPhotoFinalBase64);
     }
-    await finishJobInDb(current.id, now.toISOString(), activeSeconds, note, photoFinalUrl);
+    await finishJobInDb(current.id, now.toISOString(), activeSeconds, note, etape, photoFinalUrl);
     pendingPhotoFinalBase64 = null;
 
     submitBtn.disabled = false;
@@ -1040,6 +1042,7 @@ async function initAnalyse(){
   renderSummary(cachedHistory);
   renderTimeChart(currentPeriod);
   renderBrandChart(cachedHistory);
+  renderEtapeChart(cachedHistory);
 
   if(!analyseInited){
     analyseInited = true;
@@ -1172,6 +1175,30 @@ function renderBrandChart(history){
   `).join('');
 }
 
+function renderEtapeChart(history){
+  const counts = {};
+  history.forEach(job => { if(job.etape) counts[job.etape] = (counts[job.etape] || 0) + 1; });
+  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+  const etapeChartEl = document.getElementById('etapeChart');
+  if(entries.length === 0){
+    etapeChartEl.innerHTML = `<p class="empty">Aucune étape enregistrée pour l'instant.</p>`;
+    return;
+  }
+
+  const max = Math.max(...entries.map(e => e[1]));
+  etapeChartEl.innerHTML = entries.map(([etape, count]) => `
+    <div class="hbar-row">
+      <span class="hbar-label">${escapeHtml(etape)}</span>
+      <div class="hbar-track">
+        <div class="hbar-fill" style="width:${(count / max) * 100}%">
+          <span class="hbar-count">${count}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
 /* ======================= ADMIN (vue d'ensemble équipe) ======================= */
 let adminInited = false;
 let adminAllJobs = [];
@@ -1224,7 +1251,7 @@ function renderAdminList(jobs){
   const q = normalize(document.getElementById('adminSearch').value.trim());
   const filtered = jobs.filter(j => {
     if(!q) return true;
-    return normalize(`${j.name || ''} ${j.brand || ''} ${j.model || ''} ${j.note || ''}`).includes(q);
+    return normalize(`${j.name || ''} ${j.brand || ''} ${j.model || ''} ${j.etape || ''} ${j.note || ''}`).includes(q);
   });
 
   const listEl3 = document.getElementById('adminList');
@@ -1256,6 +1283,7 @@ function renderAdminList(jobs){
       <div class="job-info">
         <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
         <p class="job-meta">${metaParts.join(' · ')}</p>
+        ${job.etape ? `<p class="job-etape">${escapeHtml(job.etape)}</p>` : ''}
         ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
       </div>`;
     listEl3.appendChild(li);
