@@ -425,27 +425,26 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 /* --- Accès aux données (Supabase / Postgres) --- */
 
-async function getCurrentJob(){
+async function getJobById(id){
   const { data, error } = await sb
     .from('jobs')
     .select('*, job_pauses(*)')
-    .is('finished_at', null)
-    .order('started_at', { ascending: false })
-    .limit(1)
+    .eq('id', id)
     .maybeSingle();
-  if(error){ console.error('Erreur getCurrentJob:', error); return null; }
+  if(error){ console.error('Erreur getJobById:', error); return null; }
   return data ? mapJobFromDb(data) : null;
 }
 
-/* Admin uniquement : avec les données de tous les techniciens, plusieurs services
-   peuvent tourner en même temps (un par technicien), donc pas de .limit(1) ici. */
-async function getAllCurrentJobs(){
+/* Tous les services non terminés visibles pour l'utilisateur connecté — un
+   technicien peut avoir plusieurs services ouverts (un en cours, d'autres en
+   pause) ; un admin voit ceux de toute l'équipe grâce aux policies RLS. */
+async function getOpenJobs(){
   const { data, error } = await sb
     .from('jobs')
     .select('*, job_pauses(*)')
     .is('finished_at', null)
     .order('started_at', { ascending: false });
-  if(error){ console.error('Erreur getAllCurrentJobs:', error); return []; }
+  if(error){ console.error('Erreur getOpenJobs:', error); return []; }
   return data.map(mapJobFromDb);
 }
 
@@ -472,6 +471,7 @@ function mapJobFromDb(row){
     activeSeconds: row.active_seconds,
     note: row.note,
     etape: row.etape,
+    quantite: row.quantite,
     pausedIntervals: (row.job_pauses || []).map(p => ({
       id: p.id, start: p.start_at, end: p.end_at, label: p.label
     })),
@@ -514,8 +514,8 @@ async function closeOpenPause(jobId, endAt){
   if(error) console.error('Erreur closeOpenPause:', error);
 }
 
-async function finishJobInDb(jobId, finishedAt, activeSeconds, note, etape, photoFinalUrl){
-  const fields = { finished_at: finishedAt, active_seconds: Math.round(activeSeconds), note, etape: etape || null };
+async function finishJobInDb(jobId, finishedAt, activeSeconds, note, etape, quantite, photoFinalUrl){
+  const fields = { finished_at: finishedAt, active_seconds: Math.round(activeSeconds), note, etape: etape || null, quantite: quantite ?? null };
   if(photoFinalUrl) fields.photo_url_final = photoFinalUrl;
   const { error } = await sb.from('jobs').update(fields).eq('id', jobId);
   if(error) console.error('Erreur finishJobInDb:', error);
@@ -664,6 +664,7 @@ let regInited = false;
 let tickInterval = null;
 let pendingPhotoBase64 = null;
 let pendingPhotoFinalBase64 = null;
+let activeJobId = null;
 
 function showState(name){
   ['idle', 'form', 'running', 'finish'].forEach(s => {
@@ -681,15 +682,56 @@ async function initRegistro(){
   await refreshIdleView();
 }
 
+function renderPausedList(pausedJobs){
+  const section = document.getElementById('paused-section');
+  const listEl = document.getElementById('paused-list');
+  section.hidden = pausedJobs.length === 0;
+  listEl.innerHTML = '';
+
+  pausedJobs.forEach(job => {
+    const li = document.createElement('li');
+    li.className = 'job-card';
+    const thumb = job.photoBase64
+      ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoBase64)}" alt="Photo du bon">`
+      : `<div class="job-thumb" aria-hidden="true">📷</div>`;
+    const lastPause = job.pausedIntervals[job.pausedIntervals.length - 1];
+    li.innerHTML = `
+      <div class="job-thumbs">${thumb}</div>
+      <div class="job-info">
+        <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
+        <p class="job-meta">⏸ ${lastPause ? escapeHtml(lastPause.label) : 'En pause'}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
+      </div>
+      <div class="job-actions">
+        <button type="button" class="btn-resume" data-id="${job.id}">▶ Reprendre</button>
+      </div>`;
+    listEl.appendChild(li);
+  });
+
+  listEl.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const job = pausedJobs.find(j => j.id === btn.dataset.id);
+      if(job) showRunning(job);
+    });
+  });
+
+  listEl.querySelectorAll('img[data-photo-path]').forEach(async (img) => {
+    const url = await resolvePhotoUrl(img.dataset.photoPath);
+    if(url) img.src = url;
+  });
+}
+
 async function refreshIdleView(){
   document.getElementById('reg-loading').hidden = false;
 
-  const current = await getCurrentJob();
-  if(current){
+  const openJobs = await getOpenJobs();
+  const running = openJobs.find(j => j.status === 'running');
+  if(running){
     document.getElementById('reg-loading').hidden = true;
-    showRunning(current);
+    showRunning(running);
     return;
   }
+
+  renderPausedList(openJobs.filter(j => j.status === 'paused'));
 
   const history = await getHistory();
   const todayStr = new Date().toDateString();
@@ -718,7 +760,7 @@ async function refreshIdleView(){
       <div class="job-info">
         <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
         <p class="job-meta">${fmtHShort(job.activeSeconds)} · ${dateStr}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
-        ${job.etape ? `<p class="job-etape">${escapeHtml(job.etape)}</p>` : ''}
+        ${job.etape ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
         ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
       </div>
       <div class="job-actions">
@@ -778,13 +820,13 @@ function wireExportEvent(){
 
 async function exportMyData(){
   const { data: userData } = await sb.auth.getUser();
-  const [current, history, lastName] = await Promise.all([
-    getCurrentJob(),
+  const [openJobs, history, lastName] = await Promise.all([
+    getOpenJobs(),
     getHistory(),
     getSetting('last_name')
   ]);
 
-  const jobs = current ? [current, ...history] : history;
+  const jobs = [...openJobs, ...history];
 
   const payload = {
     exported_at: new Date().toISOString(),
@@ -801,6 +843,7 @@ async function exportMyData(){
       finished_at: j.finishedAt,
       active_seconds: j.activeSeconds,
       etape: j.etape,
+      quantite: j.quantite,
       note: j.note,
       has_initial_photo: !!j.photoBase64,
       has_final_photo: !!j.photoFinalBase64
@@ -890,6 +933,7 @@ function wireFormEvents(){
 /* --- Écran cronomètre --- */
 function showRunning(job){
   showState('running');
+  activeJobId = job.id;
 
   const thumb = document.getElementById('runningThumb');
   thumb.removeAttribute('src');
@@ -913,7 +957,7 @@ function showRunning(job){
     } else {
       await closeOpenPause(job.id, new Date().toISOString());
     }
-    const fresh = await getCurrentJob();
+    const fresh = await getJobById(job.id);
     btn.disabled = false;
     if(fresh) showRunning(fresh);
   };
@@ -923,15 +967,27 @@ function showRunning(job){
       if(job.status === 'paused') return;
       btn.disabled = true;
       await addPause(job.id, btn.dataset.label, new Date().toISOString());
-      const fresh = await getCurrentJob();
+      const fresh = await getJobById(job.id);
       btn.disabled = false;
       if(fresh) showRunning(fresh);
     };
   });
 
+  document.getElementById('btnSwitchService').onclick = async () => {
+    const btn = document.getElementById('btnSwitchService');
+    btn.disabled = true;
+    if(job.status === 'running'){
+      await addPause(job.id, 'Changement de service', new Date().toISOString());
+    }
+    clearInterval(tickInterval);
+    btn.disabled = false;
+    refreshIdleView();
+  };
+
   document.getElementById('btnFinish').onclick = () => {
     document.getElementById('finishNote').value = '';
     document.getElementById('finishEtape').value = '';
+    document.getElementById('finishQte').value = '';
     document.querySelectorAll('#autoControlList input[type="checkbox"]').forEach(cb => cb.checked = false);
     pendingPhotoFinalBase64 = null;
     document.getElementById('photoFinalPreview').removeAttribute('src');
@@ -987,7 +1043,7 @@ function wireFinishEvents(){
   });
 
   document.getElementById('btnBackToRunning').addEventListener('click', async () => {
-    const current = await getCurrentJob();
+    const current = await getJobById(activeJobId);
     if(current) showRunning(current);
   });
 
@@ -997,7 +1053,7 @@ function wireFinishEvents(){
     submitBtn.disabled = true;
     submitBtn.textContent = 'Enregistrement…';
 
-    const current = await getCurrentJob();
+    const current = await getJobById(activeJobId);
     if(!current){ submitBtn.disabled = false; submitBtn.textContent = 'Enregistrer'; return; }
 
     const now = new Date();
@@ -1009,14 +1065,17 @@ function wireFinishEvents(){
 
     const activeSeconds = getActiveSeconds(current, now);
     const etape = document.getElementById('finishEtape').value;
+    const qteRaw = document.getElementById('finishQte').value;
+    const quantite = qteRaw !== '' ? parseInt(qteRaw, 10) : null;
     const note = document.getElementById('finishNote').value.trim();
 
     let photoFinalUrl = null;
     if(pendingPhotoFinalBase64){
       photoFinalUrl = await uploadJobPhoto('tmp_final_' + Date.now(), pendingPhotoFinalBase64);
     }
-    await finishJobInDb(current.id, now.toISOString(), activeSeconds, note, etape, photoFinalUrl);
+    await finishJobInDb(current.id, now.toISOString(), activeSeconds, note, etape, quantite, photoFinalUrl);
     pendingPhotoFinalBase64 = null;
+    activeJobId = null;
 
     submitBtn.disabled = false;
     submitBtn.textContent = 'Enregistrer';
@@ -1207,7 +1266,7 @@ async function initAdmin(){
   document.getElementById('admin-loading').hidden = false;
   document.getElementById('admin-content').hidden = true;
 
-  const [history, currentJobs] = await Promise.all([getHistory(), getAllCurrentJobs()]);
+  const [history, currentJobs] = await Promise.all([getHistory(), getOpenJobs()]);
   adminAllJobs = [...currentJobs, ...history];
 
   renderAdminSummary(adminAllJobs);
@@ -1283,7 +1342,7 @@ function renderAdminList(jobs){
       <div class="job-info">
         <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
         <p class="job-meta">${metaParts.join(' · ')}</p>
-        ${job.etape ? `<p class="job-etape">${escapeHtml(job.etape)}</p>` : ''}
+        ${job.etape ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
         ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
       </div>`;
     listEl3.appendChild(li);

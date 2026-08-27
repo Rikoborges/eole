@@ -120,6 +120,11 @@
         <p class="today-total">Aujourd'hui : <b id="today-total-val">0h00</b> travaillées</p>
         <button class="btn-new" id="btnNewJob" type="button">+ Nouveau Service</button>
 
+        <div id="paused-section" hidden>
+          <h2 class="hist-label">Services en pause</h2>
+          <ul id="paused-list" class="history-list"></ul>
+        </div>
+
         <h2 class="hist-label">Historique</h2>
         <ul id="history-list" class="history-list"></ul>
         <p class="empty" id="history-empty" hidden>Aucun service enregistré pour l'instant.</p>
@@ -172,6 +177,7 @@
             <p class="timer-status" id="timerStatus">● En cours</p>
           </div>
           <div class="actions-col">
+            <button class="btn-switch" id="btnSwitchService" type="button">↩ Mettre en pause et voir mes services</button>
             <div class="shortcut-row">
               <button class="btn-shortcut" data-label="Matin" type="button">☕ Matin</button>
               <button class="btn-shortcut" data-label="Déjeuner" type="button">🍽 Déjeuner</button>
@@ -227,6 +233,9 @@
             <option value="Congés">Congés</option>
             <option value="5S">5S</option>
           </select>
+
+          <label class="field-label" for="finishQte">Quantité (QTE, facultatif)</label>
+          <input type="number" id="finishQte" min="0" step="1" placeholder="Ex : 1">
 
           <label class="field-label" for="finishNote">Qu'avez-vous fait ? (facultatif)</label>
           <textarea id="finishNote" placeholder="Ex : remplacement du rouleau de transfert, nettoyage du tambour…"></textarea>

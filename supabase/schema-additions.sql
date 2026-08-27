@@ -10,3 +10,6 @@ alter table jobs add column if not exists photo_url_final text;
 
 -- Etapa oficial selecionada no fim do serviço (antes ficava colada no note)
 alter table jobs add column if not exists etape text;
+
+-- Quantidade (coluna QTE do formulário em papel), ligada à etapa escolhida
+alter table jobs add column if not exists quantite integer;
