@@ -26,6 +26,11 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
    une organisation de l'écran. */
 const ADMIN_EMAILS = ['rico3036@gmail.com'];
 
+/* Désactivé temporairement pendant qu'on règle le Storage (photos manquantes
+   dans le bucket "job-photos"). Remettre à true pour réactiver la capture
+   et l'affichage des photos — tout le code reste en place, rien n'est perdu. */
+const PHOTOS_ENABLED = false;
+
 function updateAdminTabVisibility(email){
   const isAdmin = !!email && ADMIN_EMAILS.some(e => e.toLowerCase() === email.toLowerCase());
   document.getElementById('tab-admin-btn').hidden = !isAdmin;
@@ -578,12 +583,24 @@ async function uploadJobPhoto(jobIdOrTemp, base64DataUrl){
   return path; // guardamos só o caminho — o link de exibição é gerado na hora, temporário
 }
 
-/* Bucket privado: gera um link temporário (1h) só quando for exibir a foto */
+/* Bucket privado: gère un lien temporaire (1h) só quando for exibir a foto */
 async function resolvePhotoUrl(path){
   if(!path) return null;
   const { data, error } = await sb.storage.from('job-photos').createSignedUrl(path, 3600);
   if(error){ console.error('Erreur resolvePhotoUrl:', error); return null; }
   return data.signedUrl;
+}
+
+/* Si la photo ne peut pas être résolue (fichier manquant, etc.), remplace
+   l'<img> par un placeholder au lieu de laisser une image vide/cassée. */
+function showResolvedPhoto(img, url){
+  if(url){ img.src = url; return; }
+  const placeholder = document.createElement('div');
+  placeholder.className = img.className;
+  placeholder.setAttribute('aria-hidden', 'true');
+  placeholder.title = 'Photo indisponible';
+  placeholder.textContent = '📷';
+  img.replaceWith(placeholder);
 }
 
 /* --- Temps : calcul par timestamp réel, jamais par compteur --- */
@@ -724,7 +741,7 @@ function renderPausedList(pausedJobs){
       : `<div class="job-thumb" aria-hidden="true">📷</div>`;
     const lastPause = job.pausedIntervals[job.pausedIntervals.length - 1];
     li.innerHTML = `
-      <div class="job-thumbs">${thumb}</div>
+      ${PHOTOS_ENABLED ? `<div class="job-thumbs">${thumb}</div>` : ''}
       <div class="job-info">
         <p class="job-model">${jobTitleLine(job)}</p>
         <p class="job-meta">⏸ ${lastPause ? escapeHtml(lastPause.label) : 'En pause'}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
@@ -784,7 +801,7 @@ async function refreshIdleView(){
       ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoFinalBase64)}" alt="Photo machine terminée">`
       : '';
     li.innerHTML = `
-      <div class="job-thumbs">${thumb}${thumbFinal}</div>
+      ${PHOTOS_ENABLED ? `<div class="job-thumbs">${thumb}${thumbFinal}</div>` : ''}
       <div class="job-info">
         <p class="job-model">${jobTitleLine(job)}</p>
         <p class="job-meta">${job.activeSeconds ? fmtHShort(job.activeSeconds) + ' · ' : ''}${dateStr}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
@@ -891,6 +908,7 @@ async function exportMyData(){
 
 /* --- Formulaire "Nouveau Service" --- */
 function wireFormEvents(){
+  document.getElementById('photoCaptureBlock').hidden = !PHOTOS_ENABLED;
   document.getElementById('btnNewJob').addEventListener('click', async () => {
     pendingPhotoBase64 = null;
     const preview = document.getElementById('photoPreview');
@@ -1013,7 +1031,7 @@ function showRunning(job){
 
   const thumb = document.getElementById('runningThumb');
   thumb.removeAttribute('src');
-  if(job.photoBase64){
+  if(PHOTOS_ENABLED && job.photoBase64){
     resolvePhotoUrl(job.photoBase64).then(url => { if(url) thumb.src = url; });
   }
 
@@ -1104,6 +1122,7 @@ function updateChecklistCount(){
 }
 
 function wireFinishEvents(){
+  document.getElementById('photoFinalBlock').hidden = !PHOTOS_ENABLED;
   document.getElementById('autoControlList').addEventListener('change', updateChecklistCount);
 
   document.getElementById('photoFinalBtn').addEventListener('click', () => {
@@ -1421,7 +1440,7 @@ function renderAdminList(jobs){
     metaParts.push(isRunning ? '● en cours' : dateStr);
 
     li.innerHTML = `
-      <div class="job-thumbs">${thumb}${thumbFinal}</div>
+      ${PHOTOS_ENABLED ? `<div class="job-thumbs">${thumb}${thumbFinal}</div>` : ''}
       <div class="job-info">
         <p class="job-model">${jobTitleLine(job)}</p>
         <p class="job-meta">${metaParts.join(' · ')}</p>
