@@ -12,6 +12,10 @@ App pessoal de apoio para trabalho de reconditionnement de impressoras/copiadora
 Abre o index.html direto no navegador, sem instalação.
 
 ## Configuração do banco (Supabase)
-Antes de usar em equipe, rode `supabase/rls-admin-vs-own.sql` no SQL Editor do
-Supabase — ele restringe cada técnico aos próprios registros e libera acesso
-total só para os e-mails listados em `ADMIN_EMAILS` (topo de `script.js`).
+Rode `supabase/setup-complete.sql` no SQL Editor do Supabase — cria as colunas
+que faltam e restringe cada técnico aos próprios registros, liberando acesso
+total só para os e-mails listados em `ADMIN_EMAILS` (topo de `script.js`, deve
+bater com o e-mail dentro do próprio SQL). Pode rodar de novo sem problema.
+
+Os arquivos `rls-admin-vs-own.sql` e `schema-additions.sql` ficam só de
+histórico — o `setup-complete.sql` já inclui tudo o que eles faziam.
