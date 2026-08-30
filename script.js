@@ -326,9 +326,9 @@ function normalize(s){
 /* Titre d'un job dans les listes : marque·modèle pour un service imprimante,
    ou juste l'étape pour une activité interne (réunion, formation...). */
 function jobTitleLine(job){
-  return job.brand
-    ? `${escapeHtml(job.brand)} · ${escapeHtml(job.model)}`
-    : escapeHtml(job.etape || 'Activité');
+  if(job.brand) return `${escapeHtml(job.brand)} · ${escapeHtml(job.model)}`;
+  const qte = job.quantite != null ? ` · Qté ${job.quantite}` : '';
+  return `${escapeHtml(job.etape || 'Activité')}${qte}`;
 }
 
 function escapeHtml(str){
@@ -503,22 +503,23 @@ async function createJob({ name, brand, model, photoUrl, startedAt }){
   return mapJobFromDb(data);
 }
 
-/* Activité interne (réunion, formation...) : pas de marque/modèle, l'étape
-   est déjà connue au démarrage — brand/model restent vides ('' plutôt que
-   null pour rester compatibles avec une éventuelle contrainte NOT NULL). */
-async function createActivityJob({ name, etape, startedAt }){
+/* Enregistrement rapide (quantité) : pas de chronomètre, pas de marque/modèle —
+   juste une étape + une quantité pour un jour donné, sauvegardé déjà "terminé"
+   (started_at = finished_at) pour apparaître tout de suite dans l'historique.
+   brand/model restent '' plutôt que null pour rester compatibles avec une
+   éventuelle contrainte NOT NULL. */
+async function createQuickLogEntry({ name, etape, quantite, note, when }){
   const { data: userData } = await sb.auth.getUser();
-  const { data, error } = await sb
+  const { error } = await sb
     .from('jobs')
     .insert({
       user_id: userData.user.id,
       technician: name, brand: '', model: '',
-      etape, started_at: startedAt
-    })
-    .select()
-    .single();
-  if(error){ console.error('Erreur createActivityJob:', error); return null; }
-  return mapJobFromDb(data);
+      etape, quantite, note: note || null,
+      started_at: when, finished_at: when, active_seconds: 0
+    });
+  if(error){ console.error('Erreur createQuickLogEntry:', error); return false; }
+  return true;
 }
 
 async function addPause(jobId, label, startAt){
@@ -786,7 +787,7 @@ async function refreshIdleView(){
       <div class="job-thumbs">${thumb}${thumbFinal}</div>
       <div class="job-info">
         <p class="job-model">${jobTitleLine(job)}</p>
-        <p class="job-meta">${fmtHShort(job.activeSeconds)} · ${dateStr}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
+        <p class="job-meta">${job.activeSeconds ? fmtHShort(job.activeSeconds) + ' · ' : ''}${dateStr}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
         ${(job.brand && job.etape) ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
         ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
       </div>
@@ -957,10 +958,13 @@ function wireFormEvents(){
   });
 }
 
-/* --- Formulaire "Autre activité" (sans imprimante) --- */
+/* --- Formulaire "Enregistrement rapide" (quantité, sans chronomètre) --- */
 function wireActivityEvents(){
   document.getElementById('btnNewActivity').addEventListener('click', async () => {
     document.getElementById('activityType').value = '';
+    document.getElementById('activityQte').value = '';
+    document.getElementById('activityNote').value = '';
+    document.getElementById('activityDate').value = new Date().toISOString().slice(0, 10);
     document.getElementById('activityName').value = (await getSetting('last_name')) || '';
     showState('activity');
   });
@@ -971,27 +975,33 @@ function wireActivityEvents(){
     e.preventDefault();
     const name = document.getElementById('activityName').value.trim();
     const etape = document.getElementById('activityType').value;
-    if(!name || !etape) return;
+    const dateStr = document.getElementById('activityDate').value;
+    if(!name || !etape || !dateStr) return;
 
-    const submitBtn = document.getElementById('btnStartActivity');
+    const qteRaw = document.getElementById('activityQte').value;
+    const quantite = qteRaw !== '' ? parseInt(qteRaw, 10) : null;
+    const note = document.getElementById('activityNote').value.trim();
+
+    const submitBtn = document.getElementById('btnSaveActivity');
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Démarrage…';
+    submitBtn.textContent = 'Enregistrement…';
 
     try{
       await setSetting('last_name', name);
-      const startedAt = new Date().toISOString();
-      const job = await createActivityJob({ name, etape, startedAt });
-      if(!job){
-        alert('Impossible de démarrer (erreur de connexion). Réessayez.');
+      const when = new Date(dateStr + 'T12:00:00').toISOString();
+      const ok = await createQuickLogEntry({ name, etape, quantite, note, when });
+      if(!ok){
+        alert('Impossible d\'enregistrer (erreur de connexion). Réessayez.');
         return;
       }
-      showRunning(job);
+      showState('idle');
+      refreshIdleView();
     }catch(err){
-      console.error('Erreur au démarrage de l\'activité:', err);
-      alert('Impossible de démarrer (erreur inattendue). Réessayez.');
+      console.error('Erreur enregistrement rapide:', err);
+      alert('Impossible d\'enregistrer (erreur inattendue). Réessayez.');
     }finally{
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Démarrer';
+      submitBtn.textContent = 'Enregistrer';
     }
   });
 }
