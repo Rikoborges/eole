@@ -119,6 +119,7 @@
       <div id="state-idle" hidden>
         <p class="today-total">Aujourd'hui : <b id="today-total-val">0h00</b> travaillées</p>
         <button class="btn-new" id="btnNewJob" type="button">+ Nouveau Service</button>
+        <button class="btn-new btn-new-secondary" id="btnNewActivity" type="button">+ Autre activité (réunion, formation…)</button>
 
         <div id="paused-section" hidden>
           <h2 class="hist-label">Services en pause</h2>
@@ -164,6 +165,29 @@
         </form>
       </div>
 
+      <!-- État : formulaire d'activité interne (sans imprimante) -->
+      <div id="state-activity" hidden>
+        <form class="form-box" id="activityForm">
+          <label class="field-label" for="activityName">Votre nom</label>
+          <input type="text" id="activityName" name="name" placeholder="Nom du technicien" required>
+
+          <label class="field-label" for="activityType">Activité</label>
+          <select id="activityType" name="etape" required>
+            <option value="">Sélectionnez…</option>
+            <option value="Réunion">Réunion</option>
+            <option value="Formation">Formation</option>
+            <option value="Congés">Congés</option>
+            <option value="5S">5S</option>
+            <option value="Autre">Autre (précisez dans la note à la fin)</option>
+          </select>
+
+          <div class="btn-row">
+            <button type="button" class="btn-secondary" id="btnCancelActivity">Annuler</button>
+            <button type="submit" class="btn-primary" id="btnStartActivity">Démarrer</button>
+          </div>
+        </form>
+      </div>
+
       <!-- État : chronomètre en cours -->
       <div id="state-running" hidden>
         <div class="running-wrap">
@@ -192,6 +216,7 @@
       <!-- État : note finale -->
       <div id="state-finish" hidden>
         <form class="form-box" id="finishForm">
+        <div id="finishPrinterExtras">
           <div class="field-label">Photo de la machine terminée (optionnel)</div>
           <input type="file" id="photoFinalInput" accept="image/*" capture="environment" class="visually-hidden">
           <button type="button" class="photo-btn" id="photoFinalBtn">📷 Prendre / choisir une photo</button>
@@ -228,14 +253,11 @@
             <option value="Emballage">Emballage</option>
             <option value="Installation imprimante neuve">Installation imprimante neuve</option>
             <option value="Mise en route imprimante neuve">Mise en route imprimante neuve</option>
-            <option value="Réunion">Réunion</option>
-            <option value="Formation">Formation</option>
-            <option value="Congés">Congés</option>
-            <option value="5S">5S</option>
           </select>
 
           <label class="field-label" for="finishQte">Quantité (QTE, facultatif)</label>
           <input type="number" id="finishQte" min="0" step="1" placeholder="Ex : 1">
+        </div>
 
           <label class="field-label" for="finishNote">Qu'avez-vous fait ? (facultatif)</label>
           <textarea id="finishNote" placeholder="Ex : remplacement du rouleau de transfert, nettoyage du tambour…"></textarea>

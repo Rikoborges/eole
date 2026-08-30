@@ -323,6 +323,14 @@ function normalize(s){
 }
 
 /* Escapa texto digitado pelo usuário antes de injetar em innerHTML — proteção contra XSS */
+/* Titre d'un job dans les listes : marque·modèle pour un service imprimante,
+   ou juste l'étape pour une activité interne (réunion, formation...). */
+function jobTitleLine(job){
+  return job.brand
+    ? `${escapeHtml(job.brand)} · ${escapeHtml(job.model)}`
+    : escapeHtml(job.etape || 'Activité');
+}
+
 function escapeHtml(str){
   if(str === null || str === undefined) return '';
   return String(str)
@@ -492,6 +500,24 @@ async function createJob({ name, brand, model, photoUrl, startedAt }){
     .select()
     .single();
   if(error){ console.error('Erreur createJob:', error); return null; }
+  return mapJobFromDb(data);
+}
+
+/* Activité interne (réunion, formation...) : pas de marque/modèle, l'étape
+   est déjà connue au démarrage — brand/model restent vides ('' plutôt que
+   null pour rester compatibles avec une éventuelle contrainte NOT NULL). */
+async function createActivityJob({ name, etape, startedAt }){
+  const { data: userData } = await sb.auth.getUser();
+  const { data, error } = await sb
+    .from('jobs')
+    .insert({
+      user_id: userData.user.id,
+      technician: name, brand: '', model: '',
+      etape, started_at: startedAt
+    })
+    .select()
+    .single();
+  if(error){ console.error('Erreur createActivityJob:', error); return null; }
   return mapJobFromDb(data);
 }
 
@@ -667,7 +693,7 @@ let pendingPhotoFinalBase64 = null;
 let activeJobId = null;
 
 function showState(name){
-  ['idle', 'form', 'running', 'finish'].forEach(s => {
+  ['idle', 'form', 'activity', 'running', 'finish'].forEach(s => {
     document.getElementById('state-' + s).hidden = (s !== name);
   });
 }
@@ -676,6 +702,7 @@ async function initRegistro(){
   if(regInited) return;
   regInited = true;
   wireFormEvents();
+  wireActivityEvents();
   wireRunningStaticEvents();
   wireFinishEvents();
   wireExportEvent();
@@ -698,7 +725,7 @@ function renderPausedList(pausedJobs){
     li.innerHTML = `
       <div class="job-thumbs">${thumb}</div>
       <div class="job-info">
-        <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
+        <p class="job-model">${jobTitleLine(job)}</p>
         <p class="job-meta">⏸ ${lastPause ? escapeHtml(lastPause.label) : 'En pause'}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
       </div>
       <div class="job-actions">
@@ -758,9 +785,9 @@ async function refreshIdleView(){
     li.innerHTML = `
       <div class="job-thumbs">${thumb}${thumbFinal}</div>
       <div class="job-info">
-        <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
+        <p class="job-model">${jobTitleLine(job)}</p>
         <p class="job-meta">${fmtHShort(job.activeSeconds)} · ${dateStr}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
-        ${job.etape ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
+        ${(job.brand && job.etape) ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
         ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
       </div>
       <div class="job-actions">
@@ -930,6 +957,45 @@ function wireFormEvents(){
   });
 }
 
+/* --- Formulaire "Autre activité" (sans imprimante) --- */
+function wireActivityEvents(){
+  document.getElementById('btnNewActivity').addEventListener('click', async () => {
+    document.getElementById('activityType').value = '';
+    document.getElementById('activityName').value = (await getSetting('last_name')) || '';
+    showState('activity');
+  });
+
+  document.getElementById('btnCancelActivity').addEventListener('click', () => showState('idle'));
+
+  document.getElementById('activityForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('activityName').value.trim();
+    const etape = document.getElementById('activityType').value;
+    if(!name || !etape) return;
+
+    const submitBtn = document.getElementById('btnStartActivity');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Démarrage…';
+
+    try{
+      await setSetting('last_name', name);
+      const startedAt = new Date().toISOString();
+      const job = await createActivityJob({ name, etape, startedAt });
+      if(!job){
+        alert('Impossible de démarrer (erreur de connexion). Réessayez.');
+        return;
+      }
+      showRunning(job);
+    }catch(err){
+      console.error('Erreur au démarrage de l\'activité:', err);
+      alert('Impossible de démarrer (erreur inattendue). Réessayez.');
+    }finally{
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Démarrer';
+    }
+  });
+}
+
 /* --- Écran cronomètre --- */
 function showRunning(job){
   showState('running');
@@ -942,8 +1008,11 @@ function showRunning(job){
   }
 
   const startedTime = new Date(job.startedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const titleLine = job.brand
+    ? `${escapeHtml(job.brand)} · ${escapeHtml(job.model)}`
+    : escapeHtml(job.etape || 'Activité');
   document.getElementById('runningBrand').innerHTML =
-    `${escapeHtml(job.brand)} · ${escapeHtml(job.model)}<small>${escapeHtml(job.name)} · démarré à ${startedTime}</small>`;
+    `${titleLine}<small>${escapeHtml(job.name)} · démarré à ${startedTime}</small>`;
 
   clearInterval(tickInterval);
   tickInterval = setInterval(() => tick(job), 1000);
@@ -992,6 +1061,7 @@ function showRunning(job){
     pendingPhotoFinalBase64 = null;
     document.getElementById('photoFinalPreview').removeAttribute('src');
     updateChecklistCount();
+    document.getElementById('finishPrinterExtras').hidden = !job.brand;
     showState('finish');
   };
 }
@@ -1064,9 +1134,12 @@ function wireFinishEvents(){
     }
 
     const activeSeconds = getActiveSeconds(current, now);
-    const etape = document.getElementById('finishEtape').value;
+    // Activité interne : l'étape a été fixée au démarrage et le select est masqué —
+    // on la garde telle quelle plutôt que de lire un champ vide.
+    const isActivityJob = !current.brand;
+    const etape = isActivityJob ? current.etape : document.getElementById('finishEtape').value;
     const qteRaw = document.getElementById('finishQte').value;
-    const quantite = qteRaw !== '' ? parseInt(qteRaw, 10) : null;
+    const quantite = (!isActivityJob && qteRaw !== '') ? parseInt(qteRaw, 10) : null;
     const note = document.getElementById('finishNote').value.trim();
 
     let photoFinalUrl = null;
@@ -1127,7 +1200,7 @@ function renderSummary(history){
   document.getElementById('summaryGrid').innerHTML = `
     <div class="summary-card">
       <p class="summary-value">${totalJobs}</p>
-      <p class="summary-label">Imprimantes</p>
+      <p class="summary-label">Services</p>
     </div>
     <div class="summary-card">
       <p class="summary-value">${fmtHShort(totalSeconds)}</p>
@@ -1212,7 +1285,7 @@ function renderTimeChart(period){
 
 function renderBrandChart(history){
   const counts = {};
-  history.forEach(job => { counts[job.brand] = (counts[job.brand] || 0) + 1; });
+  history.forEach(job => { if(job.brand) counts[job.brand] = (counts[job.brand] || 0) + 1; });
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
   const brandChartEl = document.getElementById('brandChart');
@@ -1340,9 +1413,9 @@ function renderAdminList(jobs){
     li.innerHTML = `
       <div class="job-thumbs">${thumb}${thumbFinal}</div>
       <div class="job-info">
-        <p class="job-model">${escapeHtml(job.brand)} · ${escapeHtml(job.model)}</p>
+        <p class="job-model">${jobTitleLine(job)}</p>
         <p class="job-meta">${metaParts.join(' · ')}</p>
-        ${job.etape ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
+        ${(job.brand && job.etape) ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
         ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
       </div>`;
     listEl3.appendChild(li);
