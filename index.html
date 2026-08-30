@@ -138,11 +138,13 @@
       <!-- État : formulaire de nouveau service -->
       <div id="state-form" hidden>
         <form class="form-box" id="jobForm">
-          <div class="field-label">Photo du bon de commande</div>
-          <input type="file" id="photoInput" accept="image/*" capture="environment" class="visually-hidden">
-          <button type="button" class="photo-btn" id="photoBtn">📷 Prendre / choisir une photo</button>
-          <img class="photo-preview" id="photoPreview" alt="Aperçu de la photo du bon">
-          <p class="ocr-status" id="ocrStatus" hidden>Lecture de la photo…</p>
+          <div id="photoCaptureBlock">
+            <div class="field-label">Photo du bon de commande</div>
+            <input type="file" id="photoInput" accept="image/*" capture="environment" class="visually-hidden">
+            <button type="button" class="photo-btn" id="photoBtn">📷 Prendre / choisir une photo</button>
+            <img class="photo-preview" id="photoPreview" alt="Aperçu de la photo du bon">
+            <p class="ocr-status" id="ocrStatus" hidden>Lecture de la photo…</p>
+          </div>
 
           <label class="field-label" for="fieldName">Votre nom</label>
           <input type="text" id="fieldName" name="name" placeholder="Nom du technicien" required>
@@ -236,10 +238,12 @@
       <div id="state-finish" hidden>
         <form class="form-box" id="finishForm">
         <div id="finishPrinterExtras">
-          <div class="field-label">Photo de la machine terminée (optionnel)</div>
-          <input type="file" id="photoFinalInput" accept="image/*" capture="environment" class="visually-hidden">
-          <button type="button" class="photo-btn" id="photoFinalBtn">📷 Prendre / choisir une photo</button>
-          <img class="photo-preview" id="photoFinalPreview" alt="Aperçu de la photo de la machine terminée">
+          <div id="photoFinalBlock">
+            <div class="field-label">Photo de la machine terminée (optionnel)</div>
+            <input type="file" id="photoFinalInput" accept="image/*" capture="environment" class="visually-hidden">
+            <button type="button" class="photo-btn" id="photoFinalBtn">📷 Prendre / choisir une photo</button>
+            <img class="photo-preview" id="photoFinalPreview" alt="Aperçu de la photo de la machine terminée">
+          </div>
 
           <div class="field-label">Auto-contrôle avant envoi (checklist officielle)</div>
           <ul class="checklist" id="autoControlList">
