@@ -119,7 +119,7 @@
       <div id="state-idle" hidden>
         <p class="today-total">Aujourd'hui : <b id="today-total-val">0h00</b> travaillées</p>
         <button class="btn-new" id="btnNewJob" type="button">+ Nouveau Service</button>
-        <button class="btn-new btn-new-secondary" id="btnNewActivity" type="button">+ Autre activité (réunion, formation…)</button>
+        <button class="btn-new btn-new-secondary" id="btnNewActivity" type="button">+ Enregistrement rapide (sans chrono)</button>
 
         <div id="paused-section" hidden>
           <h2 class="hist-label">Services en pause</h2>
@@ -165,25 +165,44 @@
         </form>
       </div>
 
-      <!-- État : formulaire d'activité interne (sans imprimante) -->
+      <!-- État : enregistrement rapide (quantité, sans chronomètre) -->
       <div id="state-activity" hidden>
         <form class="form-box" id="activityForm">
           <label class="field-label" for="activityName">Votre nom</label>
           <input type="text" id="activityName" name="name" placeholder="Nom du technicien" required>
 
-          <label class="field-label" for="activityType">Activité</label>
+          <label class="field-label" for="activityDate">Date</label>
+          <input type="date" id="activityDate" required>
+
+          <label class="field-label" for="activityType">Étape</label>
           <select id="activityType" name="etape" required>
             <option value="">Sélectionnez…</option>
+            <option value="Test machine + effacement des données">Test machine + effacement des données</option>
+            <option value="Démontage des carters">Démontage des carters</option>
+            <option value="Vaisselle des carters démontés">Vaisselle des carters démontés</option>
+            <option value="Nettoyage du multifonction + Remise en état complet">Nettoyage du multifonction + Remise en état complet</option>
+            <option value="Partie technique machine nettoyée">Partie technique machine nettoyée</option>
+            <option value="Partie technique machine FULL">Partie technique machine FULL</option>
+            <option value="Contrôle qualité">Contrôle qualité</option>
+            <option value="Saisie dans SAGE">Saisie dans SAGE</option>
+            <option value="Emballage">Emballage</option>
+            <option value="Installation imprimante neuve">Installation imprimante neuve</option>
+            <option value="Mise en route imprimante neuve">Mise en route imprimante neuve</option>
             <option value="Réunion">Réunion</option>
             <option value="Formation">Formation</option>
             <option value="Congés">Congés</option>
             <option value="5S">5S</option>
-            <option value="Autre">Autre (précisez dans la note à la fin)</option>
           </select>
+
+          <label class="field-label" for="activityQte">Quantité (facultatif)</label>
+          <input type="number" id="activityQte" min="0" step="1" placeholder="Ex : 12">
+
+          <label class="field-label" for="activityNote">Note (facultatif)</label>
+          <textarea id="activityNote" placeholder="Ex : emballage des imprimantes prêtes"></textarea>
 
           <div class="btn-row">
             <button type="button" class="btn-secondary" id="btnCancelActivity">Annuler</button>
-            <button type="submit" class="btn-primary" id="btnStartActivity">Démarrer</button>
+            <button type="submit" class="btn-primary" id="btnSaveActivity">Enregistrer</button>
           </div>
         </form>
       </div>
