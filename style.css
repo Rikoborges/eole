@@ -353,6 +353,10 @@ main{
   margin-bottom: 24px; cursor: pointer;
 }
 .btn-new:focus-visible{ outline: 3px solid var(--text); outline-offset: 2px; }
+.btn-new-secondary{
+  background: transparent; border: 1px dashed var(--copper-dim); color: var(--copper-text);
+  padding: 14px;
+}
 
 .hist-label{
   font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .1em;
