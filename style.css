@@ -244,6 +244,21 @@ main{
   transition: transform .15s ease;
 }
 .guide[open] summary .chev{ transform: rotate(90deg); }
+.model-form{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.model-form select, .model-form input{ flex: 1 1 140px; min-height: 40px; padding: 8px 10px; font-size: 14px; }
+.model-form button{ flex: 0 0 auto; min-height: 40px; padding: 8px 14px; }
+.model-manage-list{ list-style: none; margin: 10px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
+.model-manage-row{
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 2px; border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.model-manage-row:last-child{ border-bottom: none; }
+.model-manage-row button{
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  font-size: 16px; min-width: 32px; min-height: 32px;
+}
+.model-manage-row button:hover, .model-manage-row button:focus-visible{ color: var(--warn); }
+
 .guide ol{ margin: 12px 0 4px; padding-left: 18px; font-size: 14px; line-height: 1.6; }
 .guide ol li{ margin-bottom: 8px; }
 .guide ol b{ color: var(--copper-text); font-weight: 600; }

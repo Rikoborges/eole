@@ -25,6 +25,7 @@ específica:
 - Foto do bon de commande (pedido), com leitura automática por IA
   (tenta preencher marca/modelo sozinho a partir da foto)
 - Marca + Modelo, com sugestão automática de modelos reais por marca
+  (lista guardada no banco, editável pelo admin — ver seção Admin)
 - Cronômetro com pausas nomeadas (Matin/Déjeuner/Après-midi ou manual)
 - Botão para pausar e ir cuidar de outro serviço, podendo retomar depois
   (mais de um serviço pode ficar em pausa ao mesmo tempo)
@@ -55,6 +56,10 @@ Visível só para os e-mails configurados em `ADMIN_EMAILS` (topo do
 lista completa de serviços com as fotos (inicial e final), num visualizador
 em tela cheia.
 
+Também tem um painel para **gerenciar os modelos de impressora** sugeridos
+no autocomplete do Suivi — adicionar ou remover direto pela tela, sem
+precisar mexer no código.
+
 ---
 
 ## Configuração do banco (Supabase)
@@ -83,6 +88,11 @@ Os arquivos `rls-admin-vs-own.sql` e `schema-additions.sql` ficam na pasta
 só como histórico — não precisa rodá-los, o `setup-complete.sql` já inclui
 tudo o que eles faziam.
 
+**Depois** de rodar o `setup-complete.sql`, rode também `supabase/printer-models.sql`
+— ele cria a tabela `printer_models` (modelos de impressora por marca, hoje
+gerenciável pelo Admin) e já vem populada com os modelos que estavam fixos
+no código antes. Depende da função `is_admin()` criada pelo script anterior.
+
 ---
 
 ## RGPD / Privacidade
@@ -102,3 +112,20 @@ vendido para terceiros.
 ---
 
 ## Estrutura dos arquivos
+
+```
+index.html              estrutura da página (todas as telas)
+style.css               visual (paleta petróleo + cobre, mobile-first)
+script.js               toda a lógica (dados, telas, gráficos, Supabase)
+favicon.svg             ícone do site
+supabase/
+  setup-complete.sql     ⭐ rodar primeiro (colunas + segurança)
+  printer-models.sql     ⭐ rodar depois (tabela de modelos + admin)
+  rls-admin-vs-own.sql   histórico, não precisa rodar
+  schema-additions.sql   histórico, não precisa rodar
+```
+
+## Como abrir
+
+Basta abrir `index.html` num navegador, ou publicar a pasta em qualquer
+hospedagem estática (o projeto já está publicado via Vercel).

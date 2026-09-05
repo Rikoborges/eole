@@ -329,6 +329,20 @@
       <div id="admin-content" hidden>
         <div class="summary-grid" id="adminSummaryGrid"></div>
 
+        <details class="guide">
+          <summary>Gérer les modèles d'imprimante <span class="chev">›</span></summary>
+          <form class="model-form" id="modelForm">
+            <select id="modelFormBrand" required>
+              <option value="">Marque…</option>
+              <option>Canon</option><option>Toshiba</option><option>Kyocera</option>
+              <option>Konica Minolta</option><option>Sharp</option><option>Ricoh</option><option>Autre</option>
+            </select>
+            <input type="text" id="modelFormModel" placeholder="Ex : iR-ADV C3525i" required autocomplete="off">
+            <button type="submit" class="btn-secondary">+ Ajouter</button>
+          </form>
+          <ul class="model-manage-list" id="modelManageList"></ul>
+        </details>
+
         <div class="search-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>

@@ -295,20 +295,27 @@ const ICONS = {
 };
 function iconFor(shape){ return ICONS[shape] || ICONS.box; }
 
-/* Modèles connus par marque — juste des suggestions (datalist), le champ reste libre.
-   Complétez cette liste au fil du temps avec les modèles que vous croisez le plus. */
-const MODELS_BY_BRAND = {
-  Canon: ['iR-ADV C256i','iR-ADV C257i','iR-ADV C259i','iR-ADV C3525i','iR-ADV C3530i','iR-ADV C5535i','iR-ADV C5540i','iR2625i','iR2630i','iR2635i','iR2645i','iR-ADV DX C3826i','iR-ADV DX C3830i','iR-ADV DX C5850i'],
-  Toshiba: ['e-STUDIO2523A','e-STUDIO2528A','e-STUDIO3528A','e-STUDIO5528A','e-STUDIO2515AC','e-STUDIO2518A','e-STUDIO3018A','e-STUDIO2020AC','e-STUDIO4525AC'],
-  Kyocera: ['TASKalfa 2553ci','TASKalfa 2554ci','TASKalfa 3212i','TASKalfa 3253ci','TASKalfa 3552ci','TASKalfa 4053ci','TASKalfa 5053ci'],
-  'Konica Minolta': ['bizhub 227','bizhub 287','bizhub 367','bizhub C258','bizhub C308','bizhub C368','bizhub C458','bizhub C558','bizhub C658'],
-  Sharp: ['MX-2614N','MX-2651','MX-3051','MX-3114N','MX-3551','MX-4051','MX-M3550'],
-  Ricoh: ['MP C3003','MP C3503','MP C4503','MP C5503','IM 350F','IM C3000','IM C3500','IM C4500'],
-};
+/* Modèles connus par marque — vivent dans la table Supabase "printer_models"
+   (gérable depuis l'onglet Admin), plus figés en dur ici. Chargés une seule
+   fois et mis en cache ; invalidé quand l'admin ajoute/supprime un modèle. */
+let printerModelsCache = null;
 
-function updateModelSuggestions(){
+async function loadPrinterModels(){
+  if(printerModelsCache) return printerModelsCache;
+  const { data, error } = await sb.from('printer_models').select('brand, model').order('model');
+  if(error){ console.error('Erreur loadPrinterModels:', error); return {}; }
+  const byBrand = {};
+  data.forEach(row => {
+    (byBrand[row.brand] ||= []).push(row.model);
+  });
+  printerModelsCache = byBrand;
+  return byBrand;
+}
+
+async function updateModelSuggestions(){
   const brand = document.getElementById('fieldBrand').value;
-  const models = MODELS_BY_BRAND[brand] || [];
+  const byBrand = await loadPrinterModels();
+  const models = byBrand[brand] || [];
   document.getElementById('modelsList').innerHTML =
     models.map(m => `<option value="${escapeHtml(m)}"></option>`).join('');
 }
@@ -691,7 +698,7 @@ async function tryOCR(base64){
       if(parsed.brand){
         const opt = Array.from(brandSelect.options).find(o => o.value.toLowerCase() === parsed.brand.toLowerCase());
         brandSelect.value = opt ? opt.value : 'Autre';
-        updateModelSuggestions();
+        await updateModelSuggestions();
       }
       if(parsed.model) document.getElementById('fieldModel').value = parsed.model;
       statusEl.textContent = '✓ Suggestion remplie — vérifiez avant de démarrer';
@@ -916,7 +923,7 @@ function wireFormEvents(){
     document.getElementById('ocrStatus').hidden = true;
     document.getElementById('fieldBrand').value = '';
     document.getElementById('fieldModel').value = '';
-    updateModelSuggestions();
+    await updateModelSuggestions();
     document.getElementById('fieldName').value = (await getSetting('last_name')) || '';
     showState('form');
   });
@@ -1364,6 +1371,67 @@ function renderEtapeChart(history){
 let adminInited = false;
 let adminAllJobs = [];
 
+/* --- Gestion des modèles d'imprimante (table printer_models) --- */
+async function getAllPrinterModelsFlat(){
+  const { data, error } = await sb.from('printer_models').select('id, brand, model').order('brand').order('model');
+  if(error){ console.error('Erreur getAllPrinterModelsFlat:', error); return []; }
+  return data;
+}
+
+async function addPrinterModel(brand, model){
+  const { error } = await sb.from('printer_models').insert({ brand, model });
+  if(error){ console.error('Erreur addPrinterModel:', error); return false; }
+  return true;
+}
+
+async function deletePrinterModel(id){
+  const { error } = await sb.from('printer_models').delete().eq('id', id);
+  if(error){ console.error('Erreur deletePrinterModel:', error); return false; }
+  return true;
+}
+
+let modelManageInited = false;
+function wireModelManageEvents(){
+  if(modelManageInited) return;
+  modelManageInited = true;
+
+  document.getElementById('modelForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const brand = document.getElementById('modelFormBrand').value;
+    const model = document.getElementById('modelFormModel').value.trim();
+    if(!brand || !model) return;
+
+    const ok = await addPrinterModel(brand, model);
+    if(!ok){
+      alert("Impossible d'ajouter ce modèle (existe peut-être déjà).");
+      return;
+    }
+    document.getElementById('modelFormModel').value = '';
+    printerModelsCache = null; // force le rechargement de l'autocomplétion
+    await renderModelManageList();
+  });
+}
+
+async function renderModelManageList(){
+  const listEl = document.getElementById('modelManageList');
+  const models = await getAllPrinterModelsFlat();
+  listEl.innerHTML = models.map(m => `
+    <li class="model-manage-row">
+      <span>${escapeHtml(m.brand)} — ${escapeHtml(m.model)}</span>
+      <button type="button" data-id="${m.id}" aria-label="Supprimer">🗑</button>
+    </li>
+  `).join('');
+
+  listEl.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(!confirm('Supprimer ce modèle ?')) return;
+      await deletePrinterModel(btn.dataset.id);
+      printerModelsCache = null;
+      renderModelManageList();
+    });
+  });
+}
+
 async function initAdmin(){
   document.getElementById('admin-loading').hidden = false;
   document.getElementById('admin-content').hidden = true;
@@ -1373,6 +1441,8 @@ async function initAdmin(){
 
   renderAdminSummary(adminAllJobs);
   renderAdminList(adminAllJobs);
+  wireModelManageEvents();
+  await renderModelManageList();
 
   if(!adminInited){
     adminInited = true;
