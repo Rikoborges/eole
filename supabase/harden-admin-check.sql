@@ -11,7 +11,11 @@
 -- motivo pra deixar visitantes anônimos nem chamarem a função).
 -- ============================================================================
 
+-- "revoke ... from public" não basta: o Supabase concede EXECUTE direto
+-- para os papéis anon/authenticated/service_role na criação da função, não
+-- só via public — por isso é preciso revogar de "anon" explicitamente.
 revoke all on function is_admin() from public;
+revoke all on function is_admin() from anon;
 grant execute on function is_admin() to authenticated;
 
 -- Verificação
