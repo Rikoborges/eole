@@ -5,7 +5,11 @@
    ========================================================= */
 
 const SUPABASE_URL = 'https://ddyekeeuaynqipdmlqhq.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_SBtxarlyHjUf8PcsPaik4w_t-CTwkqJ';
+// Clé publique "publishable" (préfixe sb_publishable_) : conçue pour être exposée
+// côté client, comme la clé publique Stripe. Elle n'autorise rien par elle-même —
+// la sécurité réelle des données dépend des politiques Row Level Security (RLS)
+// activées sur les tables "jobs", "job_pauses" et "settings" dans Supabase.
+const SUPABASE_KEY = 'sb_publishable_SBtxarlyHjUf8PcsPaik4w_t-CTwkqJ'; // gitleaks:allow
 
 if(typeof supabase === 'undefined'){
   const errEl = document.getElementById('authError');
@@ -724,13 +728,18 @@ function showState(name){
 }
 
 async function initRegistro(){
-  if(regInited) return;
-  regInited = true;
-  wireFormEvents();
-  wireActivityEvents();
-  wireRunningStaticEvents();
-  wireFinishEvents();
-  wireExportEvent();
+  // Les écouteurs ne se posent qu'une fois, mais les données doivent être
+  // rechargées à chaque visite de l'onglet (comme Analyse et Admin le font
+  // déjà) — sinon l'historique reste figé sur ce qu'il était au premier
+  // chargement de la page.
+  if(!regInited){
+    regInited = true;
+    wireFormEvents();
+    wireActivityEvents();
+    wireRunningStaticEvents();
+    wireFinishEvents();
+    wireExportEvent();
+  }
   await refreshIdleView();
 }
 
