@@ -921,20 +921,26 @@ async function exportMyData(){
   URL.revokeObjectURL(url);
 }
 
-/* --- Formulaire "Nouveau Service" --- */
+/* --- Formulaire "Nouveau Service" ---
+   Partagé par "+ Nouveau Service" et "+ Installation imprimante neuve" : même
+   chronomètre, même formulaire (marque/modèle) — la seule différence se fait
+   à la fin, où le technicien choisit l'étape (voir updateAutoControlVisibility). */
+async function openNewJobForm(){
+  pendingPhotoBase64 = null;
+  const preview = document.getElementById('photoPreview');
+  preview.removeAttribute('src');
+  document.getElementById('ocrStatus').hidden = true;
+  document.getElementById('fieldBrand').value = '';
+  document.getElementById('fieldModel').value = '';
+  await updateModelSuggestions();
+  document.getElementById('fieldName').value = (await getSetting('last_name')) || '';
+  showState('form');
+}
+
 function wireFormEvents(){
   document.getElementById('photoCaptureBlock').hidden = !PHOTOS_ENABLED;
-  document.getElementById('btnNewJob').addEventListener('click', async () => {
-    pendingPhotoBase64 = null;
-    const preview = document.getElementById('photoPreview');
-    preview.removeAttribute('src');
-    document.getElementById('ocrStatus').hidden = true;
-    document.getElementById('fieldBrand').value = '';
-    document.getElementById('fieldModel').value = '';
-    await updateModelSuggestions();
-    document.getElementById('fieldName').value = (await getSetting('last_name')) || '';
-    showState('form');
-  });
+  document.getElementById('btnNewJob').addEventListener('click', openNewJobForm);
+  document.getElementById('btnNewInstall').addEventListener('click', openNewJobForm);
 
   document.getElementById('btnCancelForm').addEventListener('click', () => showState('idle'));
 
@@ -1104,6 +1110,7 @@ function showRunning(job){
     pendingPhotoFinalBase64 = null;
     document.getElementById('photoFinalPreview').removeAttribute('src');
     updateChecklistCount();
+    updateAutoControlVisibility();
     document.getElementById('finishPrinterExtras').hidden = !job.brand;
     showState('finish');
   };
@@ -1136,9 +1143,19 @@ function updateChecklistCount(){
   document.getElementById('checklistCount').textContent = `${checked.length} / ${boxes.length} vérifiés`;
 }
 
+/* La checklist de nettoyage (tambour/carters/etc.) ne concerne pas une
+   installation ou mise en route d'imprimante neuve — elle se cache toute
+   seule quand le technicien choisit une de ces deux étapes. */
+const ETAPES_SANS_AUTOCONTROLE = new Set(['Installation imprimante neuve', 'Mise en route imprimante neuve']);
+function updateAutoControlVisibility(){
+  const etape = document.getElementById('finishEtape').value;
+  document.getElementById('autoControlBlock').hidden = ETAPES_SANS_AUTOCONTROLE.has(etape);
+}
+
 function wireFinishEvents(){
   document.getElementById('photoFinalBlock').hidden = !PHOTOS_ENABLED;
   document.getElementById('autoControlList').addEventListener('change', updateChecklistCount);
+  document.getElementById('finishEtape').addEventListener('change', updateAutoControlVisibility);
 
   document.getElementById('photoFinalBtn').addEventListener('click', () => {
     document.getElementById('photoFinalInput').click();

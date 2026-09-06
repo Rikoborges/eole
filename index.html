@@ -121,6 +121,7 @@
       <div id="state-idle" hidden>
         <p class="today-total">Aujourd'hui : <b id="today-total-val">0h00</b> travaillées</p>
         <button class="btn-new" id="btnNewJob" type="button">+ Nouveau Service</button>
+        <button class="btn-new btn-new-secondary" id="btnNewInstall" type="button">+ Installation imprimante neuve</button>
         <button class="btn-new btn-new-secondary" id="btnNewActivity" type="button">+ Enregistrement rapide (sans chrono)</button>
 
         <div id="paused-section" hidden>
@@ -247,23 +248,6 @@
             <img class="photo-preview" id="photoFinalPreview" alt="Aperçu de la photo de la machine terminée">
           </div>
 
-          <div class="field-label">Auto-contrôle avant envoi (checklist officielle)</div>
-          <ul class="checklist" id="autoControlList">
-            <li><label><input type="checkbox"> Propreté intérieur et extérieur</label></li>
-            <li><label><input type="checkbox"> Propreté CCD + sous la vitre scanner</label></li>
-            <li><label><input type="checkbox"> Remontage de tous les carters</label></li>
-            <li><label><input type="checkbox"> Propreté unités internes (Tambour/BD/CTI/Four, grille ventilateur)</label></li>
-            <li><label><input type="checkbox"> Changement bac de récup + bac récup d'avance</label></li>
-            <li><label><input type="checkbox"> Câble d'alimentation + câble fax ajoutés</label></li>
-            <li><label><input type="checkbox"> Carters non rayés (cache charnière, poignet, baguette laser)</label></li>
-            <li><label><input type="checkbox"> N° de série et modèle vérifiés (fiche REP ↔ machine)</label></li>
-            <li><label><input type="checkbox"> PATIN K7 + PATIN ADF changés</label></li>
-            <li><label><input type="checkbox"> Panel dépoussiéré et non rayé</label></li>
-            <li><label><input type="checkbox"> Étiquette QR code bien placée</label></li>
-            <li><label><input type="checkbox"> Vis fixation socle 2/3 K7 vérifiées</label></li>
-          </ul>
-          <p class="checklist-count" id="checklistCount">0 / 12 vérifiés</p>
-
           <label class="field-label" for="finishEtape">Étape (officielle)</label>
           <select id="finishEtape">
             <option value="">— Aucune / autre —</option>
@@ -282,6 +266,27 @@
 
           <label class="field-label" for="finishQte">Quantité (QTE, facultatif)</label>
           <input type="number" id="finishQte" min="0" step="1" placeholder="Ex : 1">
+
+          <!-- Non pertinent pour une installation/mise en route d'imprimante neuve —
+               masqué automatiquement selon l'étape choisie ci-dessus (voir updateAutoControlVisibility) -->
+          <div id="autoControlBlock">
+            <div class="field-label">Auto-contrôle avant envoi (checklist officielle)</div>
+            <ul class="checklist" id="autoControlList">
+              <li><label><input type="checkbox"> Propreté intérieur et extérieur</label></li>
+              <li><label><input type="checkbox"> Propreté CCD + sous la vitre scanner</label></li>
+              <li><label><input type="checkbox"> Remontage de tous les carters</label></li>
+              <li><label><input type="checkbox"> Propreté unités internes (Tambour/BD/CTI/Four, grille ventilateur)</label></li>
+              <li><label><input type="checkbox"> Changement bac de récup + bac récup d'avance</label></li>
+              <li><label><input type="checkbox"> Câble d'alimentation + câble fax ajoutés</label></li>
+              <li><label><input type="checkbox"> Carters non rayés (cache charnière, poignet, baguette laser)</label></li>
+              <li><label><input type="checkbox"> N° de série et modèle vérifiés (fiche REP ↔ machine)</label></li>
+              <li><label><input type="checkbox"> PATIN K7 + PATIN ADF changés</label></li>
+              <li><label><input type="checkbox"> Panel dépoussiéré et non rayé</label></li>
+              <li><label><input type="checkbox"> Étiquette QR code bien placée</label></li>
+              <li><label><input type="checkbox"> Vis fixation socle 2/3 K7 vérifiées</label></li>
+            </ul>
+            <p class="checklist-count" id="checklistCount">0 / 12 vérifiés</p>
+          </div>
         </div>
 
           <label class="field-label" for="finishNote">Qu'avez-vous fait ? (facultatif)</label>
