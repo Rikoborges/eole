@@ -51,10 +51,11 @@ próprios registros (ver seção RGPD/Segurança abaixo).
 - Gráfico de distribuição por Étape
 
 ### 👤 Admin (acesso restrito)
-Visível só para os e-mails configurados em `ADMIN_EMAILS` (topo do
-`script.js`). Mostra tudo de todos os técnicos: resumo geral, busca e
-lista completa de serviços com as fotos (inicial e final), num visualizador
-em tela cheia.
+Visível só para os e-mails cadastrados na função `is_admin()` do banco
+(SQL, ver seção abaixo) — o app pergunta ao Supabase "sou admin?" em vez de
+guardar essa lista no código. Mostra tudo de todos os técnicos: resumo
+geral, busca e lista completa de serviços com as fotos (inicial e final),
+num visualizador em tela cheia.
 
 Também tem um painel para **gerenciar os modelos de impressora** sugeridos
 no autocomplete do Suivi — adicionar ou remover direto pela tela, sem
@@ -80,9 +81,12 @@ conteúdo de `supabase/setup-complete.sql`. Ele:
 4. No final, mostra uma tabela de verificação com as colunas e políticas
    criadas, pra conferir que deu certo
 
-⚠️ **Importante:** a lista de e-mails dentro de `is_admin()` (no SQL) e a
-constante `ADMIN_EMAILS` (no topo do `script.js`) precisam ser **idênticas**.
-Se adicionar um admin num lugar, adicione no outro também.
+⚠️ **Importante:** a lista de e-mails admin vive **só** dentro da função
+`is_admin()`, no SQL (`setup-complete.sql`). O `script.js` não guarda mais
+nenhum e-mail — ele só chama `is_admin()` pelo Supabase e mostra ou esconde
+a aba Admin conforme a resposta. Pra adicionar ou trocar um admin, edite a
+função `is_admin()` direto no SQL Editor do Supabase e rode de novo; não há
+nada para sincronizar no código do site.
 
 Os arquivos `rls-admin-vs-own.sql` e `schema-additions.sql` ficam na pasta
 só como histórico — não precisa rodá-los, o `setup-complete.sql` já inclui
@@ -92,6 +96,31 @@ tudo o que eles faziam.
 — ele cria a tabela `printer_models` (modelos de impressora por marca, hoje
 gerenciável pelo Admin) e já vem populada com os modelos que estavam fixos
 no código antes. Depende da função `is_admin()` criada pelo script anterior.
+
+**Por último**, rode `supabase/harden-admin-check.sql` — ele restringe quem
+pode até *perguntar* "sou admin?" ao banco (só usuários logados, nunca
+visitantes anônimos).
+
+### 🔒 Blindagem extra (feita em código + o que só dá pra fazer no painel)
+
+Feito em código/SQL:
+- `ADMIN_EMAILS` removido do `script.js` — o e-mail do admin nunca mais
+  trafega no HTML/JS que qualquer visitante pode abrir em "Ver código-fonte"
+- `vercel.json` adiciona cabeçalhos de segurança HTTP em toda resposta do
+  site (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`)
+- `supabase/harden-admin-check.sql` tranca a função `is_admin()` para só
+  usuários autenticados poderem chamá-la
+- O `<script>` do Supabase no `index.html` usa versão fixa + Subresource
+  Integrity (`integrity="sha384-..."`), então o navegador recusa rodar o
+  arquivo se o CDN algum dia servir um conteúdo diferente do esperado
+
+Só dá pra fazer no painel do Supabase (nenhum código resolve isso):
+- **Authentication → Providers → Email → desligar "Allow new users to
+  sign up"**. Enquanto isso estiver ligado, qualquer pessoa pode criar a
+  própria conta direto pela API pública do Supabase, mesmo sem passar pelo
+  app — é o único jeito de garantir que só você autoriza quem entra. Depois
+  de desligado, novas contas só existem se forem criadas manualmente por
+  você (painel → Authentication → Users → Add user).
 
 ---
 
@@ -118,11 +147,13 @@ index.html              estrutura da página (todas as telas)
 style.css               visual (paleta petróleo + cobre, mobile-first)
 script.js               toda a lógica (dados, telas, gráficos, Supabase)
 favicon.svg             ícone do site
+vercel.json             cabeçalhos de segurança HTTP (deploy na Vercel)
 supabase/
-  setup-complete.sql     ⭐ rodar primeiro (colunas + segurança)
-  printer-models.sql     ⭐ rodar depois (tabela de modelos + admin)
-  rls-admin-vs-own.sql   histórico, não precisa rodar
-  schema-additions.sql   histórico, não precisa rodar
+  setup-complete.sql        ⭐ rodar 1º (colunas + segurança)
+  printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)
+  harden-admin-check.sql    ⭐ rodar 3º (tranca quem pode chamar is_admin())
+  rls-admin-vs-own.sql      histórico, não precisa rodar
+  schema-additions.sql      histórico, não precisa rodar
 ```
 
 ## Como abrir

@@ -244,9 +244,18 @@ main{
   transition: transform .15s ease;
 }
 .guide[open] summary .chev{ transform: rotate(90deg); }
-.model-form{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-.model-form select, .model-form input{ flex: 1 1 140px; min-height: 40px; padding: 8px 10px; font-size: 14px; }
-.model-form button{ flex: 0 0 auto; min-height: 40px; padding: 8px 14px; }
+/* Empilhado por padrão — os campos já herdam width:100% e min-height:48px
+   das regras globais de input/select; aqui só cuidamos do espaçamento entre
+   eles, mais confiável em telas estreitas que depender do wrap do flex
+   (que podia deixar o botão sozinho e espremido numa 2ª linha). */
+.model-form{ display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
+/* Em telas largas o suficiente, volta a caber tudo numa linha só */
+@container app (min-width: 480px){
+  .model-form{ flex-direction: row; flex-wrap: wrap; }
+  .model-form select, .model-form input{ flex: 1 1 140px; width: auto; }
+  .model-form button{ flex: 0 0 auto; }
+}
 .model-manage-list{ list-style: none; margin: 10px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
 .model-manage-row{
   display: flex; align-items: center; justify-content: space-between;
