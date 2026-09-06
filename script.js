@@ -23,21 +23,20 @@ if(typeof supabase === 'undefined'){
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* E-mails autorisés à voir l'onglet Admin — ajoutez le(s) vôtre(s) ici.
-   Note : ceci masque juste l'onglet dans l'interface. Les données ne sont pas
-   filtrées par utilisateur côté base (le Suivi affiche déjà l'historique de
-   toute l'équipe) — ce n'est donc pas une barrière de sécurité, seulement
-   une organisation de l'écran. */
-const ADMIN_EMAILS = ['rico3036@gmail.com'];
-
 /* Désactivé temporairement pendant qu'on règle le Storage (photos manquantes
    dans le bucket "job-photos"). Remettre à true pour réactiver la capture
    et l'affichage des photos — tout le code reste en place, rien n'est perdu. */
 const PHOTOS_ENABLED = false;
 
-function updateAdminTabVisibility(email){
-  const isAdmin = !!email && ADMIN_EMAILS.some(e => e.toLowerCase() === email.toLowerCase());
-  document.getElementById('tab-admin-btn').hidden = !isAdmin;
+/* La liste des e-mails admin ne vit plus ici (avant : ADMIN_EMAILS, visible
+   par n'importe qui ouvrant le code source). On demande directement à la
+   base, via la fonction is_admin() déjà utilisée par les policies RLS —
+   une seule source de vérité, rien à garder synchronisé, et l'e-mail admin
+   ne quitte jamais le serveur. */
+async function updateAdminTabVisibility(){
+  const { data, error } = await sb.rpc('is_admin');
+  if(error) console.error('Erreur is_admin:', error);
+  document.getElementById('tab-admin-btn').hidden = !data;
 }
 
 /* --- Autenticação --- */
@@ -53,7 +52,7 @@ function initAuth(){
   sb.auth.onAuthStateChange((_event, session) => {
     if(session){
       showApp();
-      updateAdminTabVisibility(session.user.email);
+      updateAdminTabVisibility();
     } else {
       showAuthGate();
     }
