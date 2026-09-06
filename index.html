@@ -287,6 +287,24 @@
             </ul>
             <p class="checklist-count" id="checklistCount">0 / 12 vérifiés</p>
           </div>
+
+          <!-- Pertinent seulement pour une installation/mise en route d'imprimante neuve —
+               affiché automatiquement selon l'étape choisie ci-dessus (voir updateAutoControlVisibility) -->
+          <div id="autoControlInstallBlock" hidden>
+            <div class="field-label">Auto-contrôle installation (checklist officielle)</div>
+            <ul class="checklist" id="autoControlInstallList">
+              <li><label><input type="checkbox"> Déballage et vérification (dommages transport, accessoires complets)</label></li>
+              <li><label><input type="checkbox"> Emplacement vérifié (prise électrique dédiée + accès réseau)</label></li>
+              <li><label><input type="checkbox"> Mise sous tension + premier démarrage sans erreur</label></li>
+              <li><label><input type="checkbox"> Connexion réseau configurée (Ethernet/Wi-Fi)</label></li>
+              <li><label><input type="checkbox"> Pilotes installés sur le(s) poste(s) client</label></li>
+              <li><label><input type="checkbox"> Licence / logiciel activé et enregistré</label></li>
+              <li><label><input type="checkbox"> Test d'impression + scan réalisé avec succès</label></li>
+              <li><label><input type="checkbox"> Consommables de démarrage vérifiés (toner, papier)</label></li>
+              <li><label><input type="checkbox"> Explication rapide au client (utilisation de base)</label></li>
+            </ul>
+            <p class="checklist-count" id="checklistInstallCount">0 / 9 vérifiés</p>
+          </div>
         </div>
 
           <label class="field-label" for="finishNote">Qu'avez-vous fait ? (facultatif)</label>

@@ -1106,10 +1106,11 @@ function showRunning(job){
     document.getElementById('finishNote').value = '';
     document.getElementById('finishEtape').value = '';
     document.getElementById('finishQte').value = '';
-    document.querySelectorAll('#autoControlList input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('#autoControlList input[type="checkbox"], #autoControlInstallList input[type="checkbox"]').forEach(cb => cb.checked = false);
     pendingPhotoFinalBase64 = null;
     document.getElementById('photoFinalPreview').removeAttribute('src');
-    updateChecklistCount();
+    updateChecklistCount('autoControlList', 'checklistCount');
+    updateChecklistCount('autoControlInstallList', 'checklistInstallCount');
     updateAutoControlVisibility();
     document.getElementById('finishPrinterExtras').hidden = !job.brand;
     showState('finish');
@@ -1137,24 +1138,27 @@ function tick(job){
 /* --- Note finale + salvamento --- */
 function wireRunningStaticEvents(){ /* les handlers dynamiques sont (re)liés dans showRunning() */ }
 
-function updateChecklistCount(){
-  const boxes = document.querySelectorAll('#autoControlList input[type="checkbox"]');
-  const checked = document.querySelectorAll('#autoControlList input[type="checkbox"]:checked');
-  document.getElementById('checklistCount').textContent = `${checked.length} / ${boxes.length} vérifiés`;
+function updateChecklistCount(listId, countId){
+  const boxes = document.querySelectorAll(`#${listId} input[type="checkbox"]`);
+  const checked = document.querySelectorAll(`#${listId} input[type="checkbox"]:checked`);
+  document.getElementById(countId).textContent = `${checked.length} / ${boxes.length} vérifiés`;
 }
 
-/* La checklist de nettoyage (tambour/carters/etc.) ne concerne pas une
-   installation ou mise en route d'imprimante neuve — elle se cache toute
-   seule quand le technicien choisit une de ces deux étapes. */
-const ETAPES_SANS_AUTOCONTROLE = new Set(['Installation imprimante neuve', 'Mise en route imprimante neuve']);
+/* Deux checklists différentes selon le type de travail : celle de nettoyage
+   (tambour/carters/etc.) pour un reconditionnement, celle d'installation pour
+   une imprimante neuve — une seule visible à la fois, selon l'étape choisie. */
+const ETAPES_INSTALLATION = new Set(['Installation imprimante neuve', 'Mise en route imprimante neuve']);
 function updateAutoControlVisibility(){
   const etape = document.getElementById('finishEtape').value;
-  document.getElementById('autoControlBlock').hidden = ETAPES_SANS_AUTOCONTROLE.has(etape);
+  const isInstall = ETAPES_INSTALLATION.has(etape);
+  document.getElementById('autoControlBlock').hidden = isInstall;
+  document.getElementById('autoControlInstallBlock').hidden = !isInstall;
 }
 
 function wireFinishEvents(){
   document.getElementById('photoFinalBlock').hidden = !PHOTOS_ENABLED;
-  document.getElementById('autoControlList').addEventListener('change', updateChecklistCount);
+  document.getElementById('autoControlList').addEventListener('change', () => updateChecklistCount('autoControlList', 'checklistCount'));
+  document.getElementById('autoControlInstallList').addEventListener('change', () => updateChecklistCount('autoControlInstallList', 'checklistInstallCount'));
   document.getElementById('finishEtape').addEventListener('change', updateAutoControlVisibility);
 
   document.getElementById('photoFinalBtn').addEventListener('click', () => {
