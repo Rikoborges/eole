@@ -1345,7 +1345,12 @@ function renderBrandChart(history){
 
 function renderEtapeChart(history){
   const counts = {};
-  history.forEach(job => { if(job.etape) counts[job.etape] = (counts[job.etape] || 0) + 1; });
+  history.forEach(job => {
+    if(!job.etape) return;
+    // Une entrée avec une quantité (ex : "Emballage" x 12) compte pour 12, pas pour 1.
+    const add = job.quantite != null ? job.quantite : 1;
+    counts[job.etape] = (counts[job.etape] || 0) + add;
+  });
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
   const etapeChartEl = document.getElementById('etapeChart');
