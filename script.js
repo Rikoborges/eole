@@ -476,7 +476,8 @@ async function getHistory(){
     .from('jobs')
     .select('*')
     .not('finished_at', 'is', null)
-    .order('finished_at', { ascending: false });
+    .order('finished_at', { ascending: false })
+    .limit(1000); // garde-fou : évite de télécharger un historique illimité
   if(error){ console.error('Erreur getHistory:', error); return []; }
   return data.map(mapJobFromDb);
 }
@@ -584,10 +585,11 @@ async function setSetting(key, value){
   if(error) console.error('Erreur setSetting:', error);
 }
 
-async function uploadJobPhoto(jobIdOrTemp, base64DataUrl){
+async function uploadJobPhoto(jobId, base64DataUrl, kind){
   const { data: userData } = await sb.auth.getUser();
   const blob = dataUrlToBlob(base64DataUrl);
-  const path = `${userData.user.id}/${jobIdOrTemp}.jpg`;
+  // Chemin stable basé sur le job réel — jamais d'id temporaire orphelin.
+  const path = `${userData.user.id}/${jobId}/${kind}.jpg`;
   const { error } = await sb.storage.from('job-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
   if(error){ console.error('Erreur uploadJobPhoto:', error); return null; }
   return path; // guardamos só o caminho — o link de exibição é gerado na hora, temporário
@@ -976,15 +978,18 @@ function wireFormEvents(){
       await setSetting('last_name', name);
       const startedAt = new Date().toISOString();
 
-      let photoUrl = null;
-      if(pendingPhotoBase64){
-        photoUrl = await uploadJobPhoto('tmp_' + Date.now(), pendingPhotoBase64);
-      }
-
-      const job = await createJob({ name, brand, model, photoUrl, startedAt });
+      const job = await createJob({ name, brand, model, photoUrl: null, startedAt });
       if(!job){
         alert('Impossible de démarrer le service (erreur de connexion). Réessayez.');
         return;
+      }
+
+      // La photo est envoyée seulement une fois le job créé — le chemin utilise
+      // son id réel (job.id/bon.jpg), plus jamais un id temporaire orphelin.
+      if(pendingPhotoBase64){
+        const photoUrl = await uploadJobPhoto(job.id, pendingPhotoBase64, 'bon');
+        if(photoUrl) await updateJobFields(job.id, { photo_url: photoUrl });
+        job.photoBase64 = photoUrl;
       }
       showRunning(job);
     }catch(err){
@@ -1199,6 +1204,17 @@ function wireFinishEvents(){
     }
 
     const activeSeconds = getActiveSeconds(current, now);
+    // Valeur suspecte (NaN si started_at est invalide, ou quasi 0 sur un service
+    // qui tournait) : mieux vaut demander confirmation que d'écraser silencieusement
+    // des heures de travail réelles avec une donnée cassée.
+    if(!Number.isFinite(activeSeconds) || activeSeconds < 1){
+      const proceed = confirm('Le temps calculé pour ce service semble incorrect (proche de zéro). Enregistrer quand même ?');
+      if(!proceed){
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Enregistrer';
+        return;
+      }
+    }
     // Activité interne : l'étape a été fixée au démarrage et le select est masqué —
     // on la garde telle quelle plutôt que de lire un champ vide.
     const isActivityJob = !current.brand;
@@ -1209,7 +1225,7 @@ function wireFinishEvents(){
 
     let photoFinalUrl = null;
     if(pendingPhotoFinalBase64){
-      photoFinalUrl = await uploadJobPhoto('tmp_final_' + Date.now(), pendingPhotoFinalBase64);
+      photoFinalUrl = await uploadJobPhoto(current.id, pendingPhotoFinalBase64, 'final');
     }
     await finishJobInDb(current.id, now.toISOString(), activeSeconds, note, etape, quantite, photoFinalUrl);
     pendingPhotoFinalBase64 = null;
@@ -1280,15 +1296,17 @@ function renderSummary(history){
 
 function aggregateByDay(history, days){
   const buckets = [];
+  const byKey = new Map();
   const today = new Date();
   for(let i = days - 1; i >= 0; i--){
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    buckets.push({ key: d.toDateString(), label: DAYS_FR[d.getDay()], hours: 0, count: 0 });
+    const bucket = { key: d.toDateString(), label: DAYS_FR[d.getDay()], hours: 0, count: 0 };
+    buckets.push(bucket);
+    byKey.set(bucket.key, bucket);
   }
   history.forEach(job => {
-    const key = new Date(job.finishedAt).toDateString();
-    const bucket = buckets.find(b => b.key === key);
+    const bucket = byKey.get(new Date(job.finishedAt).toDateString());
     if(bucket){
       bucket.hours += (job.activeSeconds || 0) / 3600;
       bucket.count += 1;
@@ -1299,15 +1317,17 @@ function aggregateByDay(history, days){
 
 function aggregateByMonth(history, months){
   const buckets = [];
+  const byKey = new Map();
   const today = new Date();
   for(let i = months - 1; i >= 0; i--){
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    buckets.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTHS_FR[d.getMonth()], hours: 0, count: 0 });
+    const bucket = { key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTHS_FR[d.getMonth()], hours: 0, count: 0 };
+    buckets.push(bucket);
+    byKey.set(bucket.key, bucket);
   }
   history.forEach(job => {
     const d = new Date(job.finishedAt);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    const bucket = buckets.find(b => b.key === key);
+    const bucket = byKey.get(`${d.getFullYear()}-${d.getMonth()}`);
     if(bucket){
       bucket.hours += (job.activeSeconds || 0) / 3600;
       bucket.count += 1;
