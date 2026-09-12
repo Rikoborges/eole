@@ -639,6 +639,16 @@ function fmtHShort(totalSeconds){
   return `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}`;
 }
 
+/* Date du jour au format d'un <input type="date"> (YYYY-MM-DD), dans le fuseau
+   local du navigateur — pas toISOString(), qui donne la date UTC et affiche
+   la veille entre minuit et ~2h du matin heure de France. */
+function localDateInputValue(date){
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 /* --- Conversion data URL -> Blob (sans fetch, car bloqué par la CSP connect-src) --- */
 function dataUrlToBlob(dataUrl){
   const [header, base64] = dataUrl.split(',');
@@ -795,11 +805,12 @@ async function refreshIdleView(){
 
   renderPausedList(openJobs.filter(j => j.status === 'paused'));
 
-  const history = await getHistory();
+  const fullHistory = await getHistory();
   const todayStr = new Date().toDateString();
-  const todaySeconds = history
-    .filter(j => new Date(j.finishedAt).toDateString() === todayStr)
-    .reduce((sum, j) => sum + (j.activeSeconds || 0), 0);
+  // Le Suivi du technicien ne montre que le jour même — l'historique complet
+  // de l'équipe reste dans l'onglet Admin, pas ici.
+  const history = fullHistory.filter(j => new Date(j.finishedAt).toDateString() === todayStr);
+  const todaySeconds = history.reduce((sum, j) => sum + (j.activeSeconds || 0), 0);
   document.getElementById('today-total-val').textContent = fmtHShort(todaySeconds);
 
   const listEl2 = document.getElementById('history-list');
@@ -916,7 +927,7 @@ async function exportMyData(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `mes-donnees-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `mes-donnees-${localDateInputValue(new Date())}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -1008,7 +1019,7 @@ function wireActivityEvents(){
     document.getElementById('activityType').value = '';
     document.getElementById('activityQte').value = '';
     document.getElementById('activityNote').value = '';
-    document.getElementById('activityDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('activityDate').value = localDateInputValue(new Date());
     document.getElementById('activityName').value = (await getSetting('last_name')) || '';
     showState('activity');
   });
