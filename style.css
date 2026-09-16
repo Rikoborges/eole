@@ -19,9 +19,13 @@
   --text:        oklch(93% 0.01 90);
   --text-dim:    oklch(70% 0.02 210);
 
-  --clean:       oklch(68% 0.08 175);
+  /* clean/elec um pouco mais claros que o "ideal" estético — o tom original
+     ficava abaixo de 4.5:1 nas etiquetas de categoria (fundo semi-transp.
+     sobre --panel), medido com a fórmula oklch→sRGB real, não a aproximação
+     em hex do fallback abaixo. */
+  --clean:       oklch(73% 0.08 175);
   --assy:        var(--copper-text);
-  --elec:        oklch(66% 0.11 30);
+  --elec:        oklch(72% 0.11 30);
   --warn:        oklch(64% 0.15 25);
 
   --radius-sm: 8px;
@@ -39,7 +43,7 @@
   :root{
     --bg:#12181a; --panel:#1a2224; --panel-2:#212a2c; --line:#2c3739;
     --copper:#e0b23c; --copper-dim:#7a5f1e; --copper-text:#e8c25f;
-    --text:#eae6df; --text-dim:#9aa7ac; --clean:#5c9084; --elec:#a8503c; --warn:#c9483a;
+    --text:#eae6df; --text-dim:#9aa7ac; --clean:#6fb8a5; --elec:#e1897b; --warn:#c9483a;
   }
 }
 
@@ -337,9 +341,9 @@ main{
   white-space: nowrap;
   flex-shrink: 0;
 }
-.cat-limpeza .tag{ background: oklch(68% 0.08 175 / 18%); color: var(--clean); }
+.cat-limpeza .tag{ background: oklch(73% 0.08 175 / 18%); color: var(--clean); }
 .cat-montagem .tag{ background: oklch(62% 0.13 45 / 18%); color: var(--copper-text); }
-.cat-eletrica .tag{ background: oklch(66% 0.11 30 / 18%); color: var(--elec); }
+.cat-eletrica .tag{ background: oklch(72% 0.11 30 / 18%); color: var(--elec); }
 
 .lang-row{ display: flex; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
 .lang-item{ font-size: 14px; line-height: 20px; }
