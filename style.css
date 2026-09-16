@@ -158,6 +158,20 @@ h1{
   background: var(--panel-2);
 }
 
+/* Do tablet pra cima: cabeçalho e abas acompanham a mesma largura do main,
+   em vez de esticar até a borda da janela enquanto o conteúdo fica estreito.
+   Precisa vir depois de .plate/.tabs/.stripe no arquivo — mesma especificidade,
+   quem vem por último no CSS ganha a disputa. */
+@media (min-width: 700px){
+  .plate, .tabs, .stripe{ max-width: 640px; margin-left: auto; margin-right: auto; }
+}
+@media (min-width: 1024px){
+  .plate, .tabs, .stripe{ max-width: 900px; }
+}
+@media (min-width: 1440px){
+  .plate, .tabs, .stripe{ max-width: 1120px; }
+}
+
 /* ===================== LAYOUT PRINCIPAL ===================== */
 main{
   padding: var(--space-4);
@@ -171,9 +185,18 @@ main{
 .view{ display: none; }
 .view.active{ display: block; }
 
-/* Telas mais largas (tablet paisagem, desktop): dá mais respiro, sem quebrar o mobile-first */
-@container app (min-width: 620px){
+/* Largura do próprio main precisa vir de media query (largura da janela), não de
+   @container: um elemento não pode consultar o próprio tamanho pra decidir o
+   próprio tamanho — essa regra nunca dispararia. Os filhos (.parts-list, .form-box
+   etc.) continuam usando @container, agora medindo a largura real do main abaixo. */
+@media (min-width: 700px){
   main{ max-width: 640px; }
+}
+@media (min-width: 1024px){
+  main{ max-width: 900px; padding: var(--space-5); }
+}
+@media (min-width: 1440px){
+  main{ max-width: 1120px; }
 }
 
 /* ===================== BUSCA / FILTRO (Peças) ===================== */
@@ -292,6 +315,10 @@ main{
 /* Em telas largas o suficiente, peças viram grid de 2 colunas — container query, não media query */
 @container app (min-width: 560px){
   .parts-list{ grid-template-columns: 1fr 1fr; }
+}
+/* E 3 colunas quando o main tem espaço de sobra (desktop) */
+@container app (min-width: 900px){
+  .parts-list{ grid-template-columns: repeat(3, 1fr); }
 }
 
 .card{
@@ -424,6 +451,9 @@ main{
 .form-box{
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md);
   padding: 16px; margin-bottom: 16px;
+  /* Em telas largas o campo não precisa esticar até o fim do main — mantém
+     confortável de ler e preencher, centralizado dentro do espaço disponível. */
+  max-width: 640px; margin-left: auto; margin-right: auto;
 }
 .field-label{
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: .06em;
@@ -465,6 +495,9 @@ textarea{ resize: vertical; min-height: 70px; }
 .photo-preview[src]:not([src=""]){ display: block; }
 
 .ocr-status{ font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--copper-text); margin-top: 6px; }
+
+.form-status{ font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--copper-text); margin: 10px 2px 0; }
+.form-status.error{ color: var(--warn); }
 
 .btn-row{ display: flex; gap: 16px; margin-top: 24px; }
 .btn-secondary, .btn-primary{
@@ -736,6 +769,19 @@ textarea{ resize: vertical; min-height: 70px; }
   border-radius: var(--radius-md);
   padding: 16px;
   margin-bottom: 16px;
+}
+
+/* Desktop com espaço de sobra: gráficos lado a lado em vez de empilhados —
+   o resumo (summary-grid) continua ocupando a largura toda no topo. */
+@container app (min-width: 800px){
+  #analyse-content{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    align-items: start;
+    gap: var(--space-4);
+  }
+  #analyse-content .summary-grid{ grid-column: 1 / -1; margin-bottom: 0; }
+  #analyse-content .chart-box{ margin-bottom: 0; }
 }
 .chart-head{
   display: flex;

@@ -53,13 +53,19 @@ próprios registros (ver seção RGPD/Segurança abaixo).
 ### 👤 Admin (acesso restrito)
 Visível só para os e-mails cadastrados na função `is_admin()` do banco
 (SQL, ver seção abaixo) — o app pergunta ao Supabase "sou admin?" em vez de
-guardar essa lista no código. Mostra tudo de todos os técnicos: resumo
-geral, busca e lista completa de serviços com as fotos (inicial e final),
-num visualizador em tela cheia.
+guardar essa lista no código. Mostra um resumo geral (serviços, horas,
+número de técnicos) direto ao abrir; a lista detalhada com os serviços de
+cada técnico (fotos incluídas) só aparece depois de clicar em "Voir tous
+les services de l'équipe" — ninguém fica exposto por padrão.
 
-Também tem um painel para **gerenciar os modelos de impressora** sugeridos
-no autocomplete do Suivi — adicionar ou remover direto pela tela, sem
-precisar mexer no código.
+Também tem dois painéis de gestão:
+- **Gerenciar os modelos de impressora** sugeridos no autocomplete do Suivi
+  — adicionar ou remover direto pela tela, sem precisar mexer no código.
+- **Adicionar um técnico** — cria uma conta de login (e-mail + senha) direto
+  pela tela, sem precisar entrar no painel do Supabase. Depende da variável
+  de ambiente `SUPABASE_SERVICE_ROLE_KEY` na Vercel (ver seção "Configuração
+  do servidor" abaixo) — sem ela, o botão mostra um erro em vez de travar
+  silenciosamente.
 
 ---
 
@@ -118,9 +124,35 @@ Só dá pra fazer no painel do Supabase (nenhum código resolve isso):
 - **Authentication → Providers → Email → desligar "Allow new users to
   sign up"**. Enquanto isso estiver ligado, qualquer pessoa pode criar a
   própria conta direto pela API pública do Supabase, mesmo sem passar pelo
-  app — é o único jeito de garantir que só você autoriza quem entra. Depois
-  de desligado, novas contas só existem se forem criadas manualmente por
-  você (painel → Authentication → Users → Add user).
+  app — é o único jeito de garantir que só você autoriza quem entra. Com
+  isso desligado, a única forma de criar conta nova é pelo botão "Adicionar
+  um técnico" do Admin (abaixo) ou manualmente no painel.
+
+---
+
+## Configuração do servidor (Vercel) — criar técnico pelo Admin
+
+O botão "Adicionar um técnico" do Admin precisa de uma chave secreta do
+Supabase que **nunca pode entrar no repositório nem no `script.js`** — ela
+dá acesso total ao banco, ao contrário da chave pública já usada no app.
+
+**Passo a passo:**
+1. No painel do Supabase: **Settings → API → Project API keys → service_role**
+   (não confundir com a chave "anon"/"publishable", essa já está em
+   `script.js` e é pública). Copie o valor.
+2. No painel da Vercel: abra o projeto → **Settings → Environment Variables**
+   → adicione uma variável chamada `SUPABASE_SERVICE_ROLE_KEY` com o valor
+   copiado, marcada para o ambiente **Production** (e Preview, se quiser
+   testar em branches).
+3. Faça um novo deploy (qualquer push já dispara um, ou clique "Redeploy"
+   na Vercel) para a variável entrar em vigor.
+
+Sem essa variável configurada, o botão continua visível mas mostra uma
+mensagem de erro ao tentar criar a conta — não falha silenciosamente.
+
+A função que faz isso vive em `api/create-technician.js` (roda só no
+servidor da Vercel, nunca no navegador) e confere com o próprio Supabase se
+quem está chamando é mesmo admin antes de criar qualquer conta.
 
 ---
 
@@ -148,6 +180,9 @@ style.css               visual (paleta petróleo + cobre, mobile-first)
 script.js               toda a lógica (dados, telas, gráficos, Supabase)
 favicon.svg             ícone do site
 vercel.json             cabeçalhos de segurança HTTP (deploy na Vercel)
+package.json            dependência da função serverless (api/)
+api/
+  create-technician.js      ⚠️ roda só no servidor — cria login de técnico
 supabase/
   setup-complete.sql        ⭐ rodar 1º (colunas + segurança)
   printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)

@@ -1505,12 +1505,24 @@ async function initAdmin(){
   adminAllJobs = [...currentJobs, ...history];
 
   renderAdminSummary(adminAllJobs);
-  renderAdminList(adminAllJobs);
   wireModelManageEvents();
+  wireTechnicianForm();
   await renderModelManageList();
+
+  // Les services de l'équipe ne s'affichent pas tout seuls — seulement si le
+  // panneau a déjà été révélé (clic sur "Voir tous les services"), pour ne
+  // pas exposer tout le monde par défaut à chaque visite de l'onglet.
+  if(!document.getElementById('adminJobsPanel').hidden){
+    renderAdminList(adminAllJobs);
+  }
 
   if(!adminInited){
     adminInited = true;
+    document.getElementById('btnRevealJobs').addEventListener('click', () => {
+      document.getElementById('adminJobsGate').hidden = true;
+      document.getElementById('adminJobsPanel').hidden = false;
+      renderAdminList(adminAllJobs);
+    });
     document.getElementById('adminSearch').addEventListener('input', () => renderAdminList(adminAllJobs));
     document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
     document.getElementById('lightbox').addEventListener('click', (e) => {
@@ -1520,6 +1532,59 @@ async function initAdmin(){
 
   document.getElementById('admin-loading').hidden = true;
   document.getElementById('admin-content').hidden = false;
+}
+
+/* --- Création de compte technicien (email + mot de passe) ---
+   Passe par une fonction serverless (api/create-technician.js) : la clé
+   service_role du Supabase ne doit jamais atterrir dans ce fichier, qui est
+   envoyé tel quel au navigateur de n'importe qui. */
+let technicianFormInited = false;
+function wireTechnicianForm(){
+  if(technicianFormInited) return;
+  technicianFormInited = true;
+
+  document.getElementById('technicianForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById('technicianStatus');
+    const name = document.getElementById('technicianName').value.trim();
+    const email = document.getElementById('technicianEmail').value.trim();
+    const password = document.getElementById('technicianPassword').value;
+
+    statusEl.hidden = false;
+    statusEl.classList.remove('error');
+    statusEl.textContent = 'Création du compte…';
+
+    const { data: { session } } = await sb.auth.getSession();
+    if(!session){
+      statusEl.classList.add('error');
+      statusEl.textContent = 'Session expirée — reconnectez-vous et réessayez.';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/create-technician', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if(!res.ok){
+        statusEl.classList.add('error');
+        statusEl.textContent = body.error || 'Erreur lors de la création du compte.';
+        return;
+      }
+      statusEl.classList.remove('error');
+      statusEl.textContent = `Compte créé pour ${body.email}. Partagez le mot de passe avec le technicien.`;
+      document.getElementById('technicianForm').reset();
+    } catch(err){
+      console.error('Erreur create-technician:', err);
+      statusEl.classList.add('error');
+      statusEl.textContent = 'Erreur réseau — réessayez.';
+    }
+  });
 }
 
 function renderAdminSummary(jobs){
