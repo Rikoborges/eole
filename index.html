@@ -368,17 +368,34 @@
           <ul class="model-manage-list" id="modelManageList"></ul>
         </details>
 
-        <div class="search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
-          <label for="adminSearch" class="visually-hidden">Rechercher un service</label>
-          <input id="adminSearch" type="text" placeholder="Rechercher (technicien, marque, modèle)..." autocomplete="off">
+        <details class="guide">
+          <summary>Ajouter un technicien <span class="chev">›</span></summary>
+          <form class="model-form" id="technicianForm">
+            <input type="text" id="technicianName" placeholder="Nom (optionnel)" autocomplete="off">
+            <input type="email" id="technicianEmail" placeholder="E-mail" required autocomplete="off">
+            <input type="password" id="technicianPassword" placeholder="Mot de passe (8+ caractères)" required minlength="8" autocomplete="new-password">
+            <button type="submit" class="btn-secondary">+ Créer le compte</button>
+          </form>
+          <p class="form-status" id="technicianStatus" hidden></p>
+        </details>
+
+        <div id="adminJobsGate">
+          <button type="button" class="btn-new btn-new-secondary" id="btnRevealJobs">👁 Voir tous les services de l'équipe</button>
         </div>
 
-        <p class="count" id="adminCount" aria-live="polite"></p>
-        <ul id="adminList" class="history-list admin-list"></ul>
-        <p class="empty" id="adminEmpty" hidden>Aucun résultat.</p>
+        <div id="adminJobsPanel" hidden>
+          <div class="search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <label for="adminSearch" class="visually-hidden">Rechercher un service</label>
+            <input id="adminSearch" type="text" placeholder="Rechercher (technicien, marque, modèle)..." autocomplete="off">
+          </div>
+
+          <p class="count" id="adminCount" aria-live="polite"></p>
+          <ul id="adminList" class="history-list admin-list"></ul>
+          <p class="empty" id="adminEmpty" hidden>Aucun résultat.</p>
+        </div>
       </div>
     </section>
 

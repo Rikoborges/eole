@@ -1,0 +1,8 @@
+{
+  "name": "reprobench",
+  "private": true,
+  "description": "Site estático (HTML/CSS/JS) + uma função serverless na Vercel (api/create-technician.js) que precisa do pacote abaixo.",
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.3"
+  }
+}

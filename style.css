@@ -496,6 +496,9 @@ textarea{ resize: vertical; min-height: 70px; }
 
 .ocr-status{ font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--copper-text); margin-top: 6px; }
 
+.form-status{ font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--copper-text); margin: 10px 2px 0; }
+.form-status.error{ color: var(--warn); }
+
 .btn-row{ display: flex; gap: 16px; margin-top: 24px; }
 .btn-secondary, .btn-primary{
   flex: 1; padding: 14px; min-height: var(--touch-min); border-radius: var(--radius-sm);
