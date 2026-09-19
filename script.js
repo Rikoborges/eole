@@ -750,6 +750,7 @@ async function initRegistro(){
     wireRunningStaticEvents();
     wireFinishEvents();
     wireExportEvent();
+    wirePasswordChangeEvent();
   }
   await refreshIdleView();
 }
@@ -888,6 +889,40 @@ function wireExportEvent(){
       btn.disabled = false;
       btn.textContent = '⬇ Exporter mes données';
     }
+  });
+}
+
+/* --- Changement de mot de passe : chaque technicien change le sien ---
+   sb.auth.updateUser() marche direto avec a sessão já logada, sem precisar
+   de service_role nem de nenhuma função no servidor. */
+function wirePasswordChangeEvent(){
+  document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById('passwordStatus');
+    const pass1 = document.getElementById('newPassword1').value;
+    const pass2 = document.getElementById('newPassword2').value;
+
+    statusEl.hidden = false;
+    statusEl.classList.remove('error');
+
+    if(pass1 !== pass2){
+      statusEl.classList.add('error');
+      statusEl.textContent = 'Les mots de passe ne correspondent pas.';
+      return;
+    }
+
+    statusEl.textContent = 'Mise à jour…';
+    const { error } = await sb.auth.updateUser({ password: pass1 });
+    if(error){
+      console.error('Erreur updateUser (mot de passe):', error);
+      statusEl.classList.add('error');
+      statusEl.textContent = 'Erreur lors de la mise à jour. Réessayez.';
+      return;
+    }
+
+    statusEl.classList.remove('error');
+    statusEl.textContent = 'Mot de passe mis à jour !';
+    document.getElementById('passwordForm').reset();
   });
 }
 
