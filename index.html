@@ -134,6 +134,20 @@
         <p class="empty" id="history-empty" hidden>Aucun service enregistré aujourd'hui.</p>
 
         <div class="account-box">
+          <details class="guide">
+            <summary>Changer mon mot de passe <span class="chev">›</span></summary>
+            <form id="passwordForm">
+              <label class="field-label" for="newPassword1">Nouveau mot de passe</label>
+              <input type="password" id="newPassword1" placeholder="8+ caractères" required minlength="8" autocomplete="new-password">
+
+              <label class="field-label" for="newPassword2">Confirmer le mot de passe</label>
+              <input type="password" id="newPassword2" placeholder="Répétez le mot de passe" required minlength="8" autocomplete="new-password">
+
+              <button type="submit" class="btn-primary auth-btn-full">Mettre à jour</button>
+            </form>
+            <p class="form-status" id="passwordStatus" hidden></p>
+          </details>
+
           <button type="button" class="btn-export" id="btnExportData">⬇ Exporter mes données</button>
         </div>
       </div>
@@ -354,6 +368,18 @@
       <div id="admin-content" hidden>
         <div class="summary-grid" id="adminSummaryGrid"></div>
 
+        <div class="chart-box">
+          <h2 class="hist-label">Heures cette semaine par technicien</h2>
+          <div id="technicianWeekChart"></div>
+        </div>
+
+        <div class="chart-box">
+          <h2 class="hist-label">Détail par jour (7 derniers jours)</h2>
+          <div class="table-scroll">
+            <div id="technicianWeekTable"></div>
+          </div>
+        </div>
+
         <details class="guide">
           <summary>Gérer les modèles d'imprimante <span class="chev">›</span></summary>
           <form class="model-form" id="modelForm">
@@ -377,6 +403,9 @@
             <button type="submit" class="btn-secondary">+ Créer le compte</button>
           </form>
           <p class="form-status" id="technicianStatus" hidden></p>
+
+          <h3 class="hist-label" id="technicianListLabel">Comptes existants</h3>
+          <ul class="model-manage-list" id="technicianManageList"></ul>
         </details>
 
         <div id="adminJobsGate">

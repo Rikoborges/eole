@@ -750,6 +750,7 @@ async function initRegistro(){
     wireRunningStaticEvents();
     wireFinishEvents();
     wireExportEvent();
+    wirePasswordChangeEvent();
   }
   await refreshIdleView();
 }
@@ -888,6 +889,40 @@ function wireExportEvent(){
       btn.disabled = false;
       btn.textContent = '⬇ Exporter mes données';
     }
+  });
+}
+
+/* --- Changement de mot de passe : chaque technicien change le sien ---
+   sb.auth.updateUser() marche direto avec a sessão já logada, sem precisar
+   de service_role nem de nenhuma função no servidor. */
+function wirePasswordChangeEvent(){
+  document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const statusEl = document.getElementById('passwordStatus');
+    const pass1 = document.getElementById('newPassword1').value;
+    const pass2 = document.getElementById('newPassword2').value;
+
+    statusEl.hidden = false;
+    statusEl.classList.remove('error');
+
+    if(pass1 !== pass2){
+      statusEl.classList.add('error');
+      statusEl.textContent = 'Les mots de passe ne correspondent pas.';
+      return;
+    }
+
+    statusEl.textContent = 'Mise à jour…';
+    const { error } = await sb.auth.updateUser({ password: pass1 });
+    if(error){
+      console.error('Erreur updateUser (mot de passe):', error);
+      statusEl.classList.add('error');
+      statusEl.textContent = 'Erreur lors de la mise à jour. Réessayez.';
+      return;
+    }
+
+    statusEl.classList.remove('error');
+    statusEl.textContent = 'Mot de passe mis à jour !';
+    document.getElementById('passwordForm').reset();
   });
 }
 
@@ -1505,9 +1540,12 @@ async function initAdmin(){
   adminAllJobs = [...currentJobs, ...history];
 
   renderAdminSummary(adminAllJobs);
+  renderTechnicianWeekChart(adminAllJobs);
+  renderTechnicianWeekTable(adminAllJobs);
   wireModelManageEvents();
   wireTechnicianForm();
   await renderModelManageList();
+  await renderTechnicianManageList();
 
   // Les services de l'équipe ne s'affichent pas tout seuls — seulement si le
   // panneau a déjà été révélé (clic sur "Voir tous les services"), pour ne
@@ -1579,12 +1617,52 @@ function wireTechnicianForm(){
       statusEl.classList.remove('error');
       statusEl.textContent = `Compte créé pour ${body.email}. Partagez le mot de passe avec le technicien.`;
       document.getElementById('technicianForm').reset();
+      renderTechnicianManageList();
     } catch(err){
       console.error('Erreur create-technician:', err);
       statusEl.classList.add('error');
       statusEl.textContent = 'Erreur réseau — réessayez.';
     }
   });
+}
+
+/* --- Liste des comptes techniciens (lecture seule) ---
+   Passe par api/list-technicians.js, même raison que la création : il faut
+   la clé service_role pour lister les comptes du Supabase Auth. */
+async function getAllTechnicians(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(!session) return [];
+
+  try {
+    const res = await fetch('/api/list-technicians', {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if(!res.ok){
+      console.error('Erreur list-technicians:', body.error);
+      return [];
+    }
+    return body.technicians || [];
+  } catch(err){
+    console.error('Erreur réseau list-technicians:', err);
+    return [];
+  }
+}
+
+async function renderTechnicianManageList(){
+  const listEl = document.getElementById('technicianManageList');
+  const technicians = await getAllTechnicians();
+
+  if(technicians.length === 0){
+    listEl.innerHTML = '<li class="model-manage-row"><span>Aucun compte trouvé (ou erreur de chargement).</span></li>';
+    return;
+  }
+
+  listEl.innerHTML = technicians.map(t => `
+    <li class="model-manage-row">
+      <span>${t.name ? escapeHtml(t.name) + ' — ' : ''}${escapeHtml(t.email || '')}</span>
+    </li>
+  `).join('');
 }
 
 function renderAdminSummary(jobs){
@@ -1606,6 +1684,89 @@ function renderAdminSummary(jobs){
       <p class="summary-label">Techniciens</p>
     </div>
   `;
+}
+
+/* --- Heures par technicien (7 derniers jours) ---
+   Regroupe par job.name (le nom tapé dans le formulaire), comme le fait déjà
+   renderAdminSummary pour compter les techniciens — pas besoin de croiser
+   avec les comptes de connexion, un job n'a jamais l'e-mail du technicien. */
+function weekDayBuckets(){
+  const buckets = [];
+  const today = new Date();
+  for(let i = 6; i >= 0; i--){
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    buckets.push({ key: d.toDateString(), label: DAYS_FR[d.getDay()] });
+  }
+  return buckets;
+}
+
+function renderTechnicianWeekChart(jobs){
+  const validKeys = new Set(weekDayBuckets().map(b => b.key));
+  const totals = {};
+  jobs.forEach(job => {
+    if(!job.finishedAt || !job.name) return;
+    if(!validKeys.has(new Date(job.finishedAt).toDateString())) return;
+    totals[job.name] = (totals[job.name] || 0) + (job.activeSeconds || 0);
+  });
+
+  const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  const el = document.getElementById('technicianWeekChart');
+  if(entries.length === 0){
+    el.innerHTML = `<p class="empty">Aucune donnée cette semaine.</p>`;
+    return;
+  }
+
+  const max = Math.max(...entries.map(e => e[1]));
+  el.innerHTML = entries.map(([name, seconds]) => `
+    <div class="hbar-row">
+      <span class="hbar-label">${escapeHtml(name)}</span>
+      <div class="hbar-track">
+        <div class="hbar-fill" style="width:${(seconds / max) * 100}%">
+          <span class="hbar-count">${fmtHShort(seconds)}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* Grille "type Excel" : une ligne par technicien, une colonne par jour —
+   pour voir en un coup d'œil qui a travaillé quand cette semaine. */
+function renderTechnicianWeekTable(jobs){
+  const buckets = weekDayBuckets();
+  const byTech = new Map();
+
+  jobs.forEach(job => {
+    if(!job.finishedAt || !job.name) return;
+    const dayKey = new Date(job.finishedAt).toDateString();
+    if(!buckets.some(b => b.key === dayKey)) return;
+    if(!byTech.has(job.name)) byTech.set(job.name, {});
+    const row = byTech.get(job.name);
+    row[dayKey] = (row[dayKey] || 0) + (job.activeSeconds || 0);
+  });
+
+  const el = document.getElementById('technicianWeekTable');
+  const names = [...byTech.keys()].sort((a, b) => a.localeCompare(b));
+  if(names.length === 0){
+    el.innerHTML = `<p class="empty">Aucune donnée cette semaine.</p>`;
+    return;
+  }
+
+  const header = `<tr><th>Technicien</th>${buckets.map(b => `<th>${b.label}</th>`).join('')}<th>Total</th></tr>`;
+  const body = names.map(name => {
+    const row = byTech.get(name);
+    const cells = buckets.map(b => row[b.key] || 0);
+    const total = cells.reduce((sum, s) => sum + s, 0);
+    return `
+      <tr>
+        <td>${escapeHtml(name)}</td>
+        ${cells.map(s => `<td>${s > 0 ? fmtHShort(s) : '–'}</td>`).join('')}
+        <td><b>${fmtHShort(total)}</b></td>
+      </tr>
+    `;
+  }).join('');
+
+  el.innerHTML = `<table class="week-table">${header}${body}</table>`;
 }
 
 function renderAdminList(jobs){
