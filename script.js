@@ -1543,6 +1543,7 @@ async function initAdmin(){
   wireModelManageEvents();
   wireTechnicianForm();
   await renderModelManageList();
+  await renderTechnicianManageList();
 
   // Les services de l'équipe ne s'affichent pas tout seuls — seulement si le
   // panneau a déjà été révélé (clic sur "Voir tous les services"), pour ne
@@ -1614,12 +1615,52 @@ function wireTechnicianForm(){
       statusEl.classList.remove('error');
       statusEl.textContent = `Compte créé pour ${body.email}. Partagez le mot de passe avec le technicien.`;
       document.getElementById('technicianForm').reset();
+      renderTechnicianManageList();
     } catch(err){
       console.error('Erreur create-technician:', err);
       statusEl.classList.add('error');
       statusEl.textContent = 'Erreur réseau — réessayez.';
     }
   });
+}
+
+/* --- Liste des comptes techniciens (lecture seule) ---
+   Passe par api/list-technicians.js, même raison que la création : il faut
+   la clé service_role pour lister les comptes du Supabase Auth. */
+async function getAllTechnicians(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(!session) return [];
+
+  try {
+    const res = await fetch('/api/list-technicians', {
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if(!res.ok){
+      console.error('Erreur list-technicians:', body.error);
+      return [];
+    }
+    return body.technicians || [];
+  } catch(err){
+    console.error('Erreur réseau list-technicians:', err);
+    return [];
+  }
+}
+
+async function renderTechnicianManageList(){
+  const listEl = document.getElementById('technicianManageList');
+  const technicians = await getAllTechnicians();
+
+  if(technicians.length === 0){
+    listEl.innerHTML = '<li class="model-manage-row"><span>Aucun compte trouvé (ou erreur de chargement).</span></li>';
+    return;
+  }
+
+  listEl.innerHTML = technicians.map(t => `
+    <li class="model-manage-row">
+      <span>${t.name ? escapeHtml(t.name) + ' — ' : ''}${escapeHtml(t.email || '')}</span>
+    </li>
+  `).join('');
 }
 
 function renderAdminSummary(jobs){
