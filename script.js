@@ -45,6 +45,7 @@ function initAuth(){
   // pra garantir que clicar sempre funciona mesmo se algo mais falhar.
   document.getElementById('btnLogin').addEventListener('click', handleLogin);
   document.getElementById('btnLogout').addEventListener('click', handleLogout);
+  wireAccountEvents();
 
   // onAuthStateChange sozinho já cobre tudo: dispara "INITIAL_SESSION" assim que
   // registra (cobre o carregamento da página) e depois "SIGNED_IN"/"SIGNED_OUT"
@@ -53,6 +54,7 @@ function initAuth(){
     if(session){
       showApp();
       updateAdminTabVisibility();
+      updateAccountProfile(session);
     } else {
       showAuthGate();
     }
@@ -102,6 +104,81 @@ function showAuthGate(){
   document.getElementById('app-shell').hidden = true;
   document.getElementById('auth-gate').hidden = false;
 }
+
+/* --- Photo de profil (avatar) ---
+   Même schéma que les photos de service : bucket privé + lien signé
+   temporaire, chemin fixe "<user_id>/avatar.jpg" (upsert à chaque envoi,
+   donc toujours un seul fichier par personne). */
+async function uploadAvatar(base64DataUrl){
+  const { data: userData } = await sb.auth.getUser();
+  if(!userData.user) return null;
+  const blob = dataUrlToBlob(base64DataUrl);
+  const path = `${userData.user.id}/avatar.jpg`;
+  const { error } = await sb.storage.from('avatars').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+  if(error){ console.error('Erreur uploadAvatar:', error); return null; }
+  return path;
+}
+
+async function resolveAvatarUrl(userId){
+  const { data, error } = await sb.storage.from('avatars').createSignedUrl(`${userId}/avatar.jpg`, 3600);
+  if(error) return null; // normal quand la personne n'a encore jamais envoyé de photo
+  return data.signedUrl;
+}
+
+function showAvatarImage(url){
+  const img = document.getElementById('avatarImg');
+  const fallback = document.getElementById('avatarFallback');
+  if(url){
+    img.src = url;
+    img.hidden = false;
+    fallback.hidden = true;
+  } else {
+    img.hidden = true;
+    img.removeAttribute('src');
+    fallback.hidden = false;
+  }
+}
+
+async function updateAccountProfile(session){
+  const user = session.user;
+  const name = (user.user_metadata && user.user_metadata.name) || user.email || '';
+  document.getElementById('accountName').textContent = name;
+  document.getElementById('avatarFallback').textContent = name.trim().charAt(0).toUpperCase() || '?';
+
+  const url = await resolveAvatarUrl(user.id);
+  showAvatarImage(url);
+}
+
+let accountEventsInited = false;
+function wireAccountEvents(){
+  if(accountEventsInited) return;
+  accountEventsInited = true;
+
+  document.getElementById('avatarBtn').addEventListener('click', () => {
+    document.getElementById('avatarInput').click();
+  });
+
+  document.getElementById('avatarInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = ''; // permite escolher o mesmo arquivo de novo depois
+    if(!file) return;
+
+    try{
+      const base64 = await compressImage(file, 300, 0.7);
+      const path = await uploadAvatar(base64);
+      if(!path){
+        alert("Impossible d'envoyer la photo. Réessayez.");
+        return;
+      }
+      const { data: userData } = await sb.auth.getUser();
+      if(userData.user) showAvatarImage(await resolveAvatarUrl(userData.user.id));
+    }catch(err){
+      console.error('Erreur avatar:', err);
+      alert('Impossible de traiter la photo. Réessayez.');
+    }
+  });
+}
+
 initAuth();
 
 /* ======================= DONNÉES : PIÈCES ======================= */
