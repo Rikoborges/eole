@@ -55,12 +55,22 @@
 
   <header class="app-header">
     <div class="plate">
-      <button class="btn-logout-icon" id="btnLogout" type="button" title="Se déconnecter" aria-label="Se déconnecter">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3v7"/>
-          <path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>
-        </svg>
-      </button>
+      <div class="account-row">
+        <button type="button" class="avatar-btn" id="avatarBtn" title="Changer ma photo de profil" aria-label="Changer ma photo de profil">
+          <img class="avatar-img" id="avatarImg" alt="" hidden>
+          <span class="avatar-fallback" id="avatarFallback" aria-hidden="true">•</span>
+        </button>
+        <input type="file" id="avatarInput" accept="image/*" class="visually-hidden">
+
+        <span class="account-name" id="accountName">…</span>
+
+        <button class="btn-logout-icon" id="btnLogout" type="button" title="Se déconnecter" aria-label="Se déconnecter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v7"/>
+            <path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>
+          </svg>
+        </button>
+      </div>
       <p class="eyebrow">Reconditionnement · Suivi</p>
       <h1>ReproBench</h1>
       <p class="sub">Pièces de référence + suivi de service</p>
