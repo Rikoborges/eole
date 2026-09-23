@@ -596,20 +596,24 @@ async function createJob({ name, brand, model, photoUrl, startedAt }){
   return mapJobFromDb(data);
 }
 
-/* Enregistrement rapide (quantité) : pas de chronomètre, pas de marque/modèle —
-   juste une étape + une quantité pour un jour donné, sauvegardé déjà "terminé"
+/* Enregistrement rapide : pas de chronomètre, pas de marque/modèle —
+   juste une étape + une quantité (ou une durée pour les étapes de temps,
+   voir TIME_ETAPES) pour un jour donné, sauvegardé déjà "terminé"
    (started_at = finished_at) pour apparaître tout de suite dans l'historique.
    brand/model restent '' plutôt que null pour rester compatibles avec une
    éventuelle contrainte NOT NULL. */
-async function createQuickLogEntry({ name, etape, quantite, note, when }){
+async function createQuickLogEntry({ name, etape, quantite, seconds = 0, note, when }){
   const { data: userData } = await sb.auth.getUser();
+  // Étape de temps : on recule started_at de la durée saisie pour que
+  // started_at → finished_at corresponde bien au temps déclaré.
+  const startedAt = new Date(new Date(when).getTime() - seconds * 1000).toISOString();
   const { error } = await sb
     .from('jobs')
     .insert({
       user_id: userData.user.id,
       technician: name, brand: '', model: '',
       etape, quantite, note: note || null,
-      started_at: when, finished_at: when, active_seconds: 0
+      started_at: startedAt, finished_at: when, active_seconds: seconds
     });
   if(error){ console.error('Erreur createQuickLogEntry:', error); return false; }
   return true;
@@ -1125,11 +1129,27 @@ function wireFormEvents(){
   });
 }
 
-/* --- Formulaire "Enregistrement rapide" (quantité, sans chronomètre) --- */
+/* --- Formulaire "Enregistrement rapide" (quantité ou durée, sans chronomètre) --- */
+
+/* Étapes qui se mesurent en temps, pas en quantité : on demande une durée
+   (heures + minutes) au lieu d'une "Qté". */
+const TIME_ETAPES = new Set(['Réunion', 'Formation', 'Congés', '5S']);
+
+function updateActivityFieldsForEtape(){
+  const isTime = TIME_ETAPES.has(document.getElementById('activityType').value);
+  document.getElementById('activityQteBlock').hidden = isTime;
+  document.getElementById('activityDureeBlock').hidden = !isTime;
+}
+
 function wireActivityEvents(){
+  document.getElementById('activityType').addEventListener('change', updateActivityFieldsForEtape);
+
   document.getElementById('btnNewActivity').addEventListener('click', async () => {
     document.getElementById('activityType').value = '';
     document.getElementById('activityQte').value = '';
+    document.getElementById('activityHeures').value = '';
+    document.getElementById('activityMinutes').value = '';
+    updateActivityFieldsForEtape();
     document.getElementById('activityNote').value = '';
     document.getElementById('activityDate').value = localDateInputValue(new Date());
     document.getElementById('activityName').value = (await getSetting('last_name')) || '';
@@ -1145,8 +1165,21 @@ function wireActivityEvents(){
     const dateStr = document.getElementById('activityDate').value;
     if(!name || !etape || !dateStr) return;
 
-    const qteRaw = document.getElementById('activityQte').value;
-    const quantite = qteRaw !== '' ? parseInt(qteRaw, 10) : null;
+    const isTime = TIME_ETAPES.has(etape);
+    let quantite = null;
+    let seconds = 0;
+    if(isTime){
+      const h = parseInt(document.getElementById('activityHeures').value, 10) || 0;
+      const m = parseInt(document.getElementById('activityMinutes').value, 10) || 0;
+      seconds = (h * 3600) + (m * 60);
+      if(seconds <= 0){
+        alert('Indiquez la durée (heures et/ou minutes).');
+        return;
+      }
+    }else{
+      const qteRaw = document.getElementById('activityQte').value;
+      quantite = qteRaw !== '' ? parseInt(qteRaw, 10) : null;
+    }
     const note = document.getElementById('activityNote').value.trim();
 
     const submitBtn = document.getElementById('btnSaveActivity');
@@ -1156,7 +1189,7 @@ function wireActivityEvents(){
     try{
       await setSetting('last_name', name);
       const when = new Date(dateStr + 'T12:00:00').toISOString();
-      const ok = await createQuickLogEntry({ name, etape, quantite, note, when });
+      const ok = await createQuickLogEntry({ name, etape, quantite, seconds, note, when });
       if(!ok){
         alert('Impossible d\'enregistrer (erreur de connexion). Réessayez.');
         return;

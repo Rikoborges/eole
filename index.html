@@ -194,7 +194,7 @@
         </form>
       </div>
 
-      <!-- État : enregistrement rapide (quantité, sans chronomètre) -->
+      <!-- État : enregistrement rapide (quantité ou durée, sans chronomètre) -->
       <div id="state-activity" hidden>
         <form class="form-box" id="activityForm">
           <label class="field-label" for="activityName">Votre nom</label>
@@ -223,8 +223,27 @@
             <option value="5S">5S</option>
           </select>
 
-          <label class="field-label" for="activityQte">Quantité (facultatif)</label>
-          <input type="number" id="activityQte" min="0" step="1" placeholder="Ex : 12">
+          <!-- Étapes de quantité (ex : Emballage x 12) -->
+          <div id="activityQteBlock">
+            <label class="field-label" for="activityQte">Quantité (facultatif)</label>
+            <input type="number" id="activityQte" min="0" step="1" placeholder="Ex : 12">
+          </div>
+
+          <!-- Étapes de temps (Réunion, Formation, Congés, 5S) : on saisit une durée,
+               pas une quantité — voir updateActivityFieldsForEtape -->
+          <div id="activityDureeBlock" hidden>
+            <div class="field-label">Durée</div>
+            <div class="duree-row">
+              <label class="duree-field">
+                <input type="number" id="activityHeures" min="0" max="24" step="1" placeholder="0" inputmode="numeric" aria-label="Heures">
+                <span>h</span>
+              </label>
+              <label class="duree-field">
+                <input type="number" id="activityMinutes" min="0" max="59" step="5" placeholder="00" inputmode="numeric" aria-label="Minutes">
+                <span>min</span>
+              </label>
+            </div>
+          </div>
 
           <label class="field-label" for="activityNote">Note (facultatif)</label>
           <textarea id="activityNote" placeholder="Ex : emballage des imprimantes prêtes"></textarea>
