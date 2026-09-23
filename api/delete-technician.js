@@ -1,11 +1,14 @@
 // ============================================================================
-// ReproBench — liste des comptes techniciens (fonction serverless Vercel)
+// ReproBench — suppression d'un compte technicien (fonction serverless Vercel)
 //
-// Même raison d'être que api/create-technician.js : lister les comptes du
+// Même raison d'être que api/create-technician.js : supprimer un compte du
 // Supabase Auth demande la clé "service_role", qui ne doit jamais atterrir
 // dans script.js. Cette fonction tourne côté serveur, vérifie elle-même que
-// l'appelant est admin, puis renvoie une version simplifiée de la liste
-// (jamais le mot de passe, bien sûr — Supabase ne le stocke même pas en clair).
+// l'appelant est admin, puis supprime le compte.
+//
+// Suppression "douce" (soft delete) : le technicien ne peut plus se connecter
+// et disparaît de la liste, mais ses services déjà enregistrés (table jobs)
+// restent dans l'historique — les heures passées ne sont pas perdues.
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
@@ -14,8 +17,8 @@ const SUPABASE_URL = 'https://ddyekeeuaynqipdmlqhq.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_SBtxarlyHjUf8PcsPaik4w_t-CTwkqJ'; // gitleaks:allow
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', 'GET');
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Méthode non autorisée.' });
   }
 
@@ -39,22 +42,22 @@ module.exports = async function handler(req, res) {
     return res.status(403).json({ error: 'Accès réservé aux administrateurs.' });
   }
 
+  const { userId } = req.body || {};
+  if (typeof userId !== 'string' || !userId) {
+    return res.status(400).json({ error: 'Identifiant du compte manquant.' });
+  }
+
+  // Un admin ne peut pas supprimer son propre compte par erreur.
+  const { data: callerData } = await callerClient.auth.getUser(token);
+  if (callerData && callerData.user && callerData.user.id === userId) {
+    return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte.' });
+  }
+
   const adminClient = createClient(SUPABASE_URL, serviceRoleKey);
-  const { data, error } = await adminClient.auth.admin.listUsers({ perPage: 200 });
+  const { error } = await adminClient.auth.admin.deleteUser(userId, true);
   if (error) {
     return res.status(400).json({ error: error.message });
   }
 
-  const technicians = data.users
-    // Comptes supprimés (soft delete via api/delete-technician.js) : on les cache.
-    .filter((u) => !u.deleted_at)
-    .map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: (u.user_metadata && u.user_metadata.name) || null,
-      createdAt: u.created_at,
-    }))
-    .sort((a, b) => (a.email || '').localeCompare(b.email || ''));
-
-  return res.status(200).json({ technicians });
+  return res.status(200).json({ ok: true });
 };

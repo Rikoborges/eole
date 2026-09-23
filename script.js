@@ -1736,9 +1736,10 @@ function wireTechnicianForm(){
   });
 }
 
-/* --- Liste des comptes techniciens (lecture seule) ---
-   Passe par api/list-technicians.js, même raison que la création : il faut
-   la clé service_role pour lister les comptes du Supabase Auth. */
+/* --- Liste des comptes techniciens (avec suppression) ---
+   Passe par api/list-technicians.js et api/delete-technician.js, même raison
+   que la création : il faut la clé service_role pour gérer les comptes du
+   Supabase Auth. */
 async function getAllTechnicians(){
   const { data: { session } } = await sb.auth.getSession();
   if(!session) return [];
@@ -1768,11 +1769,53 @@ async function renderTechnicianManageList(){
     return;
   }
 
+  const { data: { session } } = await sb.auth.getSession();
+  const myId = session ? session.user.id : null;
+
   listEl.innerHTML = technicians.map(t => `
     <li class="model-manage-row">
       <span>${t.name ? escapeHtml(t.name) + ' — ' : ''}${escapeHtml(t.email || '')}</span>
+      ${t.id !== myId ? `<button type="button" data-id="${escapeHtml(t.id)}" data-label="${escapeHtml(t.name || t.email || '')}" aria-label="Supprimer ce technicien">🗑</button>` : ''}
     </li>
   `).join('');
+
+  listEl.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(!confirm(`Supprimer le compte de ${btn.dataset.label} ?\n\nIl ne pourra plus se connecter. Ses services déjà enregistrés restent dans l'historique.`)) return;
+      btn.disabled = true;
+      const ok = await deleteTechnician(btn.dataset.id);
+      if(!ok) btn.disabled = false;
+      else renderTechnicianManageList();
+    });
+  });
+}
+
+async function deleteTechnician(userId){
+  const { data: { session } } = await sb.auth.getSession();
+  if(!session){
+    alert('Session expirée — reconnectez-vous et réessayez.');
+    return false;
+  }
+  try {
+    const res = await fetch('/api/delete-technician', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ userId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if(!res.ok){
+      alert(body.error || 'Erreur lors de la suppression du compte.');
+      return false;
+    }
+    return true;
+  } catch(err){
+    console.error('Erreur delete-technician:', err);
+    alert('Erreur réseau — réessayez.');
+    return false;
+  }
 }
 
 function renderAdminSummary(jobs){
