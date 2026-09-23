@@ -1133,7 +1133,7 @@ function wireFormEvents(){
 
 /* Étapes qui se mesurent en temps, pas en quantité : on demande une durée
    (heures + minutes) au lieu d'une "Qté". */
-const TIME_ETAPES = new Set(['Réunion', 'Formation', 'Congés', '5S']);
+const TIME_ETAPES = new Set(['Déballage', 'Réunion', 'Formation', 'Congés', '5S']);
 
 function updateActivityFieldsForEtape(){
   const isTime = TIME_ETAPES.has(document.getElementById('activityType').value);
