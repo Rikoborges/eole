@@ -44,11 +44,21 @@ planilha de papel.
 Todo o histórico mostra as duas coisas juntas, e cada técnico só vê os
 próprios registros (ver seção RGPD/Segurança abaixo).
 
+**Ma semaine** — além de "Aujourd'hui", o técnico vê a semana inteira
+(segunda → domingo, com ‹ › para semanas anteriores), agrupada por dia, com
+total por dia, total da semana e barra de progresso até 35h. Cada entrada
+pode ser corrigida (étape, quantidade, nota, duração de um registro rápido)
+num formulário próprio, e um dia esquecido pode ser preenchido pelo botão
+"+ Ajouter". Exporta a semana em CSV (abre direto no Excel).
+
 ### 📊 Analyse
-- Cartões de resumo: total de serviços, total de horas, média por serviço
-- Gráfico de horas trabalhadas (semana ou mês)
-- Gráfico de distribuição por marca de impressora
-- Gráfico de distribuição por Étape
+- Filtro de período: Semana / Mês / Tudo, navegável com ‹ ›
+- Admin: filtro **Technicien** (um só ou toda a equipe) — o técnico comum
+  só vê a si mesmo
+- Cartões de resumo: horas, máquinas, média por máquina, dias trabalhados,
+  com variação vs período anterior
+- Gráficos de horas, por marca e por Étape (étapes de tempo em horas)
+- Lista detalhada das entradas do período + export CSV (Excel)
 
 ### 👤 Admin (acesso restrito)
 Visível só para os e-mails cadastrados na função `is_admin()` do banco
@@ -57,6 +67,10 @@ guardar essa lista no código. Mostra um resumo geral (serviços, horas,
 número de técnicos) direto ao abrir; a lista detalhada com os serviços de
 cada técnico (fotos incluídas) só aparece depois de clicar em "Voir tous
 les services de l'équipe" — ninguém fica exposto por padrão.
+
+A tabela da semana (navegável com ‹ ›) lista todos os técnicos, inclusive
+quem não registrou nada; tocar num nome abre a Analyse só daquela pessoa.
+A lista de serviços tem filtro por técnico e export CSV.
 
 Também tem dois painéis de gestão:
 - **Gerenciar os modelos de impressora** sugeridos no autocomplete do Suivi

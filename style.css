@@ -461,7 +461,8 @@ main{
 }
 .field-label:first-child{ margin-top: 0; }
 
-input[type="text"], select, textarea{
+input[type="text"], input[type="email"], input[type="password"],
+input[type="number"], input[type="date"], select, textarea{
   width: 100%;
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -805,12 +806,10 @@ textarea{ resize: vertical; min-height: 70px; }
 /* ===================== ANALYSE ===================== */
 .summary-grid{
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* auto-fit : 3 ou 4 cartes sur une ligne en desktop, 2 par ligne sur mobile */
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 8px;
   margin-bottom: 24px;
-}
-@container app (max-width: 380px){
-  .summary-grid{ grid-template-columns: 1fr; }
 }
 .summary-card{
   background: var(--panel);
@@ -853,7 +852,8 @@ textarea{ resize: vertical; min-height: 70px; }
     align-items: start;
     gap: var(--space-4);
   }
-  #analyse-content .summary-grid{ grid-column: 1 / -1; margin-bottom: 0; }
+  #analyse-content .summary-grid,
+  #analyse-content .full-row{ grid-column: 1 / -1; margin-bottom: 0; }
   #analyse-content .chart-box{ margin-bottom: 0; }
 }
 .chart-head{
@@ -962,3 +962,95 @@ textarea{ resize: vertical; min-height: 70px; }
   font-size: 18px; cursor: pointer;
 }
 .lightbox-close:hover, .lightbox-close:focus-visible{ color: var(--warn); border-color: var(--warn); }
+/* ===================== PÉRIODES / FILTRES (Suivi, Analyse, Admin) ===================== */
+.hist-head{
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px; margin: 8px 0 12px;
+}
+.period-btn[aria-pressed="true"]{ background: var(--copper); color: oklch(18% 0.03 90); font-weight: 600; }
+
+/* Navigation ‹ semaine › — même composant partout */
+.week-nav{
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md);
+  padding: 4px; margin-bottom: 12px;
+}
+.week-nav[hidden]{ display: none; }
+.week-nav button{
+  min-width: 44px; min-height: 44px; border: none; background: none; cursor: pointer;
+  color: var(--copper-text); font-size: 24px; line-height: 1; border-radius: var(--radius-sm);
+}
+.week-nav button:hover:not(:disabled), .week-nav button:focus-visible{ background: var(--panel-2); }
+.week-nav button:disabled{ opacity: .3; cursor: default; }
+.week-nav-label{
+  flex: 1; text-align: center;
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--text);
+}
+
+.filter-bar{ display: grid; gap: 10px 12px; margin-bottom: 12px; align-items: end; }
+.filter-bar .field-label{ margin-top: 0; }
+.filter-bar .period-toggle{ justify-self: start; }
+@container app (min-width: 560px){
+  .filter-bar{ grid-template-columns: 1fr auto; }
+  .filter-bar .period-toggle{ justify-self: end; }
+}
+.analyse-filters{ margin-bottom: 16px; }
+
+.hint{ font-size: 13px; line-height: 18px; color: var(--text-dim); margin: -4px 2px 10px; }
+
+/* Résumé de la semaine du technicien (total + barre de progression vers l'objectif) */
+.week-summary{
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md);
+  padding: 12px 14px; margin-bottom: 16px;
+  font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--text-dim);
+}
+.week-summary[hidden]{ display: none; }
+.week-summary b{ color: var(--copper-text); font-size: 15px; }
+.progress{ height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+.progress-fill{ height: 100%; background: linear-gradient(90deg, var(--copper-dim), var(--copper)); border-radius: 999px; }
+
+/* Semaine groupée par jour (vue "Ma semaine") */
+.day-group{ margin-bottom: 18px; }
+.day-head{
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  border-bottom: 1px solid var(--line); padding: 0 2px 6px; margin-bottom: 8px;
+}
+.day-head-title{
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.day-head-title b{ color: var(--copper-text); margin-left: 6px; }
+.day-group.is-today .day-head-title{ color: var(--text); }
+.day-add{
+  background: none; border: 1px dashed var(--copper-dim); color: var(--copper-text);
+  border-radius: var(--radius-sm); padding: 4px 10px; min-height: 36px; cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;
+}
+.day-add:hover, .day-add:focus-visible{ border-style: solid; }
+.day-empty{ font-size: 13px; color: var(--text-dim); margin: 0 2px; font-style: italic; }
+
+/* Petite variation vs période précédente, sous les cartes de résumé */
+.summary-delta{
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: var(--text-dim); margin-top: 4px;
+}
+
+/* Nom cliquable dans le tableau admin → analyse du technicien */
+.link-btn{
+  background: none; border: none; padding: 4px 0; min-height: 32px; cursor: pointer;
+  color: var(--text); font: inherit; text-align: left;
+  text-decoration: underline; text-decoration-color: var(--copper-dim); text-underline-offset: 3px;
+}
+.link-btn:hover, .link-btn:focus-visible{ color: var(--copper-text); }
+.week-table tr.is-zero td{ color: var(--text-dim); }
+
+.entries-list{ margin-top: 12px; }
+#analyseEntriesBox .btn-export, #btnExportWeek, #btnExportAdmin{ margin-top: 12px; }
+
+/* ===================== DIALOGUE "MODIFIER" ===================== */
+.edit-dialog{
+  border: none; padding: 0; background: transparent; color: var(--text);
+  width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px);
+}
+.edit-dialog::backdrop{ background: rgba(10, 14, 15, .8); }
+.edit-dialog .form-box{ margin: 0; }
+.edit-when{ font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--copper-text); margin: -2px 2px 8px; }

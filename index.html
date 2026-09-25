@@ -139,9 +139,25 @@
           <ul id="paused-list" class="history-list"></ul>
         </div>
 
-        <h2 class="hist-label">Aujourd'hui</h2>
-        <ul id="history-list" class="history-list"></ul>
+        <div class="hist-head">
+          <h2 class="hist-label" id="histTitle" style="margin:0;">Aujourd'hui</h2>
+          <div class="period-toggle" role="group" aria-label="Affichage de l'historique">
+            <button class="period-btn active" data-hist="day" type="button" aria-pressed="true">Aujourd'hui</button>
+            <button class="period-btn" data-hist="week" type="button" aria-pressed="false">Ma semaine</button>
+          </div>
+        </div>
+
+        <div class="week-nav" id="histWeekNav" hidden>
+          <button type="button" id="histPrev" aria-label="Semaine précédente">‹</button>
+          <span class="week-nav-label" id="histWeekLabel" aria-live="polite"></span>
+          <button type="button" id="histNext" aria-label="Semaine suivante">›</button>
+        </div>
+        <div class="week-summary" id="histWeekSummary" hidden></div>
+
+        <div id="history-groups"></div>
         <p class="empty" id="history-empty" hidden>Aucun service enregistré aujourd'hui.</p>
+
+        <button type="button" class="btn-export" id="btnExportWeek" hidden>⬇ Exporter cette semaine (Excel)</button>
 
         <div class="account-box">
           <details class="guide">
@@ -365,17 +381,30 @@
     <section class="view" id="view-analyse" aria-labelledby="tab-analyse">
       <p id="analyse-loading" class="loading">Chargement…</p>
 
+      <div class="analyse-filters">
+        <div class="filter-bar">
+          <div id="analyseTechField" hidden>
+            <label class="field-label" for="analyseTech">Technicien</label>
+            <select id="analyseTech"></select>
+          </div>
+          <div class="period-toggle" role="group" aria-label="Période">
+            <button class="period-btn active" data-period="week" type="button" aria-pressed="true">Semaine</button>
+            <button class="period-btn" data-period="month" type="button" aria-pressed="false">Mois</button>
+            <button class="period-btn" data-period="all" type="button" aria-pressed="false">Tout</button>
+          </div>
+        </div>
+        <div class="week-nav" id="analyseNav">
+          <button type="button" id="analysePrev" aria-label="Période précédente">‹</button>
+          <span class="week-nav-label" id="analysePeriodLabel" aria-live="polite"></span>
+          <button type="button" id="analyseNext" aria-label="Période suivante">›</button>
+        </div>
+      </div>
+
       <div id="analyse-content" hidden>
         <div class="summary-grid" id="summaryGrid"></div>
 
         <div class="chart-box">
-          <div class="chart-head">
-            <h2 class="hist-label" style="margin:0;">Heures travaillées</h2>
-            <div class="period-toggle" role="group" aria-label="Période">
-              <button class="period-btn active" data-period="semaine" type="button">Semaine</button>
-              <button class="period-btn" data-period="mois" type="button">Mois</button>
-            </div>
-          </div>
+          <h2 class="hist-label">Heures travaillées</h2>
           <div id="timeChart"></div>
         </div>
 
@@ -388,6 +417,13 @@
           <h2 class="hist-label">Répartition par étape</h2>
           <div id="etapeChart"></div>
         </div>
+
+        <details class="guide full-row" id="analyseEntriesBox">
+          <summary><span id="analyseEntriesTitle">Voir le détail des entrées</span> <span class="chev">›</span></summary>
+          <ul class="history-list entries-list" id="analyseEntries"></ul>
+          <p class="empty" id="analyseEntriesEmpty" hidden>Aucune entrée sur cette période.</p>
+          <button type="button" class="btn-export" id="btnExportAnalyse">⬇ Exporter cette période (Excel)</button>
+        </details>
       </div>
     </section>
 
@@ -398,13 +434,20 @@
       <div id="admin-content" hidden>
         <div class="summary-grid" id="adminSummaryGrid"></div>
 
+        <div class="week-nav" id="adminWeekNav">
+          <button type="button" id="adminWeekPrev" aria-label="Semaine précédente">‹</button>
+          <span class="week-nav-label" id="adminWeekLabel" aria-live="polite"></span>
+          <button type="button" id="adminWeekNext" aria-label="Semaine suivante">›</button>
+        </div>
+
         <div class="chart-box">
-          <h2 class="hist-label">Heures cette semaine par technicien</h2>
+          <h2 class="hist-label">Heures par technicien</h2>
           <div id="technicianWeekChart"></div>
         </div>
 
         <div class="chart-box">
-          <h2 class="hist-label">Détail par jour (7 derniers jours)</h2>
+          <h2 class="hist-label">Détail par jour</h2>
+          <p class="hint">Touchez le nom d'un technicien pour voir son analyse à lui seul.</p>
           <div class="table-scroll">
             <div id="technicianWeekTable"></div>
           </div>
@@ -443,7 +486,12 @@
         </div>
 
         <div id="adminJobsPanel" hidden>
-          <div class="search-wrap">
+          <label class="field-label" for="adminTechFilter">Technicien</label>
+          <select id="adminTechFilter">
+            <option value="">Toute l'équipe</option>
+          </select>
+
+          <div class="search-wrap" style="margin-top:10px;">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
             </svg>
@@ -454,11 +502,65 @@
           <p class="count" id="adminCount" aria-live="polite"></p>
           <ul id="adminList" class="history-list admin-list"></ul>
           <p class="empty" id="adminEmpty" hidden>Aucun résultat.</p>
+          <button type="button" class="btn-export" id="btnExportAdmin">⬇ Exporter cette liste (Excel)</button>
         </div>
       </div>
     </section>
 
   </main>
+
+  <!-- ===================== MODIFIER UNE ENTRÉE ===================== -->
+  <dialog id="editDialog" class="edit-dialog" aria-labelledby="editDialogTitle">
+    <form class="form-box" id="editForm" novalidate>
+      <h2 class="hist-label" id="editDialogTitle">Modifier l'entrée</h2>
+      <p class="edit-when" id="editWhen"></p>
+
+      <div id="editMachineFields">
+        <label class="field-label" for="editBrand">Marque</label>
+        <select id="editBrand">
+          <option value="">Sélectionnez…</option>
+          <option>Canon</option><option>Toshiba</option><option>Kyocera</option>
+          <option>Konica Minolta</option><option>Sharp</option><option>Ricoh</option><option>Autre</option>
+        </select>
+
+        <label class="field-label" for="editModel">Modèle</label>
+        <input type="text" id="editModel" autocomplete="off">
+      </div>
+
+      <label class="field-label" for="editEtape">Étape</label>
+      <!-- Options copiées depuis #activityType au chargement (une seule liste à maintenir) -->
+      <select id="editEtape"></select>
+
+      <div id="editQteBlock">
+        <label class="field-label" for="editQte">Quantité (facultatif)</label>
+        <input type="number" id="editQte" min="0" step="1" placeholder="Ex : 12">
+      </div>
+
+      <div id="editDureeBlock" hidden>
+        <div class="field-label">Durée</div>
+        <div class="duree-row">
+          <label class="duree-field">
+            <input type="number" id="editHeures" min="0" max="24" step="1" placeholder="0" inputmode="numeric" aria-label="Heures">
+            <span>h</span>
+          </label>
+          <label class="duree-field">
+            <input type="number" id="editMinutes" min="0" max="59" step="5" placeholder="00" inputmode="numeric" aria-label="Minutes">
+            <span>min</span>
+          </label>
+        </div>
+      </div>
+
+      <label class="field-label" for="editNote">Note</label>
+      <textarea id="editNote" placeholder="Ce que vous avez fait, un problème rencontré, une remarque…"></textarea>
+
+      <p class="form-status error" id="editStatus" hidden></p>
+
+      <div class="btn-row">
+        <button type="button" class="btn-secondary" id="btnCancelEdit">Annuler</button>
+        <button type="submit" class="btn-primary" id="btnSaveEdit">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- ===================== VISIONNEUSE PHOTO (ADMIN) ===================== -->
   <div id="lightbox" class="lightbox" hidden>

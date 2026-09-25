@@ -33,10 +33,40 @@ const PHOTOS_ENABLED = false;
    base, via la fonction is_admin() déjà utilisée par les policies RLS —
    une seule source de vérité, rien à garder synchronisé, et l'e-mail admin
    ne quitte jamais le serveur. */
+let isAdminUser = null; // null = pas encore demandé à la base
+async function amIAdmin(){
+  if(isAdminUser === null){
+    const { data, error } = await sb.rpc('is_admin');
+    if(error) console.error('Erreur is_admin:', error);
+    isAdminUser = !error && !!data;
+  }
+  return isAdminUser;
+}
+
 async function updateAdminTabVisibility(){
-  const { data, error } = await sb.rpc('is_admin');
-  if(error) console.error('Erreur is_admin:', error);
-  document.getElementById('tab-admin-btn').hidden = !data;
+  document.getElementById('tab-admin-btn').hidden = !(await amIAdmin());
+}
+
+/* Qui est connecté. Lu depuis la session locale (pas d'appel réseau).
+   Sert à filtrer "mes" données : un admin voit toute l'équipe grâce aux
+   policies RLS, donc sans ce filtre son Suivi mélangerait les services
+   des autres avec les siens. */
+let currentUserId = null;
+async function getMyUserId(){
+  if(currentUserId) return currentUserId;
+  const { data: { session } } = await sb.auth.getSession();
+  return session ? session.user.id : null;
+}
+
+/* Quand une autre personne se connecte sur le même navigateur (sans recharger
+   la page), on oublie tout ce qui était propre au compte précédent. */
+function resetPerUserState(){
+  isAdminUser = null;
+  teamMembersCache = null;
+  techniciansCache = null;
+  analyseState.userId = null;
+  histMode = 'day';
+  histWeekStart = startOfWeek(new Date());
 }
 
 /* --- Autenticação --- */
@@ -51,6 +81,11 @@ function initAuth(){
   // registra (cobre o carregamento da página) e depois "SIGNED_IN"/"SIGNED_OUT"
   // conforme o usuário loga/desloga. Não precisa checar a sessão duas vezes.
   sb.auth.onAuthStateChange((_event, session) => {
+    const newUserId = session ? session.user.id : null;
+    if(newUserId !== currentUserId){
+      currentUserId = newUserId;
+      resetPerUserState();
+    }
     if(session){
       showApp();
       updateAdminTabVisibility();
@@ -178,6 +213,14 @@ function wireAccountEvents(){
     }
   });
 }
+
+/* État propre au compte connecté — déclaré ici, avant initAuth(), parce que
+   resetPerUserState() y touche dès le premier événement de connexion. */
+let histMode = 'day';                        // Suivi : 'day' | 'week'
+let histWeekStart = startOfWeek(new Date()); // Suivi : lundi de la semaine affichée
+const analyseState = { mode: 'week', anchor: new Date(), userId: null }; // userId : 'all' | uuid | null (= défaut)
+let teamMembersCache = null;
+let techniciansCache = null;
 
 initAuth();
 
@@ -503,22 +546,21 @@ chipButtons.forEach(chip => {
 renderParts();
 
 /* ======================= NAVIGATION PAR ONGLETS ======================= */
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => {
-      t.classList.remove('active');
-      t.setAttribute('aria-selected', 'false');
-    });
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-
-    tab.classList.add('active');
-    tab.setAttribute('aria-selected', 'true');
-    document.getElementById('view-' + tab.dataset.view).classList.add('active');
-
-    if(tab.dataset.view === 'registro') initRegistro();
-    if(tab.dataset.view === 'analyse') initAnalyse();
-    if(tab.dataset.view === 'admin') initAdmin();
+function switchTab(view){
+  document.querySelectorAll('.tab').forEach(t => {
+    const on = t.dataset.view === view;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', String(on));
   });
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+
+  if(view === 'registro') initRegistro();
+  if(view === 'analyse') initAnalyse();
+  if(view === 'admin') initAdmin();
+}
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => switchTab(tab.dataset.view));
 });
 
 /* ======================= SUIVI DE SERVICE ======================= */
@@ -537,24 +579,34 @@ async function getJobById(id){
 
 /* Tous les services non terminés visibles pour l'utilisateur connecté — un
    technicien peut avoir plusieurs services ouverts (un en cours, d'autres en
-   pause) ; un admin voit ceux de toute l'équipe grâce aux policies RLS. */
-async function getOpenJobs(){
-  const { data, error } = await sb
+   pause) ; un admin voit ceux de toute l'équipe grâce aux policies RLS.
+   Passez userId pour ne garder que ceux d'une personne (indispensable dans le
+   Suivi d'un admin, sinon il "reprendrait" le chrono d'un collègue). */
+async function getOpenJobs({ userId } = {}){
+  let query = sb
     .from('jobs')
     .select('*, job_pauses(*)')
-    .is('finished_at', null)
-    .order('started_at', { ascending: false });
+    .is('finished_at', null);
+  if(userId) query = query.eq('user_id', userId);
+  const { data, error } = await query.order('started_at', { ascending: false });
   if(error){ console.error('Erreur getOpenJobs:', error); return []; }
   return data.map(mapJobFromDb);
 }
 
-async function getHistory(){
-  const { data, error } = await sb
+/* Services terminés, filtrés côté base (pas dans le navigateur) :
+   - userId : une seule personne (sinon tout ce que RLS autorise)
+   - from / to (Date) : période [from, to[ sur finished_at */
+async function getHistory({ userId, from, to } = {}){
+  let query = sb
     .from('jobs')
     .select('*')
-    .not('finished_at', 'is', null)
+    .not('finished_at', 'is', null);
+  if(userId) query = query.eq('user_id', userId);
+  if(from) query = query.gte('finished_at', from.toISOString());
+  if(to) query = query.lt('finished_at', to.toISOString());
+  const { data, error } = await query
     .order('finished_at', { ascending: false })
-    .limit(1000); // garde-fou : évite de télécharger un historique illimité
+    .limit(2000); // garde-fou : évite de télécharger un historique illimité
   if(error){ console.error('Erreur getHistory:', error); return []; }
   return data.map(mapJobFromDb);
 }
@@ -562,6 +614,7 @@ async function getHistory(){
 function mapJobFromDb(row){
   return {
     id: row.id,
+    userId: row.user_id,
     name: row.technician,
     brand: row.brand,
     model: row.model,
@@ -647,7 +700,8 @@ async function finishJobInDb(jobId, finishedAt, activeSeconds, note, etape, quan
 
 async function updateJobFields(jobId, fields){
   const { error } = await sb.from('jobs').update(fields).eq('id', jobId);
-  if(error) console.error('Erreur updateJobFields:', error);
+  if(error){ console.error('Erreur updateJobFields:', error); return false; }
+  return true;
 }
 
 async function deleteJobInDb(jobId){
@@ -728,6 +782,73 @@ function localDateInputValue(date){
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/* --- Périodes (semaine du lundi au dimanche, comme en France) --- */
+function startOfDay(date){
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function startOfWeek(date){
+  const d = startOfDay(date);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // getDay() : 0 = dimanche
+  return d;
+}
+function addDays(date, n){
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function fmtDayMonth(date){
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+}
+function weekRangeLabel(monday){
+  return `${fmtDayMonth(monday)} → ${fmtDayMonth(addDays(monday, 6))}`;
+}
+function sumSeconds(jobs){
+  return jobs.reduce((sum, j) => sum + (j.activeSeconds || 0), 0);
+}
+
+/* --- Export Excel (CSV) ---
+   Séparateur ";" + BOM UTF-8 : c'est ce qu'Excel en français ouvre
+   directement, accents compris, sans passer par l'assistant d'import. */
+function csvCell(value){
+  let str = value === null || value === undefined ? '' : String(value);
+  // Anti "injection de formule" : une note qui commence par = + - @ serait
+  // exécutée comme une formule par Excel.
+  if(/^[=+\-@]/.test(str)) str = "'" + str;
+  return /[";\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+function downloadJobsCsv(jobs, filename, labelFor = (job) => job.name){
+  const header = ['Date', 'Technicien', 'Marque', 'Modèle', 'Étape', 'Quantité', 'Durée (h)', 'Durée', 'Note'];
+  const rows = [...jobs]
+    .sort((a, b) => new Date(a.finishedAt) - new Date(b.finishedAt))
+    .map(j => [
+      j.finishedAt ? new Date(j.finishedAt).toLocaleDateString('fr-FR') : 'en cours',
+      labelFor(j) || '',
+      j.brand || '',
+      j.model || '',
+      j.etape || '',
+      j.quantite ?? '',
+      ((j.activeSeconds || 0) / 3600).toFixed(2).replace('.', ','),
+      j.activeSeconds ? fmtHShort(j.activeSeconds) : '',
+      j.note || ''
+    ]);
+  const csv = '\uFEFF' + [header, ...rows].map(r => r.map(csvCell).join(';')).join('\r\n');
+  downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), filename);
+}
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /* --- Conversion data URL -> Blob (sans fetch, car bloqué par la CSP connect-src) --- */
@@ -832,6 +953,7 @@ async function initRegistro(){
     wireFinishEvents();
     wireExportEvent();
     wirePasswordChangeEvent();
+    wireHistoryEvents();
   }
   await refreshIdleView();
 }
@@ -877,7 +999,8 @@ function renderPausedList(pausedJobs){
 async function refreshIdleView(){
   document.getElementById('reg-loading').hidden = false;
 
-  const openJobs = await getOpenJobs();
+  const myId = await getMyUserId();
+  const openJobs = await getOpenJobs({ userId: myId });
   const running = openJobs.find(j => j.status === 'running');
   if(running){
     document.getElementById('reg-loading').hidden = true;
@@ -886,74 +1009,299 @@ async function refreshIdleView(){
   }
 
   renderPausedList(openJobs.filter(j => j.status === 'paused'));
-
-  const fullHistory = await getHistory();
-  const todayStr = new Date().toDateString();
-  // Le Suivi du technicien ne montre que le jour même — l'historique complet
-  // de l'équipe reste dans l'onglet Admin, pas ici.
-  const history = fullHistory.filter(j => new Date(j.finishedAt).toDateString() === todayStr);
-  const todaySeconds = history.reduce((sum, j) => sum + (j.activeSeconds || 0), 0);
-  document.getElementById('today-total-val').textContent = fmtHShort(todaySeconds);
-
-  const listEl2 = document.getElementById('history-list');
-  const emptyEl2 = document.getElementById('history-empty');
-  listEl2.innerHTML = '';
-  emptyEl2.hidden = history.length > 0;
-
-  history.forEach(job => {
-    const li = document.createElement('li');
-    li.className = 'job-card';
-    const dateStr = new Date(job.finishedAt).toLocaleDateString('fr-FR');
-    const thumb = job.photoBase64
-      ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoBase64)}" alt="Photo du bon">`
-      : `<div class="job-thumb" aria-hidden="true">📷</div>`;
-    const thumbFinal = job.photoFinalBase64
-      ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoFinalBase64)}" alt="Photo machine terminée">`
-      : '';
-    li.innerHTML = `
-      ${PHOTOS_ENABLED ? `<div class="job-thumbs">${thumb}${thumbFinal}</div>` : ''}
-      <div class="job-info">
-        <p class="job-model">${jobTitleLine(job)}</p>
-        <p class="job-meta">${job.activeSeconds ? fmtHShort(job.activeSeconds) + ' · ' : ''}${dateStr}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
-        ${(job.brand && job.etape) ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
-        ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
-      </div>
-      <div class="job-actions">
-        <button type="button" data-act="edit" data-id="${job.id}" aria-label="Modifier">✎</button>
-        <button type="button" data-act="del" data-id="${job.id}" aria-label="Supprimer">🗑</button>
-      </div>`;
-    listEl2.appendChild(li);
-  });
-
-  // Resolve os links temporários das fotos em paralelo, sem travar a lista
-  listEl2.querySelectorAll('img[data-photo-path]').forEach(async (img) => {
-    const url = await resolvePhotoUrl(img.dataset.photoPath);
-    if(url) img.src = url;
-  });
-
-  listEl2.querySelectorAll('button[data-act="del"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if(!confirm('Supprimer cet enregistrement ?')) return;
-      await deleteJobInDb(btn.dataset.id);
-      refreshIdleView();
-    });
-  });
-  listEl2.querySelectorAll('button[data-act="edit"]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const job = history.find(j => j.id === btn.dataset.id);
-      if(!job) return;
-      const newBrand = prompt('Marque :', job.brand); if(newBrand === null) return;
-      const newModel = prompt('Modèle :', job.model); if(newModel === null) return;
-      const newNote = prompt('Note :', job.note || ''); if(newNote === null) return;
-      await updateJobFields(job.id, { brand: newBrand, model: newModel, note: newNote });
-      refreshIdleView();
-    });
-  });
+  await renderMyHistory(myId);
 
   clearInterval(tickInterval);
   showState('idle');
   document.getElementById('reg-loading').hidden = true;
 }
+
+/* --- Carte d'une entrée (Suivi, Analyse, Admin : même rendu partout) ---
+   editable : boutons ✎ / 🗑 (seulement pour ses propres entrées)
+   showName : affiche le technicien (listes d'équipe) */
+function jobCardElement(job, { editable = false, showName = false, nameLabel = null } = {}){
+  const li = document.createElement('li');
+  li.className = 'job-card';
+  const isRunning = !job.finishedAt;
+
+  const thumb = job.photoBase64
+    ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoBase64)}" alt="Photo du bon">`
+    : `<div class="job-thumb" aria-hidden="true">📷</div>`;
+  const thumbFinal = job.photoFinalBase64
+    ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoFinalBase64)}" alt="Photo machine terminée">`
+    : '';
+
+  const metaParts = [];
+  if(showName && (nameLabel || job.name)) metaParts.push(escapeHtml(nameLabel || job.name));
+  if(job.activeSeconds) metaParts.push(fmtHShort(job.activeSeconds));
+  metaParts.push(isRunning ? '● en cours' : new Date(job.finishedAt).toLocaleDateString('fr-FR'));
+
+  li.innerHTML = `
+    ${PHOTOS_ENABLED ? `<div class="job-thumbs">${thumb}${thumbFinal}</div>` : ''}
+    <div class="job-info">
+      <p class="job-model">${jobTitleLine(job)}</p>
+      <p class="job-meta">${metaParts.join(' · ')}</p>
+      ${(job.brand && job.etape) ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
+      ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
+    </div>
+    ${editable ? `
+    <div class="job-actions">
+      <button type="button" data-act="edit" data-id="${escapeHtml(job.id)}" aria-label="Modifier">✎</button>
+      <button type="button" data-act="del" data-id="${escapeHtml(job.id)}" aria-label="Supprimer">🗑</button>
+    </div>` : ''}`;
+  return li;
+}
+
+/* Remplace les data-photo-path par des liens temporaires, en parallèle,
+   sans bloquer l'affichage de la liste. */
+function hydratePhotos(container, { zoomable = false } = {}){
+  container.querySelectorAll('img[data-photo-path]').forEach(async (img) => {
+    const url = await resolvePhotoUrl(img.dataset.photoPath);
+    if(!url) return;
+    img.src = url;
+    if(zoomable){
+      img.classList.add('zoomable');
+      img.addEventListener('click', () => openLightbox(url));
+    }
+  });
+}
+
+/* --- Historique du technicien : "Aujourd'hui" ou "Ma semaine" --- */
+const WEEKLY_TARGET_HOURS = 35; // durée légale hebdo en France — ajustez si besoin
+let myHistoryJobs = []; // ce qui est affiché, pour retrouver l'entrée à modifier
+
+async function renderMyHistory(myId){
+  const today = startOfDay(new Date());
+  const weekFrom = histWeekStart;
+  const weekTo = addDays(histWeekStart, 7);
+
+  const [todayJobs, weekJobs] = await Promise.all([
+    getHistory({ userId: myId, from: today, to: addDays(today, 1) }),
+    histMode === 'week' ? getHistory({ userId: myId, from: weekFrom, to: weekTo }) : null
+  ]);
+  document.getElementById('today-total-val').textContent = fmtHShort(sumSeconds(todayJobs));
+
+  const isWeek = histMode === 'week';
+  myHistoryJobs = isWeek ? weekJobs : todayJobs;
+
+  document.getElementById('histTitle').textContent = isWeek ? 'Ma semaine' : "Aujourd'hui";
+  document.querySelectorAll('[data-hist]').forEach(btn => {
+    const on = btn.dataset.hist === histMode;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+  document.getElementById('histWeekNav').hidden = !isWeek;
+  document.getElementById('btnExportWeek').hidden = !isWeek || myHistoryJobs.length === 0;
+  document.getElementById('histWeekLabel').textContent = `Semaine du ${weekRangeLabel(weekFrom)}`;
+  // Pas de semaine "future" : rien à y voir.
+  document.getElementById('histNext').disabled = weekFrom >= startOfWeek(new Date());
+
+  const container = document.getElementById('history-groups');
+  const emptyEl = document.getElementById('history-empty');
+  const summaryEl = document.getElementById('histWeekSummary');
+  container.innerHTML = '';
+
+  if(!isWeek){
+    summaryEl.hidden = true;
+    emptyEl.hidden = myHistoryJobs.length > 0;
+    const ul = document.createElement('ul');
+    ul.className = 'history-list';
+    myHistoryJobs.forEach(job => ul.appendChild(jobCardElement(job, { editable: true })));
+    container.appendChild(ul);
+    hydratePhotos(container);
+    return;
+  }
+
+  emptyEl.hidden = true;
+  const totalSec = sumSeconds(myHistoryJobs);
+  const machines = myHistoryJobs.filter(j => j.brand).length;
+  const pct = Math.min(100, (totalSec / 3600) / WEEKLY_TARGET_HOURS * 100);
+  summaryEl.hidden = false;
+  summaryEl.innerHTML = `
+    <div>Total : <b>${fmtHShort(totalSec)}</b> / ${WEEKLY_TARGET_HOURS}h · ${machines} machine(s)</div>
+    <div class="progress" role="progressbar" aria-label="Heures de la semaine" aria-valuemin="0" aria-valuemax="${WEEKLY_TARGET_HOURS}" aria-valuenow="${(totalSec / 3600).toFixed(1)}">
+      <div class="progress-fill" style="width:${pct}%"></div>
+    </div>`;
+
+  // Une section par jour, du lundi au dimanche. Le week-end n'apparaît que
+  // s'il y a quelque chose dedans ; un jour de semaine vide reste visible,
+  // avec un bouton pour rattraper un oubli.
+  const todayStr = new Date().toDateString();
+  for(let i = 0; i < 7; i++){
+    const day = addDays(weekFrom, i);
+    if(day > new Date()) break;
+    const dayJobs = myHistoryJobs
+      .filter(j => new Date(j.finishedAt).toDateString() === day.toDateString())
+      .sort((a, b) => new Date(a.finishedAt) - new Date(b.finishedAt));
+    const isWeekend = i >= 5;
+    if(isWeekend && dayJobs.length === 0) continue;
+
+    const section = document.createElement('section');
+    section.className = 'day-group' + (day.toDateString() === todayStr ? ' is-today' : '');
+    const dayName = day.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' });
+    section.innerHTML = `
+      <div class="day-head">
+        <span class="day-head-title">${escapeHtml(dayName)}${sumSeconds(dayJobs) > 0 ? `<b>${fmtHShort(sumSeconds(dayJobs))}</b>` : ''}</span>
+        <button type="button" class="day-add" data-add-date="${localDateInputValue(day)}">+ Ajouter</button>
+      </div>`;
+    if(dayJobs.length === 0){
+      section.insertAdjacentHTML('beforeend', '<p class="day-empty">Rien d\'enregistré ce jour-là.</p>');
+    } else {
+      const ul = document.createElement('ul');
+      ul.className = 'history-list';
+      dayJobs.forEach(job => ul.appendChild(jobCardElement(job, { editable: true })));
+      section.appendChild(ul);
+    }
+    container.appendChild(section);
+  }
+  hydratePhotos(container);
+}
+
+let historyEventsInited = false;
+function wireHistoryEvents(){
+  if(historyEventsInited) return;
+  historyEventsInited = true;
+
+  document.querySelectorAll('[data-hist]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      histMode = btn.dataset.hist;
+      if(histMode === 'week') histWeekStart = startOfWeek(new Date());
+      await renderMyHistory(await getMyUserId());
+    });
+  });
+  document.getElementById('histPrev').addEventListener('click', async () => {
+    histWeekStart = addDays(histWeekStart, -7);
+    await renderMyHistory(await getMyUserId());
+  });
+  document.getElementById('histNext').addEventListener('click', async () => {
+    histWeekStart = addDays(histWeekStart, 7);
+    await renderMyHistory(await getMyUserId());
+  });
+  document.getElementById('btnExportWeek').addEventListener('click', () => {
+    downloadJobsCsv(myHistoryJobs, `ma-semaine-${localDateInputValue(histWeekStart)}.csv`);
+  });
+
+  // Un seul écouteur pour toutes les cartes (délégation) : pas besoin de
+  // rebrancher des handlers à chaque rafraîchissement de la liste.
+  document.getElementById('history-groups').addEventListener('click', async (e) => {
+    const addBtn = e.target.closest('button[data-add-date]');
+    if(addBtn){ openActivityForm(addBtn.dataset.addDate); return; }
+
+    const btn = e.target.closest('button[data-act]');
+    if(!btn) return;
+    const job = myHistoryJobs.find(j => j.id === btn.dataset.id);
+    if(!job) return;
+    if(btn.dataset.act === 'edit'){
+      openEditDialog(job, () => refreshIdleView());
+    } else if(btn.dataset.act === 'del'){
+      if(!confirm('Supprimer cet enregistrement ?')) return;
+      await deleteJobInDb(job.id);
+      refreshIdleView();
+    }
+  });
+}
+
+/* --- Modifier une entrée (remplace les anciens prompt() successifs) ---
+   Pour une entrée chronométrée, la durée n'est pas modifiable : elle vient
+   du chrono. Pour un enregistrement rapide "de temps" (Réunion, Congés…),
+   on peut corriger la durée saisie. */
+let editingJob = null;
+let onEditSaved = null;
+
+function editIsTimeEntry(){
+  return editingJob && !editingJob.brand && TIME_ETAPES.has(document.getElementById('editEtape').value);
+}
+function updateEditFields(){
+  const isTime = editIsTimeEntry();
+  document.getElementById('editQteBlock').hidden = isTime;
+  document.getElementById('editDureeBlock').hidden = !isTime;
+}
+
+function openEditDialog(job, onSaved){
+  editingJob = job;
+  onEditSaved = onSaved;
+  const isMachine = !!job.brand;
+
+  document.getElementById('editWhen').textContent =
+    new Date(job.finishedAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+    + (job.activeSeconds ? ` · ${fmtHShort(job.activeSeconds)}` : '');
+  document.getElementById('editMachineFields').hidden = !isMachine;
+  document.getElementById('editBrand').value = job.brand || '';
+  document.getElementById('editModel').value = job.model || '';
+  document.getElementById('editEtape').value = job.etape || '';
+  document.getElementById('editQte').value = job.quantite ?? '';
+  const secs = job.activeSeconds || 0;
+  document.getElementById('editHeures').value = Math.floor(secs / 3600) || '';
+  document.getElementById('editMinutes').value = Math.round((secs % 3600) / 60) || '';
+  document.getElementById('editNote').value = job.note || '';
+  document.getElementById('editStatus').hidden = true;
+  updateEditFields();
+
+  document.getElementById('editDialog').showModal();
+}
+
+function wireEditDialog(){
+  const dialog = document.getElementById('editDialog');
+  // Une seule liste d'étapes à maintenir : on recopie celle de l'enregistrement rapide.
+  const etapeSelect = document.getElementById('editEtape');
+  etapeSelect.innerHTML = document.getElementById('activityType').innerHTML;
+  etapeSelect.options[0].textContent = '— Aucune —';
+  etapeSelect.addEventListener('change', updateEditFields);
+
+  document.getElementById('btnCancelEdit').addEventListener('click', () => dialog.close());
+
+  document.getElementById('editForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if(!editingJob) return;
+    const job = editingJob;
+    const statusEl = document.getElementById('editStatus');
+    const showError = (msg) => { statusEl.textContent = msg; statusEl.hidden = false; };
+
+    const isMachine = !!job.brand;
+    const etape = etapeSelect.value;
+    const fields = { etape: etape || null, note: document.getElementById('editNote').value.trim() || null };
+
+    if(isMachine){
+      const brand = document.getElementById('editBrand').value;
+      const model = document.getElementById('editModel').value.trim();
+      if(!brand || !model) return showError('Marque et modèle sont obligatoires.');
+      fields.brand = brand;
+      fields.model = model;
+    } else if(!etape){
+      return showError('Choisissez une étape.');
+    }
+
+    if(editIsTimeEntry()){
+      const h = parseInt(document.getElementById('editHeures').value, 10) || 0;
+      const m = parseInt(document.getElementById('editMinutes').value, 10) || 0;
+      const seconds = h * 3600 + m * 60;
+      if(seconds <= 0) return showError('Indiquez la durée (heures et/ou minutes).');
+      fields.active_seconds = seconds;
+      fields.started_at = new Date(new Date(job.finishedAt).getTime() - seconds * 1000).toISOString();
+      fields.quantite = null;
+    } else {
+      const qteRaw = document.getElementById('editQte').value;
+      fields.quantite = qteRaw !== '' ? parseInt(qteRaw, 10) : null;
+      // Enregistrement rapide passé d'une étape "de temps" à une étape "de
+      // quantité" : l'ancienne durée n'a plus de sens.
+      if(!isMachine && job.activeSeconds){
+        fields.active_seconds = 0;
+        fields.started_at = job.finishedAt;
+      }
+    }
+
+    const saveBtn = document.getElementById('btnSaveEdit');
+    saveBtn.disabled = true;
+    const ok = await updateJobFields(job.id, fields);
+    saveBtn.disabled = false;
+    if(!ok) return showError("Impossible d'enregistrer (erreur de connexion). Réessayez.");
+
+    dialog.close();
+    editingJob = null;
+    if(onEditSaved) onEditSaved();
+  });
+}
+wireEditDialog();
 
 /* --- Export RGPD : mes propres données, au format JSON --- */
 function wireExportEvent(){
@@ -1009,9 +1357,11 @@ function wirePasswordChangeEvent(){
 
 async function exportMyData(){
   const { data: userData } = await sb.auth.getUser();
+  // Filtré sur moi : pour un admin, RLS renverrait aussi toute l'équipe.
+  const myId = userData.user.id;
   const [openJobs, history, lastName] = await Promise.all([
-    getOpenJobs(),
-    getHistory(),
+    getOpenJobs({ userId: myId }),
+    getHistory({ userId: myId }),
     getSetting('last_name')
   ]);
 
@@ -1040,14 +1390,7 @@ async function exportMyData(){
   };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `mes-donnees-${localDateInputValue(new Date())}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, `mes-donnees-${localDateInputValue(new Date())}.json`);
 }
 
 /* --- Formulaire "Nouveau Service" ---
@@ -1141,20 +1484,25 @@ function updateActivityFieldsForEtape(){
   document.getElementById('activityDureeBlock').hidden = !isTime;
 }
 
+/* dateStr (YYYY-MM-DD) : pré-remplit la date — utilisé par "+ Ajouter" d'un
+   jour de la vue "Ma semaine", pour rattraper un oubli. */
+async function openActivityForm(dateStr){
+  document.getElementById('activityType').value = '';
+  document.getElementById('activityQte').value = '';
+  document.getElementById('activityHeures').value = '';
+  document.getElementById('activityMinutes').value = '';
+  updateActivityFieldsForEtape();
+  document.getElementById('activityNote').value = '';
+  document.getElementById('activityDate').value = dateStr || localDateInputValue(new Date());
+  document.getElementById('activityDate').max = localDateInputValue(new Date());
+  document.getElementById('activityName').value = (await getSetting('last_name')) || '';
+  showState('activity');
+}
+
 function wireActivityEvents(){
   document.getElementById('activityType').addEventListener('change', updateActivityFieldsForEtape);
 
-  document.getElementById('btnNewActivity').addEventListener('click', async () => {
-    document.getElementById('activityType').value = '';
-    document.getElementById('activityQte').value = '';
-    document.getElementById('activityHeures').value = '';
-    document.getElementById('activityMinutes').value = '';
-    updateActivityFieldsForEtape();
-    document.getElementById('activityNote').value = '';
-    document.getElementById('activityDate').value = localDateInputValue(new Date());
-    document.getElementById('activityName').value = (await getSetting('last_name')) || '';
-    showState('activity');
-  });
+  document.getElementById('btnNewActivity').addEventListener('click', () => openActivityForm());
 
   document.getElementById('btnCancelActivity').addEventListener('click', () => showState('idle'));
 
@@ -1398,107 +1746,201 @@ function wireFinishEvents(){
 const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
 const DAYS_FR = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
 
+/* Filtres : QUI (un technicien ou toute l'équipe — choix réservé à l'admin,
+   un technicien ne voit de toute façon que lui-même) et QUAND (semaine,
+   mois ou tout, avec ‹ › pour remonter dans le temps). État dans
+   analyseState, déclaré en haut du fichier. */
 let analyseInited = false;
-let currentPeriod = 'semaine';
-let cachedHistory = [];
+let analyseJobs = [];
+let analyseRequestId = 0; // ignore une réponse arrivée après un clic plus récent
+
+function periodRange(mode, anchor){
+  if(mode === 'week'){
+    const from = startOfWeek(anchor);
+    return { from, to: addDays(from, 7), label: `Semaine du ${weekRangeLabel(from)}` };
+  }
+  if(mode === 'month'){
+    const from = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const to = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);
+    const label = from.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    return { from, to, label: label.charAt(0).toUpperCase() + label.slice(1) };
+  }
+  return { from: null, to: null, label: "Tout l'historique" };
+}
+
+function shiftAnchor(anchor, mode, step){
+  if(mode === 'week') return addDays(anchor, 7 * step);
+  if(mode === 'month') return new Date(anchor.getFullYear(), anchor.getMonth() + step, 1);
+  return anchor;
+}
+
+/* Barres du graphique d'heures, selon la période :
+   semaine → 7 jours · mois → une barre par semaine · tout → 6 derniers mois */
+function chartBuckets(mode, range){
+  const buckets = [];
+  if(mode === 'week'){
+    for(let i = 0; i < 7; i++){
+      const d = addDays(range.from, i);
+      buckets.push({ from: d, to: addDays(d, 1), label: DAYS_FR[d.getDay()], sub: String(d.getDate()) });
+    }
+  } else if(mode === 'month'){
+    let start = range.from;
+    while(start < range.to){
+      const end = new Date(Math.min(addDays(startOfWeek(start), 7), range.to));
+      buckets.push({ from: start, to: end, label: `${start.getDate()}–${addDays(end, -1).getDate()}`, sub: '' });
+      start = end;
+    }
+  } else {
+    const today = new Date();
+    for(let i = 5; i >= 0; i--){
+      const from = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const to = new Date(today.getFullYear(), today.getMonth() - i + 1, 1);
+      buckets.push({ from, to, label: MONTHS_FR[from.getMonth()], sub: '' });
+    }
+  }
+  return buckets;
+}
 
 async function initAnalyse(){
+  if(!analyseInited){
+    analyseInited = true;
+    document.querySelectorAll('.period-btn[data-period]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        analyseState.mode = btn.dataset.period;
+        analyseState.anchor = new Date();
+        loadAndRenderAnalyse();
+      });
+    });
+    document.getElementById('analysePrev').addEventListener('click', () => {
+      analyseState.anchor = shiftAnchor(analyseState.anchor, analyseState.mode, -1);
+      loadAndRenderAnalyse();
+    });
+    document.getElementById('analyseNext').addEventListener('click', () => {
+      analyseState.anchor = shiftAnchor(analyseState.anchor, analyseState.mode, 1);
+      loadAndRenderAnalyse();
+    });
+    document.getElementById('analyseTech').addEventListener('change', (e) => {
+      analyseState.userId = e.target.value;
+      loadAndRenderAnalyse();
+    });
+    document.getElementById('btnExportAnalyse').addEventListener('click', exportAnalyseCsv);
+  }
+
+  const [myId, isAdmin] = await Promise.all([getMyUserId(), amIAdmin()]);
+  if(analyseState.userId === null) analyseState.userId = isAdmin ? 'all' : myId;
+  document.getElementById('analyseTechField').hidden = !isAdmin;
+  if(isAdmin) await populateAnalyseTechSelect(myId);
+
+  await loadAndRenderAnalyse();
+}
+
+async function populateAnalyseTechSelect(myId){
+  const members = await getTeamMembers();
+  const select = document.getElementById('analyseTech');
+  select.innerHTML = `<option value="all">Toute l'équipe</option>` + members.map(m =>
+    `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}${m.id === myId ? ' (moi)' : ''}${m.removed ? ' (compte supprimé)' : ''}</option>`
+  ).join('');
+  select.value = analyseState.userId;
+  if(select.value !== analyseState.userId) analyseState.userId = 'all'; // personne introuvable
+}
+
+async function loadAndRenderAnalyse(){
+  const requestId = ++analyseRequestId;
   document.getElementById('analyse-loading').hidden = false;
   document.getElementById('analyse-content').hidden = true;
 
-  cachedHistory = await getHistory();
+  const { mode, anchor } = analyseState;
+  const range = periodRange(mode, anchor);
+  const prevRange = mode === 'all' ? null : periodRange(mode, shiftAnchor(anchor, mode, -1));
+  const userId = analyseState.userId === 'all' ? undefined : analyseState.userId;
 
-  renderSummary(cachedHistory);
-  renderTimeChart(currentPeriod);
-  renderBrandChart(cachedHistory);
-  renderEtapeChart(cachedHistory);
+  document.querySelectorAll('.period-btn[data-period]').forEach(btn => {
+    const on = btn.dataset.period === mode;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  });
+  document.getElementById('analysePeriodLabel').textContent = range.label;
+  document.getElementById('analysePrev').hidden = mode === 'all';
+  document.getElementById('analyseNext').hidden = mode === 'all';
+  document.getElementById('analyseNext').disabled = !!range.to && range.to > new Date();
 
-  if(!analyseInited){
-    analyseInited = true;
-    document.querySelectorAll('.period-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentPeriod = btn.dataset.period;
-        renderTimeChart(currentPeriod);
-      });
-    });
-  }
+  const [jobs, prevJobs] = await Promise.all([
+    getHistory({ userId, from: range.from, to: range.to }),
+    prevRange ? getHistory({ userId, from: prevRange.from, to: prevRange.to }) : null
+  ]);
+  if(requestId !== analyseRequestId) return; // un clic plus récent a pris le relais
+
+  analyseJobs = jobs;
+  renderSummary(jobs, prevJobs, mode);
+  renderTimeChart(jobs, chartBuckets(mode, range));
+  renderBrandChart(jobs);
+  renderEtapeChart(jobs);
+  renderAnalyseEntries(jobs);
 
   document.getElementById('analyse-loading').hidden = true;
   document.getElementById('analyse-content').hidden = false;
 }
 
-function renderSummary(history){
-  const totalJobs = history.length;
-  const totalSeconds = history.reduce((sum, j) => sum + (j.activeSeconds || 0), 0);
-  const avgSeconds = totalJobs ? totalSeconds / totalJobs : 0;
+function computeStats(jobs){
+  const machines = jobs.filter(j => j.brand);
+  const machineSeconds = sumSeconds(machines);
+  return {
+    seconds: sumSeconds(jobs),
+    machines: machines.length,
+    // Moyenne sur les machines seulement : une réunion d'1h ou un "Emballage x 12"
+    // sans durée faussaient l'ancienne "moyenne / service".
+    avgMachine: machines.length ? machineSeconds / machines.length : 0,
+    days: new Set(jobs.map(j => new Date(j.finishedAt).toDateString())).size
+  };
+}
+
+function deltaHtml(cur, prev, periodWord){
+  if(prev === null || prev === undefined) return '';
+  if(prev === 0) return cur > 0 ? `<p class="summary-delta">nouveau vs ${periodWord}</p>` : '';
+  const pct = Math.round((cur - prev) / prev * 100);
+  const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '=';
+  return `<p class="summary-delta">${arrow} ${Math.abs(pct)} % vs ${periodWord}</p>`;
+}
+
+function renderSummary(jobs, prevJobs, mode){
+  const cur = computeStats(jobs);
+  const prev = prevJobs ? computeStats(prevJobs) : null;
+  const periodWord = mode === 'month' ? 'mois préc.' : 'sem. préc.';
 
   document.getElementById('summaryGrid').innerHTML = `
     <div class="summary-card">
-      <p class="summary-value">${totalJobs}</p>
-      <p class="summary-label">Services</p>
+      <p class="summary-value">${fmtHShort(cur.seconds)}</p>
+      <p class="summary-label">Heures</p>
+      ${deltaHtml(cur.seconds, prev && prev.seconds, periodWord)}
     </div>
     <div class="summary-card">
-      <p class="summary-value">${fmtHShort(totalSeconds)}</p>
-      <p class="summary-label">Total d'heures</p>
+      <p class="summary-value">${cur.machines}</p>
+      <p class="summary-label">Machines</p>
+      ${deltaHtml(cur.machines, prev && prev.machines, periodWord)}
     </div>
     <div class="summary-card">
-      <p class="summary-value">${fmtHShort(avgSeconds)}</p>
-      <p class="summary-label">Moyenne / service</p>
+      <p class="summary-value">${fmtHShort(cur.avgMachine)}</p>
+      <p class="summary-label">Moyenne / machine</p>
+    </div>
+    <div class="summary-card">
+      <p class="summary-value">${cur.days}</p>
+      <p class="summary-label">Jours travaillés</p>
     </div>
   `;
 }
 
-function aggregateByDay(history, days){
-  const buckets = [];
-  const byKey = new Map();
-  const today = new Date();
-  for(let i = days - 1; i >= 0; i--){
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const bucket = { key: d.toDateString(), label: DAYS_FR[d.getDay()], hours: 0, count: 0 };
-    buckets.push(bucket);
-    byKey.set(bucket.key, bucket);
-  }
-  history.forEach(job => {
-    const bucket = byKey.get(new Date(job.finishedAt).toDateString());
-    if(bucket){
-      bucket.hours += (job.activeSeconds || 0) / 3600;
-      bucket.count += 1;
-    }
+function renderTimeChart(jobs, buckets){
+  const data = buckets.map(b => ({ ...b, hours: 0, count: 0 }));
+  jobs.forEach(job => {
+    const t = new Date(job.finishedAt);
+    const bucket = data.find(b => t >= b.from && t < b.to);
+    if(!bucket) return;
+    bucket.hours += (job.activeSeconds || 0) / 3600;
+    if(job.brand) bucket.count += 1;
   });
-  return buckets;
-}
-
-function aggregateByMonth(history, months){
-  const buckets = [];
-  const byKey = new Map();
-  const today = new Date();
-  for(let i = months - 1; i >= 0; i--){
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const bucket = { key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTHS_FR[d.getMonth()], hours: 0, count: 0 };
-    buckets.push(bucket);
-    byKey.set(bucket.key, bucket);
-  }
-  history.forEach(job => {
-    const d = new Date(job.finishedAt);
-    const bucket = byKey.get(`${d.getFullYear()}-${d.getMonth()}`);
-    if(bucket){
-      bucket.hours += (job.activeSeconds || 0) / 3600;
-      bucket.count += 1;
-    }
-  });
-  return buckets;
-}
-
-function renderTimeChart(period){
-  const data = period === 'mois'
-    ? aggregateByMonth(cachedHistory, 6)
-    : aggregateByDay(cachedHistory, 7);
 
   const barUnit = 52, gap = 14;
-  const chartH = 120, baseline = 138, totalH = 176;
+  const chartH = 120, baseline = 138, totalH = 190;
   const W = data.length * (barUnit + gap);
   const maxHours = Math.max(...data.map(d => d.hours), 1);
 
@@ -1508,11 +1950,12 @@ function renderTimeChart(period){
     const barH = d.hours > 0 ? Math.max(4, (d.hours / maxHours) * chartH) : 0;
     const y = baseline - barH;
     const hoursLabel = d.hours > 0 ? fmtHShort(d.hours * 3600) : '–';
+    const label = d.sub ? `${d.label} ${d.sub}` : d.label;
     bars += `
       <rect class="bar-fill" x="${x}" y="${y}" width="${barUnit}" height="${barH}" rx="4"></rect>
       <text class="bar-value" x="${x + barUnit / 2}" y="${y - 6}" text-anchor="middle">${hoursLabel}</text>
-      <text class="bar-label" x="${x + barUnit / 2}" y="${baseline + 16}" text-anchor="middle">${d.label}</text>
-      ${d.count > 0 ? `<text class="bar-label" x="${x + barUnit / 2}" y="${baseline + 30}" text-anchor="middle">${d.count} imp.</text>` : ''}
+      <text class="bar-label" x="${x + barUnit / 2}" y="${baseline + 16}" text-anchor="middle">${escapeHtml(label)}</text>
+      ${d.count > 0 ? `<text class="bar-label" x="${x + barUnit / 2}" y="${baseline + 30}" text-anchor="middle">${d.count} mach.</text>` : ''}
     `;
   });
 
@@ -1531,7 +1974,7 @@ function renderBrandChart(history){
 
   const brandChartEl = document.getElementById('brandChart');
   if(entries.length === 0){
-    brandChartEl.innerHTML = `<p class="empty">Aucune donnée pour l'instant.</p>`;
+    brandChartEl.innerHTML = `<p class="empty">Aucune machine sur cette période.</p>`;
     return;
   }
 
@@ -1552,34 +1995,114 @@ function renderEtapeChart(history){
   const counts = {};
   history.forEach(job => {
     if(!job.etape) return;
+    // Étape de temps (Réunion, Congés…) : on compte des heures, pas des unités.
+    if(TIME_ETAPES.has(job.etape)){
+      counts[job.etape] = counts[job.etape] || { value: 0, isTime: true };
+      counts[job.etape].value += (job.activeSeconds || 0);
+      return;
+    }
     // Une entrée avec une quantité (ex : "Emballage" x 12) compte pour 12, pas pour 1.
-    const add = job.quantite != null ? job.quantite : 1;
-    counts[job.etape] = (counts[job.etape] || 0) + add;
+    counts[job.etape] = counts[job.etape] || { value: 0, isTime: false };
+    counts[job.etape].value += job.quantite != null ? job.quantite : 1;
   });
-  const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
   const etapeChartEl = document.getElementById('etapeChart');
-  if(entries.length === 0){
-    etapeChartEl.innerHTML = `<p class="empty">Aucune étape enregistrée pour l'instant.</p>`;
+  const all = Object.entries(counts);
+  if(all.length === 0){
+    etapeChartEl.innerHTML = `<p class="empty">Aucune étape enregistrée sur cette période.</p>`;
     return;
   }
 
-  const max = Math.max(...entries.map(e => e[1]));
-  etapeChartEl.innerHTML = entries.map(([etape, count]) => `
+  // Deux échelles différentes (unités vs heures) : chaque groupe a son propre max,
+  // sinon 8h de congés écraseraient visuellement "Emballage x 3".
+  const row = ([etape, { value, isTime }], max) => `
     <div class="hbar-row">
       <span class="hbar-label">${escapeHtml(etape)}</span>
       <div class="hbar-track">
-        <div class="hbar-fill" style="width:${(count / max) * 100}%">
-          <span class="hbar-count">${count}</span>
+        <div class="hbar-fill" style="width:${(value / max) * 100}%">
+          <span class="hbar-count">${isTime ? fmtHShort(value) : value}</span>
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  const qty = all.filter(([, v]) => !v.isTime).sort((a, b) => b[1].value - a[1].value);
+  const time = all.filter(([, v]) => v.isTime).sort((a, b) => b[1].value - a[1].value);
+  const maxQty = Math.max(1, ...qty.map(e => e[1].value));
+  const maxTime = Math.max(1, ...time.map(e => e[1].value));
+  etapeChartEl.innerHTML = qty.map(e => row(e, maxQty)).join('') + time.map(e => row(e, maxTime)).join('');
+}
+
+function renderAnalyseEntries(jobs){
+  const list = document.getElementById('analyseEntries');
+  const isTeam = analyseState.userId === 'all';
+  list.innerHTML = '';
+  [...jobs]
+    .sort((a, b) => new Date(b.finishedAt) - new Date(a.finishedAt))
+    .forEach(job => list.appendChild(jobCardElement(job, { showName: isTeam, nameLabel: memberLabel(job) })));
+  hydratePhotos(list, { zoomable: true });
+  document.getElementById('analyseEntriesEmpty').hidden = jobs.length > 0;
+  document.getElementById('btnExportAnalyse').hidden = jobs.length === 0;
+  document.getElementById('analyseEntriesTitle').textContent = `Voir le détail des entrées (${jobs.length})`;
+}
+
+function exportAnalyseCsv(){
+  const { mode, anchor, userId } = analyseState;
+  const range = periodRange(mode, anchor);
+  const who = userId === 'all'
+    ? 'equipe'
+    : normalize(memberLabel({ userId }) || 'technicien').replace(/[^a-z0-9]+/g, '-');
+  const when = range.from ? localDateInputValue(range.from) : 'tout';
+  downloadJobsCsv(analyseJobs, `analyse-${who}-${when}.csv`, memberLabel);
+}
+
+/* Ouvre l'Analyse directement sur un technicien (depuis l'Admin). */
+function openAnalyseFor(userId, anchor = new Date()){
+  analyseState.userId = userId;
+  analyseState.mode = 'week';
+  analyseState.anchor = anchor;
+  switchTab('analyse');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* --- Annuaire de l'équipe : id du compte → nom affiché ---
+   Priorité : nom du compte (Admin → Ajouter un technicien), sinon le dernier
+   nom tapé dans un service, sinon l'e-mail. On regroupe par compte (user_id)
+   et pas par nom tapé : "Ana" et "ana " restent la même personne. */
+async function getTeamMembers(){
+  if(teamMembersCache) return teamMembersCache;
+  const [accounts, { data: rows, error }] = await Promise.all([
+    getAllTechnicians(),
+    sb.from('jobs').select('user_id, technician').order('started_at', { ascending: false }).limit(2000)
+  ]);
+  if(error) console.error('Erreur getTeamMembers:', error);
+
+  const typedName = new Map();
+  (rows || []).forEach(r => {
+    if(r.user_id && r.technician && !typedName.has(r.user_id)) typedName.set(r.user_id, r.technician.trim());
+  });
+
+  const byId = new Map();
+  accounts.forEach(a => byId.set(a.id, {
+    id: a.id,
+    label: a.name || typedName.get(a.id) || a.email || 'Sans nom',
+    removed: false
+  }));
+  typedName.forEach((name, id) => {
+    if(!byId.has(id)) byId.set(id, { id, label: name, removed: accounts.length > 0 });
+  });
+
+  teamMembersCache = [...byId.values()].sort((a, b) => a.label.localeCompare(b.label, 'fr'));
+  return teamMembersCache;
+}
+
+function memberLabel(job){
+  const m = (teamMembersCache || []).find(x => x.id === job.userId);
+  return m ? m.label : job.name;
 }
 
 /* ======================= ADMIN (vue d'ensemble équipe) ======================= */
 let adminInited = false;
 let adminAllJobs = [];
+let adminWeekStart = startOfWeek(new Date());
 
 /* --- Gestion des modèles d'imprimante (table printer_models) --- */
 async function getAllPrinterModelsFlat(){
@@ -1646,12 +2169,12 @@ async function initAdmin(){
   document.getElementById('admin-loading').hidden = false;
   document.getElementById('admin-content').hidden = true;
 
-  const [history, currentJobs] = await Promise.all([getHistory(), getOpenJobs()]);
+  const [history, currentJobs] = await Promise.all([getHistory(), getOpenJobs(), getTeamMembers()]);
   adminAllJobs = [...currentJobs, ...history];
 
   renderAdminSummary(adminAllJobs);
-  renderTechnicianWeekChart(adminAllJobs);
-  renderTechnicianWeekTable(adminAllJobs);
+  renderAdminWeek();
+  populateAdminTechFilter();
   wireModelManageEvents();
   wireTechnicianForm();
   await renderModelManageList();
@@ -1672,6 +2195,23 @@ async function initAdmin(){
       renderAdminList(adminAllJobs);
     });
     document.getElementById('adminSearch').addEventListener('input', () => renderAdminList(adminAllJobs));
+    document.getElementById('adminTechFilter').addEventListener('change', () => renderAdminList(adminAllJobs));
+    document.getElementById('btnExportAdmin').addEventListener('click', () => {
+      downloadJobsCsv(filterAdminJobs(adminAllJobs), `services-equipe-${localDateInputValue(new Date())}.csv`, memberLabel);
+    });
+    document.getElementById('adminWeekPrev').addEventListener('click', () => {
+      adminWeekStart = addDays(adminWeekStart, -7);
+      renderAdminWeek();
+    });
+    document.getElementById('adminWeekNext').addEventListener('click', () => {
+      adminWeekStart = addDays(adminWeekStart, 7);
+      renderAdminWeek();
+    });
+    // Délégation : un clic sur un nom (tableau) → analyse de ce technicien seul.
+    document.getElementById('technicianWeekTable').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-user]');
+      if(btn) openAnalyseFor(btn.dataset.user, adminWeekStart);
+    });
     document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
     document.getElementById('lightbox').addEventListener('click', (e) => {
       if(e.target.id === 'lightbox') closeLightbox();
@@ -1727,6 +2267,8 @@ function wireTechnicianForm(){
       statusEl.classList.remove('error');
       statusEl.textContent = `Compte créé pour ${body.email}. Partagez le mot de passe avec le technicien.`;
       document.getElementById('technicianForm').reset();
+      techniciansCache = null;
+      teamMembersCache = null;
       renderTechnicianManageList();
     } catch(err){
       console.error('Erreur create-technician:', err);
@@ -1741,6 +2283,7 @@ function wireTechnicianForm(){
    que la création : il faut la clé service_role pour gérer les comptes du
    Supabase Auth. */
 async function getAllTechnicians(){
+  if(techniciansCache) return techniciansCache;
   const { data: { session } } = await sb.auth.getSession();
   if(!session) return [];
 
@@ -1753,7 +2296,8 @@ async function getAllTechnicians(){
       console.error('Erreur list-technicians:', body.error);
       return [];
     }
-    return body.technicians || [];
+    techniciansCache = body.technicians || [];
+    return techniciansCache;
   } catch(err){
     console.error('Erreur réseau list-technicians:', err);
     return [];
@@ -1775,17 +2319,26 @@ async function renderTechnicianManageList(){
   listEl.innerHTML = technicians.map(t => `
     <li class="model-manage-row">
       <span>${t.name ? escapeHtml(t.name) + ' — ' : ''}${escapeHtml(t.email || '')}</span>
-      ${t.id !== myId ? `<button type="button" data-id="${escapeHtml(t.id)}" data-label="${escapeHtml(t.name || t.email || '')}" aria-label="Supprimer ce technicien">🗑</button>` : ''}
+      <span>
+        <button type="button" data-analyse="${escapeHtml(t.id)}" aria-label="Voir l'analyse de ${escapeHtml(t.name || t.email || '')}" title="Voir son analyse">📊</button>
+        ${t.id !== myId ? `<button type="button" data-id="${escapeHtml(t.id)}" data-label="${escapeHtml(t.name || t.email || '')}" aria-label="Supprimer ce technicien">🗑</button>` : ''}
+      </span>
     </li>
   `).join('');
+
+  listEl.querySelectorAll('button[data-analyse]').forEach(btn => {
+    btn.addEventListener('click', () => openAnalyseFor(btn.dataset.analyse));
+  });
 
   listEl.querySelectorAll('button[data-id]').forEach(btn => {
     btn.addEventListener('click', async () => {
       if(!confirm(`Supprimer le compte de ${btn.dataset.label} ?\n\nIl ne pourra plus se connecter. Ses services déjà enregistrés restent dans l'historique.`)) return;
       btn.disabled = true;
       const ok = await deleteTechnician(btn.dataset.id);
-      if(!ok) btn.disabled = false;
-      else renderTechnicianManageList();
+      if(!ok){ btn.disabled = false; return; }
+      techniciansCache = null;
+      teamMembersCache = null;
+      renderTechnicianManageList();
     });
   });
 }
@@ -1821,7 +2374,7 @@ async function deleteTechnician(userId){
 function renderAdminSummary(jobs){
   const finished = jobs.filter(j => j.finishedAt);
   const totalSeconds = finished.reduce((sum, j) => sum + (j.activeSeconds || 0), 0);
-  const technicians = new Set(jobs.map(j => j.name).filter(Boolean));
+  const technicians = new Set(jobs.map(j => j.userId).filter(Boolean));
 
   document.getElementById('adminSummaryGrid').innerHTML = `
     <div class="summary-card">
@@ -1839,41 +2392,43 @@ function renderAdminSummary(jobs){
   `;
 }
 
-/* --- Heures par technicien (7 derniers jours) ---
-   Regroupe par job.name (le nom tapé dans le formulaire), comme le fait déjà
-   renderAdminSummary pour compter les techniciens — pas besoin de croiser
-   avec les comptes de connexion, un job n'a jamais l'e-mail du technicien. */
-function weekDayBuckets(){
-  const buckets = [];
-  const today = new Date();
-  for(let i = 6; i >= 0; i--){
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    buckets.push({ key: d.toDateString(), label: DAYS_FR[d.getDay()] });
-  }
-  return buckets;
+/* --- Heures par technicien, semaine calendaire (lundi → dimanche) ---
+   Regroupé par compte (user_id), pas par nom tapé à la main. Les comptes
+   sans aucune heure apparaissent aussi dans le tableau : c'est justement
+   ce qu'on veut repérer (un oubli de saisie, une absence). */
+function renderAdminWeek(){
+  const from = adminWeekStart;
+  const to = addDays(from, 7);
+  document.getElementById('adminWeekLabel').textContent = `Semaine du ${weekRangeLabel(from)}`;
+  document.getElementById('adminWeekNext').disabled = from >= startOfWeek(new Date());
+
+  const weekJobs = adminAllJobs.filter(j => {
+    if(!j.finishedAt) return false;
+    const t = new Date(j.finishedAt);
+    return t >= from && t < to;
+  });
+  renderTechnicianWeekChart(weekJobs);
+  renderTechnicianWeekTable(weekJobs, from);
 }
 
-function renderTechnicianWeekChart(jobs){
-  const validKeys = new Set(weekDayBuckets().map(b => b.key));
-  const totals = {};
-  jobs.forEach(job => {
-    if(!job.finishedAt || !job.name) return;
-    if(!validKeys.has(new Date(job.finishedAt).toDateString())) return;
-    totals[job.name] = (totals[job.name] || 0) + (job.activeSeconds || 0);
+function renderTechnicianWeekChart(weekJobs){
+  const totals = new Map();
+  weekJobs.forEach(job => {
+    if(!job.userId) return;
+    totals.set(job.userId, (totals.get(job.userId) || 0) + (job.activeSeconds || 0));
   });
 
-  const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  const entries = [...totals.entries()].filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]);
   const el = document.getElementById('technicianWeekChart');
   if(entries.length === 0){
-    el.innerHTML = `<p class="empty">Aucune donnée cette semaine.</p>`;
+    el.innerHTML = `<p class="empty">Aucune heure enregistrée cette semaine.</p>`;
     return;
   }
 
   const max = Math.max(...entries.map(e => e[1]));
-  el.innerHTML = entries.map(([name, seconds]) => `
+  el.innerHTML = entries.map(([userId, seconds]) => `
     <div class="hbar-row">
-      <span class="hbar-label">${escapeHtml(name)}</span>
+      <span class="hbar-label">${escapeHtml(memberLabel({ userId }) || '?')}</span>
       <div class="hbar-track">
         <div class="hbar-fill" style="width:${(seconds / max) * 100}%">
           <span class="hbar-count">${fmtHShort(seconds)}</span>
@@ -1883,36 +2438,36 @@ function renderTechnicianWeekChart(jobs){
   `).join('');
 }
 
-/* Grille "type Excel" : une ligne par technicien, une colonne par jour —
-   pour voir en un coup d'œil qui a travaillé quand cette semaine. */
-function renderTechnicianWeekTable(jobs){
-  const buckets = weekDayBuckets();
+/* Grille "type Excel" : une ligne par technicien, une colonne par jour. */
+function renderTechnicianWeekTable(weekJobs, monday){
+  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
   const byTech = new Map();
-
-  jobs.forEach(job => {
-    if(!job.finishedAt || !job.name) return;
-    const dayKey = new Date(job.finishedAt).toDateString();
-    if(!buckets.some(b => b.key === dayKey)) return;
-    if(!byTech.has(job.name)) byTech.set(job.name, {});
-    const row = byTech.get(job.name);
-    row[dayKey] = (row[dayKey] || 0) + (job.activeSeconds || 0);
+  // Tous les comptes actifs, même à zéro heure.
+  (teamMembersCache || []).filter(m => !m.removed).forEach(m => byTech.set(m.id, {}));
+  weekJobs.forEach(job => {
+    if(!job.userId) return;
+    if(!byTech.has(job.userId)) byTech.set(job.userId, {});
+    const row = byTech.get(job.userId);
+    const key = new Date(job.finishedAt).toDateString();
+    row[key] = (row[key] || 0) + (job.activeSeconds || 0);
   });
 
   const el = document.getElementById('technicianWeekTable');
-  const names = [...byTech.keys()].sort((a, b) => a.localeCompare(b));
-  if(names.length === 0){
+  if(byTech.size === 0){
     el.innerHTML = `<p class="empty">Aucune donnée cette semaine.</p>`;
     return;
   }
 
-  const header = `<tr><th>Technicien</th>${buckets.map(b => `<th>${b.label}</th>`).join('')}<th>Total</th></tr>`;
-  const body = names.map(name => {
-    const row = byTech.get(name);
-    const cells = buckets.map(b => row[b.key] || 0);
+  const ids = [...byTech.keys()].sort((a, b) =>
+    (memberLabel({ userId: a }) || '').localeCompare(memberLabel({ userId: b }) || '', 'fr'));
+  const header = `<tr><th>Technicien</th>${days.map(d => `<th>${DAYS_FR[d.getDay()]} ${d.getDate()}</th>`).join('')}<th>Total</th></tr>`;
+  const body = ids.map(id => {
+    const row = byTech.get(id);
+    const cells = days.map(d => row[d.toDateString()] || 0);
     const total = cells.reduce((sum, s) => sum + s, 0);
     return `
-      <tr>
-        <td>${escapeHtml(name)}</td>
+      <tr${total === 0 ? ' class="is-zero"' : ''}>
+        <td><button type="button" class="link-btn" data-user="${escapeHtml(id)}">${escapeHtml(memberLabel({ userId: id }) || '?')}</button></td>
         ${cells.map(s => `<td>${s > 0 ? fmtHShort(s) : '–'}</td>`).join('')}
         <td><b>${fmtHShort(total)}</b></td>
       </tr>
@@ -1922,55 +2477,35 @@ function renderTechnicianWeekTable(jobs){
   el.innerHTML = `<table class="week-table">${header}${body}</table>`;
 }
 
-function renderAdminList(jobs){
+function populateAdminTechFilter(){
+  const select = document.getElementById('adminTechFilter');
+  const current = select.value;
+  select.innerHTML = `<option value="">Toute l'équipe</option>` + (teamMembersCache || []).map(m =>
+    `<option value="${escapeHtml(m.id)}">${escapeHtml(m.label)}${m.removed ? ' (compte supprimé)' : ''}</option>`
+  ).join('');
+  select.value = current;
+}
+
+function filterAdminJobs(jobs){
   const q = normalize(document.getElementById('adminSearch').value.trim());
-  const filtered = jobs.filter(j => {
+  const techId = document.getElementById('adminTechFilter').value;
+  return jobs.filter(j => {
+    if(techId && j.userId !== techId) return false;
     if(!q) return true;
-    return normalize(`${j.name || ''} ${j.brand || ''} ${j.model || ''} ${j.etape || ''} ${j.note || ''}`).includes(q);
+    return normalize(`${memberLabel(j) || ''} ${j.name || ''} ${j.brand || ''} ${j.model || ''} ${j.etape || ''} ${j.note || ''}`).includes(q);
   });
+}
+
+function renderAdminList(jobs){
+  const filtered = filterAdminJobs(jobs);
 
   const listEl3 = document.getElementById('adminList');
-  const emptyEl3 = document.getElementById('adminEmpty');
   document.getElementById('adminCount').textContent = `${filtered.length} service(s)`;
+  document.getElementById('adminEmpty').hidden = filtered.length > 0;
+  document.getElementById('btnExportAdmin').hidden = filtered.length === 0;
   listEl3.innerHTML = '';
-  emptyEl3.hidden = filtered.length > 0;
-
-  filtered.forEach(job => {
-    const li = document.createElement('li');
-    li.className = 'job-card';
-    const isRunning = !job.finishedAt;
-    const dateStr = job.finishedAt ? new Date(job.finishedAt).toLocaleDateString('fr-FR') : null;
-
-    const thumb = job.photoBase64
-      ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoBase64)}" alt="Photo du bon">`
-      : `<div class="job-thumb" aria-hidden="true">📷</div>`;
-    const thumbFinal = job.photoFinalBase64
-      ? `<img class="job-thumb" data-photo-path="${escapeHtml(job.photoFinalBase64)}" alt="Photo machine terminée">`
-      : '';
-
-    const metaParts = [];
-    if(job.name) metaParts.push(escapeHtml(job.name));
-    if(job.activeSeconds) metaParts.push(fmtHShort(job.activeSeconds));
-    metaParts.push(isRunning ? '● en cours' : dateStr);
-
-    li.innerHTML = `
-      ${PHOTOS_ENABLED ? `<div class="job-thumbs">${thumb}${thumbFinal}</div>` : ''}
-      <div class="job-info">
-        <p class="job-model">${jobTitleLine(job)}</p>
-        <p class="job-meta">${metaParts.join(' · ')}</p>
-        ${(job.brand && job.etape) ? `<p class="job-etape">${escapeHtml(job.etape)}${job.quantite != null ? ' · Qté ' + job.quantite : ''}</p>` : ''}
-        ${job.note ? `<p class="job-note">« ${escapeHtml(job.note)} »</p>` : ''}
-      </div>`;
-    listEl3.appendChild(li);
-  });
-
-  listEl3.querySelectorAll('img[data-photo-path]').forEach(async (img) => {
-    const url = await resolvePhotoUrl(img.dataset.photoPath);
-    if(!url) return;
-    img.src = url;
-    img.classList.add('zoomable');
-    img.addEventListener('click', () => openLightbox(url));
-  });
+  filtered.forEach(job => listEl3.appendChild(jobCardElement(job, { showName: true, nameLabel: memberLabel(job) })));
+  hydratePhotos(listEl3, { zoomable: true });
 }
 
 function openLightbox(url){
