@@ -380,6 +380,7 @@
     <!-- ===================== SECTION : ANALYSE ===================== -->
     <section class="view" id="view-analyse" aria-labelledby="tab-analyse">
       <p id="analyse-loading" class="loading">Chargement…</p>
+      <button type="button" class="btn-back" id="btnAnalyseBack" hidden>‹ Retour aux techniciens</button>
 
       <div class="analyse-filters">
         <div class="filter-bar">
@@ -432,77 +433,83 @@
       <p id="admin-loading" class="loading">Chargement…</p>
 
       <div id="admin-content" hidden>
-        <div class="summary-grid" id="adminSummaryGrid"></div>
+        <div id="adminOverview">
+          <div class="summary-grid" id="adminSummaryGrid"></div>
 
-        <div class="week-nav" id="adminWeekNav">
-          <button type="button" id="adminWeekPrev" aria-label="Semaine précédente">‹</button>
-          <span class="week-nav-label" id="adminWeekLabel" aria-live="polite"></span>
-          <button type="button" id="adminWeekNext" aria-label="Semaine suivante">›</button>
-        </div>
+          <details class="guide">
+            <summary>Gérer les modèles d'imprimante <span class="chev">›</span></summary>
+            <form class="model-form" id="modelForm">
+              <select id="modelFormBrand" required>
+                <option value="">Marque…</option>
+                <option>Canon</option><option>Toshiba</option><option>Kyocera</option>
+                <option>Konica Minolta</option><option>Sharp</option><option>Ricoh</option><option>Autre</option>
+              </select>
+              <input type="text" id="modelFormModel" placeholder="Ex : iR-ADV C3525i" required autocomplete="off">
+              <button type="submit" class="btn-secondary">+ Ajouter</button>
+            </form>
+            <ul class="model-manage-list" id="modelManageList"></ul>
+          </details>
 
-        <div class="chart-box">
-          <h2 class="hist-label">Heures par technicien</h2>
-          <div id="technicianWeekChart"></div>
-        </div>
+          <details class="guide">
+            <summary>Ajouter un technicien <span class="chev">›</span></summary>
+            <form class="model-form" id="technicianForm">
+              <input type="text" id="technicianName" placeholder="Nom (optionnel)" autocomplete="off">
+              <input type="email" id="technicianEmail" placeholder="E-mail" required autocomplete="off">
+              <input type="password" id="technicianPassword" placeholder="Mot de passe (8+ caractères)" required minlength="8" autocomplete="new-password">
+              <button type="submit" class="btn-secondary">+ Créer le compte</button>
+            </form>
+            <p class="form-status" id="technicianStatus" hidden></p>
 
-        <div class="chart-box">
-          <h2 class="hist-label">Détail par jour</h2>
-          <p class="hint">Touchez le nom d'un technicien pour voir son analyse à lui seul.</p>
-          <div class="table-scroll">
-            <div id="technicianWeekTable"></div>
+            <h3 class="hist-label" id="technicianListLabel">Comptes existants</h3>
+            <ul class="model-manage-list" id="technicianManageList"></ul>
+          </details>
+
+          <div id="adminJobsGate">
+            <button type="button" class="btn-new btn-new-secondary" id="btnRevealJobs">👁 Voir tous les services de l'équipe</button>
           </div>
-        </div>
 
-        <details class="guide">
-          <summary>Gérer les modèles d'imprimante <span class="chev">›</span></summary>
-          <form class="model-form" id="modelForm">
-            <select id="modelFormBrand" required>
-              <option value="">Marque…</option>
-              <option>Canon</option><option>Toshiba</option><option>Kyocera</option>
-              <option>Konica Minolta</option><option>Sharp</option><option>Ricoh</option><option>Autre</option>
+          <div id="adminJobsPanel" hidden>
+            <label class="field-label" for="adminTechFilter">Technicien</label>
+            <select id="adminTechFilter">
+              <option value="">Toute l'équipe</option>
             </select>
-            <input type="text" id="modelFormModel" placeholder="Ex : iR-ADV C3525i" required autocomplete="off">
-            <button type="submit" class="btn-secondary">+ Ajouter</button>
-          </form>
-          <ul class="model-manage-list" id="modelManageList"></ul>
-        </details>
 
-        <details class="guide">
-          <summary>Ajouter un technicien <span class="chev">›</span></summary>
-          <form class="model-form" id="technicianForm">
-            <input type="text" id="technicianName" placeholder="Nom (optionnel)" autocomplete="off">
-            <input type="email" id="technicianEmail" placeholder="E-mail" required autocomplete="off">
-            <input type="password" id="technicianPassword" placeholder="Mot de passe (8+ caractères)" required minlength="8" autocomplete="new-password">
-            <button type="submit" class="btn-secondary">+ Créer le compte</button>
-          </form>
-          <p class="form-status" id="technicianStatus" hidden></p>
+            <div class="search-wrap" style="margin-top:10px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <label for="adminSearch" class="visually-hidden">Rechercher un service</label>
+              <input id="adminSearch" type="text" placeholder="Rechercher (technicien, marque, modèle)..." autocomplete="off">
+            </div>
 
-          <h3 class="hist-label" id="technicianListLabel">Comptes existants</h3>
-          <ul class="model-manage-list" id="technicianManageList"></ul>
-        </details>
-
-        <div id="adminJobsGate">
-          <button type="button" class="btn-new btn-new-secondary" id="btnRevealJobs">👁 Voir tous les services de l'équipe</button>
+            <p class="count" id="adminCount" aria-live="polite"></p>
+            <ul id="adminList" class="history-list admin-list"></ul>
+            <p class="empty" id="adminEmpty" hidden>Aucun résultat.</p>
+            <button type="button" class="btn-export" id="btnExportAdmin">⬇ Exporter cette liste (Excel)</button>
+          </div>
         </div>
 
-        <div id="adminJobsPanel" hidden>
-          <label class="field-label" for="adminTechFilter">Technicien</label>
-          <select id="adminTechFilter">
-            <option value="">Toute l'équipe</option>
-          </select>
+        <div id="adminTechnicians" hidden>
+          <button type="button" class="btn-back" id="btnAdminTechBack">‹ Retour à l'accueil</button>
 
-          <div class="search-wrap" style="margin-top:10px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-            </svg>
-            <label for="adminSearch" class="visually-hidden">Rechercher un service</label>
-            <input id="adminSearch" type="text" placeholder="Rechercher (technicien, marque, modèle)..." autocomplete="off">
+          <div class="week-nav" id="adminWeekNav">
+            <button type="button" id="adminWeekPrev" aria-label="Semaine précédente">‹</button>
+            <span class="week-nav-label" id="adminWeekLabel" aria-live="polite"></span>
+            <button type="button" id="adminWeekNext" aria-label="Semaine suivante">›</button>
           </div>
 
-          <p class="count" id="adminCount" aria-live="polite"></p>
-          <ul id="adminList" class="history-list admin-list"></ul>
-          <p class="empty" id="adminEmpty" hidden>Aucun résultat.</p>
-          <button type="button" class="btn-export" id="btnExportAdmin">⬇ Exporter cette liste (Excel)</button>
+          <div class="chart-box">
+            <h2 class="hist-label">Heures par technicien</h2>
+            <p class="hint">Touchez un technicien pour voir son analyse à lui seul.</p>
+            <div id="technicianWeekChart"></div>
+          </div>
+
+          <div class="chart-box">
+            <h2 class="hist-label">Détail par jour</h2>
+            <div class="table-scroll">
+              <div id="technicianWeekTable"></div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -218,9 +218,10 @@ function wireAccountEvents(){
    resetPerUserState() y touche dès le premier événement de connexion. */
 let histMode = 'day';                        // Suivi : 'day' | 'week'
 let histWeekStart = startOfWeek(new Date()); // Suivi : lundi de la semaine affichée
-const analyseState = { mode: 'week', anchor: new Date(), userId: null }; // userId : 'all' | uuid | null (= défaut)
+const analyseState = { mode: 'week', anchor: new Date(), userId: null, fromAdmin: false }; // userId : 'all' | uuid | null (= défaut)
 let teamMembersCache = null;
 let techniciansCache = null;
+let adminSubview = 'overview'; // 'overview' | 'technicians' — sous-page affichée dans l'onglet Admin
 
 initAuth();
 
@@ -560,7 +561,11 @@ function switchTab(view){
   if(view === 'admin') initAdmin();
 }
 document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => switchTab(tab.dataset.view));
+  tab.addEventListener('click', () => {
+    // Un clic direct sur l'onglet (pas un renvoi depuis l'Admin) quitte le mode "un seul technicien".
+    if(tab.dataset.view === 'analyse') analyseState.fromAdmin = false;
+    switchTab(tab.dataset.view);
+  });
 });
 
 /* ======================= SUIVI DE SERVICE ======================= */
@@ -1824,6 +1829,11 @@ async function initAnalyse(){
       loadAndRenderAnalyse();
     });
     document.getElementById('btnExportAnalyse').addEventListener('click', exportAnalyseCsv);
+    document.getElementById('btnAnalyseBack').addEventListener('click', () => {
+      analyseState.fromAdmin = false;
+      document.getElementById('btnAnalyseBack').hidden = true;
+      switchTab('admin'); // adminSubview reste sur 'technicians', inchangé depuis le clic qui a mené ici
+    });
   }
 
   const [myId, isAdmin] = await Promise.all([getMyUserId(), amIAdmin()]);
@@ -1848,6 +1858,7 @@ async function loadAndRenderAnalyse(){
   const requestId = ++analyseRequestId;
   document.getElementById('analyse-loading').hidden = false;
   document.getElementById('analyse-content').hidden = true;
+  document.getElementById('btnAnalyseBack').hidden = !(analyseState.fromAdmin && analyseState.userId && analyseState.userId !== 'all');
 
   const { mode, anchor } = analyseState;
   const range = periodRange(mode, anchor);
@@ -2059,7 +2070,17 @@ function openAnalyseFor(userId, anchor = new Date()){
   analyseState.userId = userId;
   analyseState.mode = 'week';
   analyseState.anchor = anchor;
+  analyseState.fromAdmin = true; // affiche le bouton "‹ Retour aux techniciens"
   switchTab('analyse');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* Bascule entre les deux sous-pages de l'Admin : la vue d'ensemble et la
+   liste des techniciens (elle-même point d'entrée vers l'analyse d'un seul). */
+function showAdminSubview(name){
+  adminSubview = name;
+  document.getElementById('adminOverview').hidden = name !== 'overview';
+  document.getElementById('adminTechnicians').hidden = name !== 'technicians';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -2207,11 +2228,20 @@ async function initAdmin(){
       adminWeekStart = addDays(adminWeekStart, 7);
       renderAdminWeek();
     });
-    // Délégation : un clic sur un nom (tableau) → analyse de ce technicien seul.
+    // Délégation : un clic sur un nom (tableau ou barre) → analyse de ce technicien seul.
     document.getElementById('technicianWeekTable').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-user]');
       if(btn) openAnalyseFor(btn.dataset.user, adminWeekStart);
     });
+    document.getElementById('technicianWeekChart').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-user]');
+      if(btn) openAnalyseFor(btn.dataset.user, adminWeekStart);
+    });
+    // Carte "Techniciens" du résumé → ouvre la sous-page liste des techniciens.
+    document.getElementById('adminSummaryGrid').addEventListener('click', (e) => {
+      if(e.target.closest('#adminTechCard')) showAdminSubview('technicians');
+    });
+    document.getElementById('btnAdminTechBack').addEventListener('click', () => showAdminSubview('overview'));
     document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
     document.getElementById('lightbox').addEventListener('click', (e) => {
       if(e.target.id === 'lightbox') closeLightbox();
@@ -2385,10 +2415,11 @@ function renderAdminSummary(jobs){
       <p class="summary-value">${fmtHShort(totalSeconds)}</p>
       <p class="summary-label">Total d'heures</p>
     </div>
-    <div class="summary-card">
+    <button type="button" class="summary-card summary-card--link" id="adminTechCard">
       <p class="summary-value">${technicians.size}</p>
       <p class="summary-label">Techniciens</p>
-    </div>
+      <span class="summary-chev">Voir la liste ›</span>
+    </button>
   `;
 }
 
@@ -2427,14 +2458,15 @@ function renderTechnicianWeekChart(weekJobs){
 
   const max = Math.max(...entries.map(e => e[1]));
   el.innerHTML = entries.map(([userId, seconds]) => `
-    <div class="hbar-row">
+    <button type="button" class="hbar-row hbar-row--link" data-user="${escapeHtml(userId)}">
       <span class="hbar-label">${escapeHtml(memberLabel({ userId }) || '?')}</span>
       <div class="hbar-track">
         <div class="hbar-fill" style="width:${(seconds / max) * 100}%">
           <span class="hbar-count">${fmtHShort(seconds)}</span>
         </div>
       </div>
-    </div>
+      <span class="hbar-chev">›</span>
+    </button>
   `).join('');
 }
 
