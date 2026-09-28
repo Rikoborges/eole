@@ -298,6 +298,23 @@ main{
 .model-manage-row button:hover, .model-manage-row button:focus-visible{ color: var(--warn); }
 
 .guide ol{ margin: 12px 0 4px; padding-left: 18px; font-size: 14px; line-height: 1.6; }
+
+/* Guide mise à jour firmware (machines neuves) */
+.fw-brands{ margin: 12px 0 4px; }
+.fw-brands .chip.active{ background: var(--copper); color: oklch(18% 0.03 90); }
+.fw-tools{ font-size: 13px; color: var(--text-dim); margin: 8px 0 0; }
+.fw-step-title{
+  font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
+  text-transform: uppercase; color: var(--copper-text); margin: 14px 0 0;
+}
+.fw-step-title + ol{ margin-top: 6px; }
+.btn-fw-guide{
+  width: 100%; min-height: 44px; margin: 8px 0 4px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--copper-dim); border-radius: var(--radius-md);
+  font-size: 14px; cursor: pointer;
+}
+.btn-fw-guide:focus-visible{ outline: 2px solid var(--copper-text); outline-offset: 2px; }
 .guide ol li{ margin-bottom: 8px; }
 .guide ol b{ color: var(--copper-text); font-weight: 600; }
 .guide .note{ margin-top: 10px; font-size: 13px; line-height: 18px; color: var(--text-dim); border-top: 1px solid var(--line); padding-top: 10px; }

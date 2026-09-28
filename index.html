@@ -118,6 +118,12 @@
         <p class="note">L'auto-contrôle complet (checklist officielle) apparaît à la fin du service, dans l'onglet Suivi.</p>
       </details>
 
+      <details class="guide" id="firmwareGuide">
+        <summary>Machines neuves — mise à jour firmware <span class="chev">›</span></summary>
+        <nav class="filters fw-brands" id="fwBrands" aria-label="Choisir la marque"></nav>
+        <div id="fwContent"></div>
+      </details>
+
       <p class="count" id="count" aria-live="polite"></p>
       <ul id="list" class="parts-list"></ul>
       <p class="empty" id="empty" hidden>Aucune pièce trouvée.</p>
@@ -281,6 +287,7 @@
               <img class="running-thumb" id="runningThumb" alt="Photo du bon de commande">
               <p class="running-brand" id="runningBrand"></p>
             </div>
+            <button class="btn-fw-guide" id="btnFwGuide" type="button" hidden></button>
             <p class="timer-display" id="timerDisplay" aria-live="off">00:00:00</p>
             <p class="timer-status" id="timerStatus">● En cours</p>
           </div>
@@ -357,13 +364,15 @@
               <li><label><input type="checkbox"> Emplacement vérifié (prise électrique dédiée + accès réseau)</label></li>
               <li><label><input type="checkbox"> Mise sous tension + premier démarrage sans erreur</label></li>
               <li><label><input type="checkbox"> Connexion réseau configurée (Ethernet/Wi-Fi)</label></li>
+              <li><label><input type="checkbox"> Firmware mis à jour (version avant → après notée)</label></li>
+              <li><label><input type="checkbox"> Rapport de configuration imprimé et joint au dossier</label></li>
               <li><label><input type="checkbox"> Pilotes installés sur le(s) poste(s) client</label></li>
               <li><label><input type="checkbox"> Licence / logiciel activé et enregistré</label></li>
               <li><label><input type="checkbox"> Test d'impression + scan réalisé avec succès</label></li>
               <li><label><input type="checkbox"> Consommables de démarrage vérifiés (toner, papier)</label></li>
               <li><label><input type="checkbox"> Explication rapide au client (utilisation de base)</label></li>
             </ul>
-            <p class="checklist-count" id="checklistInstallCount">0 / 9 vérifiés</p>
+            <p class="checklist-count" id="checklistInstallCount">0 / 11 vérifiés</p>
           </div>
         </div>
 

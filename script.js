@@ -546,6 +546,111 @@ chipButtons.forEach(chip => {
 });
 renderParts();
 
+/* ======================= GUIDE : MISE À JOUR FIRMWARE (MACHINES NEUVES) =======================
+   Même liste de marques que le Suivi. Procédure générale par marque — les menus
+   exacts changent selon la série : en cas de doute, le Service Manual du modèle fait foi. */
+const FW_COMMON_BEFORE = [
+  "Imprimer le <b>rapport de configuration</b> : noter la version firmware actuelle et le n° de série.",
+  "Installer d'abord <b>toutes les options</b> (finisseur, cassettes, fax, carte réseau) : elles ont aussi leur firmware.",
+  "Télécharger le firmware <b>exact du modèle</b> (portail constructeur / revendeur) et lire la note de version.",
+  "Sauvegarder carnet d'adresses et réglages si la machine a déjà été configurée.",
+];
+const FW_COMMON_AFTER = [
+  "<b>Ne jamais couper le courant</b> ni retirer la clé/carte pendant la mise à jour.",
+  "Redémarrer, réimprimer le rapport de configuration : vérifier que <b>toutes</b> les versions ont changé.",
+  "Test copie + impression + scan. Noter « version avant → après » dans la note du service.",
+];
+const FIRMWARE_GUIDES = {
+  "Canon": {
+    tools: "UST (User Support Tool) via USB/réseau · mise à jour en ligne (CDS) · SST pour le SAV",
+    steps: [
+      "En ligne : <i>Réglages/Enregistrement → Réglages de gestion → Licence/Autre → Mettre à jour le firmware</i>.",
+      "Sans internet : lancer l'<b>UST</b> sur un PC, choisir la connexion (USB ou réseau) et suivre l'assistant.",
+      "Toujours mettre à jour le système complet (contrôleur, moteur, options) avec le même paquet.",
+    ],
+  },
+  "Toshiba": {
+    tools: "Clé USB en mode service « 49 » · TopAccess",
+    steps: [
+      "Copier les fichiers firmware sur une clé USB (FAT32) comme indiqué dans la note de version.",
+      "Démarrer en <b>mode 49</b> (mise à jour firmware) et choisir les éléments à mettre à jour.",
+      "Mettre à jour dans l'ordre de la note de version (système, moteur, scanner, options).",
+    ],
+  },
+  "Kyocera": {
+    tools: "Clé USB · KYOCERA Net Viewer (réseau, plusieurs machines)",
+    steps: [
+      "Décompresser le firmware à la <b>racine</b> d'une clé USB FAT32 (garder les dossiers d'origine).",
+      "Machine éteinte : brancher la clé, rallumer — la mise à jour démarre (ou via le menu Système selon la série).",
+      "Attendre le message de fin, éteindre, retirer la clé, rallumer.",
+      "Plusieurs machines en réseau : Net Viewer permet de lancer la mise à jour à distance.",
+    ],
+  },
+  "Konica Minolta": {
+    tools: "ISW par clé USB · Internet ISW",
+    steps: [
+      "Copier les fichiers ISW sur une clé USB (FAT32) selon la structure de dossiers fournie.",
+      "Mode service → mise à jour firmware (ISW) → USB, sélectionner les éléments.",
+      "Avec accès internet : <b>Internet ISW</b> télécharge et installe directement depuis la machine.",
+    ],
+  },
+  "Sharp": {
+    tools: "Simulation 49-01 par clé USB · page web de la machine",
+    steps: [
+      "Copier le fichier firmware (.fwm / .bin) à la racine d'une clé USB FAT32.",
+      "Mode simulation → <b>SIM 49-01</b> (mise à jour firmware), choisir le fichier, lancer.",
+      "Alternative : page web admin de la machine → mise à jour du firmware.",
+    ],
+  },
+  "Ricoh": {
+    tools: "Carte SD (slot service) · Web Image Monitor · @Remote",
+    steps: [
+      "Copier le firmware sur une carte SD, dans le dossier <b>romdata</b> fourni.",
+      "Machine éteinte : carte dans le slot service, rallumer — l'écran de mise à jour apparaît.",
+      "Sélectionner les modules, lancer, attendre « Completed », éteindre et retirer la carte.",
+      "Parc connecté : @Remote / Remote Firmware Update évite de passer sur chaque machine.",
+    ],
+  },
+};
+
+const fwBrandsEl = document.getElementById('fwBrands');
+const fwContentEl = document.getElementById('fwContent');
+let fwActiveBrand = Object.keys(FIRMWARE_GUIDES)[0];
+
+function renderFirmwareGuide(){
+  fwBrandsEl.innerHTML = '';
+  Object.keys(FIRMWARE_GUIDES).forEach(brand => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip' + (brand === fwActiveBrand ? ' active' : '');
+    b.textContent = brand;
+    b.setAttribute('aria-pressed', String(brand === fwActiveBrand));
+    b.addEventListener('click', () => { fwActiveBrand = brand; renderFirmwareGuide(); });
+    fwBrandsEl.appendChild(b);
+  });
+
+  const g = FIRMWARE_GUIDES[fwActiveBrand];
+  const li = arr => arr.map(s => `<li>${s}</li>`).join('');
+  fwContentEl.innerHTML = `
+    <p class="fw-tools"><b>Outils :</b> ${g.tools}</p>
+    <h3 class="fw-step-title">1 · Avant</h3><ol>${li(FW_COMMON_BEFORE)}</ol>
+    <h3 class="fw-step-title">2 · Mise à jour ${escapeHtml(fwActiveBrand)}</h3><ol>${li(g.steps)}</ol>
+    <h3 class="fw-step-title">3 · Après</h3><ol>${li(FW_COMMON_AFTER)}</ol>
+    <p class="note">Menus et codes peuvent varier selon la série : vérifiez le Service Manual du modèle.</p>
+  `;
+}
+renderFirmwareGuide();
+
+/* Ouvre le guide directement sur la marque de la machine en cours (depuis le Suivi). */
+function openFirmwareGuide(brand){
+  if(FIRMWARE_GUIDES[brand]) fwActiveBrand = brand;
+  renderFirmwareGuide();
+  switchTab('pecas');
+  const guide = document.getElementById('firmwareGuide');
+  guide.open = true;
+  guide.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 /* ======================= NAVIGATION PAR ONGLETS ======================= */
 function switchTab(view){
   document.querySelectorAll('.tab').forEach(t => {
@@ -1576,6 +1681,11 @@ function showRunning(job){
     : escapeHtml(job.etape || 'Activité');
   document.getElementById('runningBrand').innerHTML =
     `${titleLine}<small>${escapeHtml(job.name)} · démarré à ${startedTime}</small>`;
+
+  const fwBtn = document.getElementById('btnFwGuide');
+  fwBtn.hidden = !FIRMWARE_GUIDES[job.brand];
+  fwBtn.textContent = `📘 Guide mise à jour firmware ${job.brand || ''}`;
+  fwBtn.onclick = () => openFirmwareGuide(job.brand);
 
   clearInterval(tickInterval);
   tickInterval = setInterval(() => tick(job), 1000);
