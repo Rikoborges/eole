@@ -118,12 +118,6 @@
         <p class="note">L'auto-contrôle complet (checklist officielle) apparaît à la fin du service, dans l'onglet Suivi.</p>
       </details>
 
-      <details class="guide" id="firmwareGuide">
-        <summary>Machines neuves — mise à jour firmware <span class="chev">›</span></summary>
-        <nav class="filters fw-brands" id="fwBrands" aria-label="Choisir la marque"></nav>
-        <div id="fwContent"></div>
-      </details>
-
       <p class="count" id="count" aria-live="polite"></p>
       <ul id="list" class="parts-list"></ul>
       <p class="empty" id="empty" hidden>Aucune pièce trouvée.</p>
@@ -287,7 +281,6 @@
               <img class="running-thumb" id="runningThumb" alt="Photo du bon de commande">
               <p class="running-brand" id="runningBrand"></p>
             </div>
-            <button class="btn-fw-guide" id="btnFwGuide" type="button" hidden></button>
             <p class="timer-display" id="timerDisplay" aria-live="off">00:00:00</p>
             <p class="timer-status" id="timerStatus">● En cours</p>
           </div>
@@ -302,6 +295,17 @@
             <button class="btn-finish" id="btnFinish" type="button">Terminer le Service</button>
           </div>
         </div>
+
+        <!-- Seulement pour "+ Installation imprimante neuve" (voir renderInstallGuide) -->
+        <details class="guide install-guide" id="installGuide" hidden>
+          <summary><span id="installGuideTitle">Procédures machine neuve</span> <span class="chev">›</span></summary>
+          <div class="ig-tabs" role="tablist" aria-label="Procédure">
+            <button type="button" class="chip active" role="tab" data-ig="firmware" aria-selected="true">Mise à jour</button>
+            <button type="button" class="chip" role="tab" data-ig="papercut" aria-selected="false">PaperCut</button>
+            <button type="button" class="chip" role="tab" data-ig="clone" aria-selected="false">Clonage</button>
+          </div>
+          <div id="installGuideContent" role="tabpanel"></div>
+        </details>
       </div>
 
       <!-- État : note finale -->

@@ -546,110 +546,196 @@ chipButtons.forEach(chip => {
 });
 renderParts();
 
-/* ======================= GUIDE : MISE À JOUR FIRMWARE (MACHINES NEUVES) =======================
-   Même liste de marques que le Suivi. Procédure générale par marque — les menus
-   exacts changent selon la série : en cas de doute, le Service Manual du modèle fait foi. */
+/* ======================= GUIDE : MACHINE NEUVE (INSTALLATION) =======================
+   Affiché seulement pendant un service "+ Installation imprimante neuve", déjà sur la
+   marque de la machine. Trois onglets par marque : Mise à jour · PaperCut · Clonage.
+   Procédures générales — menus et codes varient selon la série : le Service Manual
+   du modèle fait foi. Pour ajouter une marque, copier un bloc complet. */
 const FW_COMMON_BEFORE = [
   "Imprimer le <b>rapport de configuration</b> : noter la version firmware actuelle et le n° de série.",
   "Installer d'abord <b>toutes les options</b> (finisseur, cassettes, fax, carte réseau) : elles ont aussi leur firmware.",
-  "Télécharger le firmware <b>exact du modèle</b> (portail constructeur / revendeur) et lire la note de version.",
-  "Sauvegarder carnet d'adresses et réglages si la machine a déjà été configurée.",
+  "Télécharger le firmware <b>exact du modèle</b> et lire la note de version.",
 ];
 const FW_COMMON_AFTER = [
   "<b>Ne jamais couper le courant</b> ni retirer la clé/carte pendant la mise à jour.",
   "Redémarrer, réimprimer le rapport de configuration : vérifier que <b>toutes</b> les versions ont changé.",
-  "Test copie + impression + scan. Noter « version avant → après » dans la note du service.",
+  "Noter « version avant → après » dans la note du service.",
 ];
-const FIRMWARE_GUIDES = {
+const PAPERCUT_COMMON = [
+  "Mettre la machine à jour <b>avant</b> PaperCut (firmware récent = moins d'erreurs d'installation).",
+  "Vérifier dans la liste PaperCut que le modèle et sa plateforme sont supportés.",
+  "Côté serveur PaperCut : ajouter la machine (Appareils → Créer un appareil) avec son adresse IP.",
+  "Tester : badge/identifiant → libération d'une impression → copie comptabilisée.",
+];
+const PAPERCUT_LINKS = [
+  { label: "Appareils supportés (PaperCut MF)", url: "https://www.papercut.com/products/mf/supported-devices/" },
+  { label: "Manuels embarqués PaperCut", url: "https://www.papercut.com/kb/Main/DownloadEmbeddedManuals/" },
+];
+const CLONE_COMMON = [
+  "Le clonage copie les réglages d'une machine <b>de la même série</b> vers une autre.",
+  "Non copiés en général : adresse IP, nom de l'appareil, n° de série — à régler à la main.",
+  "Protéger le fichier exporté (mot de passe) : il contient carnet d'adresses et comptes.",
+];
+
+const INSTALL_GUIDES = {
   "Canon": {
-    tools: "UST (User Support Tool) via USB/réseau · mise à jour en ligne (CDS) · SST pour le SAV",
-    steps: [
-      "En ligne : <i>Réglages/Enregistrement → Réglages de gestion → Licence/Autre → Mettre à jour le firmware</i>.",
-      "Sans internet : lancer l'<b>UST</b> sur un PC, choisir la connexion (USB ou réseau) et suivre l'assistant.",
-      "Toujours mettre à jour le système complet (contrôleur, moteur, options) avec le même paquet.",
-    ],
+    firmware: {
+      steps: [
+        "En ligne : <i>Réglages/Enregistrement → Réglages de gestion → Licence/Autre → Mettre à jour le firmware</i>.",
+        "Sans internet : lancer l'<b>UST</b> (User Support Tool) sur un PC, connexion USB ou réseau.",
+        "Mettre à jour le système complet (contrôleur, moteur, options) avec le même paquet.",
+      ],
+      links: [{ label: "Support Canon France (pilotes, firmware)", url: "https://www.canon.fr/support/business/" }],
+    },
+    papercut: { platform: "MEAP", steps: ["Installer l'application MEAP PaperCut via l'interface web de la machine (SMS / Remote UI) ou via le serveur PaperCut."] },
+    clone: {
+      steps: [
+        "Remote UI (admin) → <i>Réglages/Enregistrement → Gestion des données → Exporter</i> → « Tout sélectionner ».",
+        "Choisir un mot de passe de chiffrement, exporter le fichier.",
+        "Sur la machine neuve : <i>Gestion des données → Importer</i> avec le même mot de passe.",
+      ],
+      links: [{ label: "Canon — Importer/Exporter tous les réglages", url: "https://oip.manual.canon/USRMA-4751-zz-CS-6700-enUV/contents/devu-mcn_mng-rui-setdata_impt_expt-batch.html" }],
+    },
   },
   "Toshiba": {
-    tools: "Clé USB en mode service « 49 » · TopAccess",
-    steps: [
-      "Copier les fichiers firmware sur une clé USB (FAT32) comme indiqué dans la note de version.",
-      "Démarrer en <b>mode 49</b> (mise à jour firmware) et choisir les éléments à mettre à jour.",
-      "Mettre à jour dans l'ordre de la note de version (système, moteur, scanner, options).",
-    ],
+    firmware: {
+      steps: [
+        "Copier les fichiers firmware sur une clé USB (FAT32) comme indiqué dans la note de version.",
+        "Démarrer en <b>mode 49</b> (mise à jour firmware) et choisir les éléments à mettre à jour.",
+        "Respecter l'ordre de la note de version (système, moteur, scanner, options).",
+      ],
+      links: [{ label: "Toshiba Tec — pilotes & utilitaires", url: "https://be.toshibatec.eu/fr/support-2/pilotes-et-utilitaires/SearchDriver?searchString=e-STUDIO" }],
+    },
+    papercut: { platform: "e-BRIDGE (3 / X / Next)", steps: ["Activer l'application externe dans TopAccess, puis enregistrer la machine sur le serveur PaperCut."] },
+    clone: {
+      steps: [
+        "TopAccess (admin) → <i>Maintenance → Clonage</i> → créer un fichier de clonage (réglages + données utilisateur).",
+        "Sur la machine neuve (même série) : TopAccess → Clonage → installer le fichier.",
+      ],
+      links: [{ label: "Toshiba — TopAccess Guide (clonage)", url: "https://business.toshiba.com/downloads/KB/f1Ulds/14786/eS5008A_TAG_EN_0003.pdf" }],
+    },
   },
   "Kyocera": {
-    tools: "Clé USB · KYOCERA Net Viewer (réseau, plusieurs machines)",
-    steps: [
-      "Décompresser le firmware à la <b>racine</b> d'une clé USB FAT32 (garder les dossiers d'origine).",
-      "Machine éteinte : brancher la clé, rallumer — la mise à jour démarre (ou via le menu Système selon la série).",
-      "Attendre le message de fin, éteindre, retirer la clé, rallumer.",
-      "Plusieurs machines en réseau : Net Viewer permet de lancer la mise à jour à distance.",
-    ],
+    firmware: {
+      steps: [
+        "Décompresser le firmware à la <b>racine</b> d'une clé USB FAT32 (garder les dossiers d'origine).",
+        "Machine éteinte : brancher la clé, rallumer — la mise à jour démarre (ou via le menu Système selon la série).",
+        "Attendre le message de fin, éteindre, retirer la clé, rallumer.",
+      ],
+      links: [{ label: "Support Kyocera France (téléchargements)", url: "https://www.kyoceradocumentsolutions.fr/fr/support/downloads.html" }],
+    },
+    papercut: { platform: "HyPAS", steps: ["Installer l'application HyPAS PaperCut (clé USB ou Command Center RX), puis activer la licence."] },
+    clone: {
+      steps: [
+        "Même famille : sauvegarde sur clé USB en mode maintenance <b>U917</b> (réglages, carnet, comptabilité).",
+        "Autres familles / plusieurs machines : <b>KYOCERA Net Viewer</b> → copier les réglages d'un appareil vers un fichier, puis vers les autres.",
+      ],
+      links: [{ label: "Net Viewer — copier les réglages (guide)", url: "https://sites.google.com/view/howtoguidesforkyoceraprinters/how-to-use-kyocera-netviewer/knv-device-copy-settings-from-a-device-and-save-to-a-file" }],
+    },
   },
   "Konica Minolta": {
-    tools: "ISW par clé USB · Internet ISW",
-    steps: [
-      "Copier les fichiers ISW sur une clé USB (FAT32) selon la structure de dossiers fournie.",
-      "Mode service → mise à jour firmware (ISW) → USB, sélectionner les éléments.",
-      "Avec accès internet : <b>Internet ISW</b> télécharge et installe directement depuis la machine.",
-    ],
+    firmware: {
+      steps: [
+        "Copier les fichiers ISW sur une clé USB (FAT32) selon la structure de dossiers fournie.",
+        "Mode service → mise à jour firmware (ISW) → USB, sélectionner les éléments.",
+        "Avec accès internet : <b>Internet ISW</b> installe directement depuis la machine.",
+      ],
+      links: [{ label: "Konica Minolta — Download Centre", url: "https://www.konicaminolta.eu/eu-en/support/download-centre" }],
+    },
+    papercut: {
+      platform: "OpenAPI / i-Option",
+      steps: ["Activer OpenAPI (et i-Option si besoin) dans Web Connection, puis enregistrer la machine sur le serveur PaperCut."],
+      links: [{ label: "PaperCut — manuel Konica Minolta", url: "https://cdn1.papercut.com/files/mf/docs/PaperCut%20MF%20-%20Konica-Minolta%20Embedded%20Manual%20-%202020-05-15.pdf" }],
+    },
+    clone: {
+      steps: [
+        "Web Connection (admin) → <i>Maintenance → Import/Export</i> → exporter les réglages vers le PC.",
+        "Sur la machine neuve : même menu → Importer.",
+      ],
+      links: [{ label: "Konica Minolta — Exporter les réglages", url: "https://manuals.konicaminolta.eu/bizhub-C554-C454-C364-C284-C224/EN/contents/id08-0512.html" }],
+    },
   },
   "Sharp": {
-    tools: "Simulation 49-01 par clé USB · page web de la machine",
-    steps: [
-      "Copier le fichier firmware (.fwm / .bin) à la racine d'une clé USB FAT32.",
-      "Mode simulation → <b>SIM 49-01</b> (mise à jour firmware), choisir le fichier, lancer.",
-      "Alternative : page web admin de la machine → mise à jour du firmware.",
-    ],
+    firmware: {
+      steps: [
+        "Copier le fichier firmware à la racine d'une clé USB FAT32.",
+        "Mode simulation → <b>SIM 49-01</b> (mise à jour firmware), choisir le fichier, lancer.",
+        "Alternative : page web admin de la machine → mise à jour du firmware.",
+      ],
+      links: [{ label: "Sharp — téléchargements (FR)", url: "https://global.sharp/restricted/products/copier/downloads/select_fr.html" }],
+    },
+    papercut: { platform: "OSA", steps: ["Activer OSA (module d'application externe) sur la page web, puis enregistrer la machine sur le serveur PaperCut."] },
+    clone: {
+      steps: [
+        "Page web (admin) → <i>Gestion système → Sauvegarde des données → Clonage de l'appareil</i> → Exporter (fichier XML).",
+        "Sur la machine neuve : même menu → Importer.",
+      ],
+      links: [{ label: "Sharp — Sauvegarde / clonage", url: "https://business.sharpusa.com/portals/0/downloads/Manuals/MX-M654N-M754N/contents/07-043.htm" }],
+    },
   },
   "Ricoh": {
-    tools: "Carte SD (slot service) · Web Image Monitor · @Remote",
-    steps: [
-      "Copier le firmware sur une carte SD, dans le dossier <b>romdata</b> fourni.",
-      "Machine éteinte : carte dans le slot service, rallumer — l'écran de mise à jour apparaît.",
-      "Sélectionner les modules, lancer, attendre « Completed », éteindre et retirer la carte.",
-      "Parc connecté : @Remote / Remote Firmware Update évite de passer sur chaque machine.",
-    ],
+    firmware: {
+      steps: [
+        "Copier le firmware sur une carte SD, dans le dossier <b>romdata</b> fourni.",
+        "Machine éteinte : carte dans le slot service, rallumer — l'écran de mise à jour apparaît.",
+        "Sélectionner les modules, lancer, attendre « Completed », éteindre et retirer la carte.",
+      ],
+      links: [{ label: "Ricoh — Firmware Download Center", url: "https://support.ricoh.com/" }],
+    },
+    papercut: { platform: "Smart Operation Panel / SDK-J", steps: ["Installer l'application PaperCut (SOP ou SDK/J) via Web Image Monitor ou carte SD."] },
+    clone: {
+      steps: [
+        "<i>Paramètres → Gestion → Import/Export des informations de réglage</i> → exporter sur carte SD / clé USB.",
+        "Sur la machine neuve (même modèle) : même menu → Importer.",
+      ],
+      links: [{ label: "Ricoh — Import/Export des réglages", url: "http://support.ricoh.com/bb_v1oi/pub_e/oi_view/0001077/0001077458/view/setting/int/preferences.htm" }],
+    },
   },
 };
 
-const fwBrandsEl = document.getElementById('fwBrands');
-const fwContentEl = document.getElementById('fwContent');
-let fwActiveBrand = Object.keys(FIRMWARE_GUIDES)[0];
+let igActiveTab = 'firmware';
+let igBrand = null;
 
-function renderFirmwareGuide(){
-  fwBrandsEl.innerHTML = '';
-  Object.keys(FIRMWARE_GUIDES).forEach(brand => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'chip' + (brand === fwActiveBrand ? ' active' : '');
-    b.textContent = brand;
-    b.setAttribute('aria-pressed', String(brand === fwActiveBrand));
-    b.addEventListener('click', () => { fwActiveBrand = brand; renderFirmwareGuide(); });
-    fwBrandsEl.appendChild(b);
+function renderInstallGuide(brand, etape){
+  const guideEl = document.getElementById('installGuide');
+  const g = INSTALL_GUIDES[brand];
+  guideEl.hidden = !(g && ETAPES_INSTALLATION.has(etape));
+  if(guideEl.hidden) return;
+  if(igBrand !== brand){ igBrand = brand; igActiveTab = 'firmware'; }
+  document.getElementById('installGuideTitle').textContent = `Procédures machine neuve — ${brand}`;
+
+  document.querySelectorAll('#installGuide [data-ig]').forEach(b => {
+    const on = b.dataset.ig === igActiveTab;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', String(on));
   });
 
-  const g = FIRMWARE_GUIDES[fwActiveBrand];
-  const li = arr => arr.map(s => `<li>${s}</li>`).join('');
-  fwContentEl.innerHTML = `
-    <p class="fw-tools"><b>Outils :</b> ${g.tools}</p>
-    <h3 class="fw-step-title">1 · Avant</h3><ol>${li(FW_COMMON_BEFORE)}</ol>
-    <h3 class="fw-step-title">2 · Mise à jour ${escapeHtml(fwActiveBrand)}</h3><ol>${li(g.steps)}</ol>
-    <h3 class="fw-step-title">3 · Après</h3><ol>${li(FW_COMMON_AFTER)}</ol>
-    <p class="note">Menus et codes peuvent varier selon la série : vérifiez le Service Manual du modèle.</p>
-  `;
+  const li = arr => arr.map(x => `<li>${x}</li>`).join('');
+  const links = arr => (arr && arr.length)
+    ? `<ul class="ig-links">${arr.map(l => `<li><a href="${l.url}" target="_blank" rel="noopener">${escapeHtml(l.label)} ↗</a></li>`).join('')}</ul>`
+    : '';
+  let html;
+  if(igActiveTab === 'firmware'){
+    html = `<h3 class="ig-step">1 · Avant</h3><ol>${li(FW_COMMON_BEFORE)}</ol>
+      <h3 class="ig-step">2 · Mise à jour</h3><ol>${li(g.firmware.steps)}</ol>
+      <h3 class="ig-step">3 · Après</h3><ol>${li(FW_COMMON_AFTER)}</ol>
+      ${links(g.firmware.links)}`;
+  } else if(igActiveTab === 'papercut'){
+    html = `<p class="ig-meta"><b>Plateforme :</b> ${g.papercut.platform}</p>
+      <ol>${li(g.papercut.steps)}${li(PAPERCUT_COMMON)}</ol>
+      ${links([...(g.papercut.links || []), ...PAPERCUT_LINKS])}`;
+  } else {
+    html = `<ol>${li(g.clone.steps)}</ol>
+      <h3 class="ig-step">À savoir</h3><ul class="ig-notes">${li(CLONE_COMMON)}</ul>
+      ${links(g.clone.links)}`;
+  }
+  document.getElementById('installGuideContent').innerHTML =
+    html + `<p class="note">Menus et codes peuvent varier selon la série : vérifiez le Service Manual du modèle.</p>`;
 }
-renderFirmwareGuide();
 
-/* Ouvre le guide directement sur la marque de la machine en cours (depuis le Suivi). */
-function openFirmwareGuide(brand){
-  if(FIRMWARE_GUIDES[brand]) fwActiveBrand = brand;
-  renderFirmwareGuide();
-  switchTab('pecas');
-  const guide = document.getElementById('firmwareGuide');
-  guide.open = true;
-  guide.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+document.querySelectorAll('#installGuide [data-ig]').forEach(b => {
+  b.addEventListener('click', () => { igActiveTab = b.dataset.ig; renderInstallGuide(igBrand, 'Installation imprimante neuve'); });
+});
 
 /* ======================= NAVIGATION PAR ONGLETS ======================= */
 function switchTab(view){
@@ -743,7 +829,7 @@ function mapJobFromDb(row){
   };
 }
 
-async function createJob({ name, brand, model, photoUrl, startedAt }){
+async function createJob({ name, brand, model, photoUrl, startedAt, etape = null }){
   const { data: userData } = await sb.auth.getUser();
   const { data, error } = await sb
     .from('jobs')
@@ -751,7 +837,8 @@ async function createJob({ name, brand, model, photoUrl, startedAt }){
       user_id: userData.user.id,
       technician: name, brand, model,
       photo_url: photoUrl,
-      started_at: startedAt
+      started_at: startedAt,
+      etape
     })
     .select()
     .single();
@@ -1507,7 +1594,11 @@ async function exportMyData(){
    Partagé par "+ Nouveau Service" et "+ Installation imprimante neuve" : même
    chronomètre, même formulaire (marque/modèle) — la seule différence se fait
    à la fin, où le technicien choisit l'étape (voir updateAutoControlVisibility). */
-async function openNewJobForm(){
+// true quand le formulaire vient de "+ Installation imprimante neuve" : l'étape est
+// alors fixée dès le départ, ce qui affiche le guide machine neuve pendant le service.
+let newJobIsInstall = false;
+async function openNewJobForm(isInstall = false){
+  newJobIsInstall = isInstall === true;
   pendingPhotoBase64 = null;
   const preview = document.getElementById('photoPreview');
   preview.removeAttribute('src');
@@ -1521,8 +1612,8 @@ async function openNewJobForm(){
 
 function wireFormEvents(){
   document.getElementById('photoCaptureBlock').hidden = !PHOTOS_ENABLED;
-  document.getElementById('btnNewJob').addEventListener('click', openNewJobForm);
-  document.getElementById('btnNewInstall').addEventListener('click', openNewJobForm);
+  document.getElementById('btnNewJob').addEventListener('click', () => openNewJobForm(false));
+  document.getElementById('btnNewInstall').addEventListener('click', () => openNewJobForm(true));
 
   document.getElementById('btnCancelForm').addEventListener('click', () => showState('idle'));
 
@@ -1558,7 +1649,8 @@ function wireFormEvents(){
       await setSetting('last_name', name);
       const startedAt = new Date().toISOString();
 
-      const job = await createJob({ name, brand, model, photoUrl: null, startedAt });
+      const etape = newJobIsInstall ? 'Installation imprimante neuve' : null;
+      const job = await createJob({ name, brand, model, photoUrl: null, startedAt, etape });
       if(!job){
         alert('Impossible de démarrer le service (erreur de connexion). Réessayez.');
         return;
@@ -1682,10 +1774,7 @@ function showRunning(job){
   document.getElementById('runningBrand').innerHTML =
     `${titleLine}<small>${escapeHtml(job.name)} · démarré à ${startedTime}</small>`;
 
-  const fwBtn = document.getElementById('btnFwGuide');
-  fwBtn.hidden = !FIRMWARE_GUIDES[job.brand];
-  fwBtn.textContent = `📘 Guide mise à jour firmware ${job.brand || ''}`;
-  fwBtn.onclick = () => openFirmwareGuide(job.brand);
+  renderInstallGuide(job.brand, job.etape);
 
   clearInterval(tickInterval);
   tickInterval = setInterval(() => tick(job), 1000);
@@ -1728,7 +1817,7 @@ function showRunning(job){
 
   document.getElementById('btnFinish').onclick = () => {
     document.getElementById('finishNote').value = '';
-    document.getElementById('finishEtape').value = '';
+    document.getElementById('finishEtape').value = ETAPES_INSTALLATION.has(job.etape) ? job.etape : '';
     document.getElementById('finishQte').value = '';
     document.querySelectorAll('#autoControlList input[type="checkbox"], #autoControlInstallList input[type="checkbox"]').forEach(cb => cb.checked = false);
     pendingPhotoFinalBase64 = null;

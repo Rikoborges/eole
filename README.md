@@ -18,11 +18,13 @@ francês, português e inglês, categoria (Nettoyage / Montage / Électrique),
 descrição técnica e busca. Inclui um "Top 10" com a ordem oficial de
 desmontagem e um guia rápido de segurança/boas práticas.
 
-**Machines neuves — mise à jour firmware**: guia por marca (Canon, Toshiba,
-Kyocera, Konica Minolta, Sharp, Ricoh) com Avant → Mise à jour → Après. Durante
-um serviço em andamento, o botão "📘 Guide mise à jour firmware" abre o guia
-direto na marca da máquina. A checklist de instalação ganhou "Firmware mis à
-jour" e "Rapport de configuration imprimé".
+**Guide machine neuve** — só aparece num serviço iniciado por "+ Installation
+imprimante neuve", já na marca da máquina (Canon, Toshiba, Kyocera, Konica
+Minolta, Sharp, Ricoh). Um único bloco com 3 abas: **Mise à jour** (Avant →
+Mise à jour → Après), **PaperCut** (plataforma da marca + passos) e
+**Clonage** (copiar os réglages de outra máquina), cada uma com links
+oficiais. Dados no objeto `INSTALL_GUIDES` do `script.js`. A checklist de
+instalação ganhou "Firmware mis à jour" e "Rapport de configuration imprimé".
 
 ### 🖨️ Suivi (Acompanhamento) — dois fluxos diferentes
 

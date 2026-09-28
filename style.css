@@ -299,22 +299,26 @@ main{
 
 .guide ol{ margin: 12px 0 4px; padding-left: 18px; font-size: 14px; line-height: 1.6; }
 
-/* Guide mise à jour firmware (machines neuves) */
-.fw-brands{ margin: 12px 0 4px; }
-.fw-brands .chip.active{ background: var(--copper); color: oklch(18% 0.03 90); }
-.fw-tools{ font-size: 13px; color: var(--text-dim); margin: 8px 0 0; }
-.fw-step-title{
+/* Guide machine neuve (seulement pendant une installation) */
+.install-guide{ margin: 16px 0 4px; }
+.ig-tabs{ display: flex; gap: 6px; margin: 12px 0 4px; }
+.ig-tabs .chip{ flex: 1 1 0; min-width: 0; justify-content: center; padding: 8px 6px; }
+.ig-tabs .chip.active{ background: var(--copper); color: oklch(18% 0.03 90); }
+.ig-meta{ font-size: 13px; color: var(--text-dim); margin: 10px 0 0; }
+.ig-step{
   font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600;
   text-transform: uppercase; color: var(--copper-text); margin: 14px 0 0;
 }
-.fw-step-title + ol{ margin-top: 6px; }
-.btn-fw-guide{
-  width: 100%; min-height: 44px; margin: 8px 0 4px;
-  background: var(--panel-2); color: var(--text);
-  border: 1px solid var(--copper-dim); border-radius: var(--radius-md);
-  font-size: 14px; cursor: pointer;
+.ig-step + ol, .ig-step + ul{ margin-top: 6px; }
+.ig-notes{ margin: 6px 0 4px; padding-left: 18px; font-size: 13px; line-height: 1.55; color: var(--text-dim); }
+.ig-links{ list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.ig-links a{
+  display: flex; align-items: center; min-height: 44px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  color: var(--copper-text); text-decoration: none; font-size: 14px;
+  overflow-wrap: anywhere;
 }
-.btn-fw-guide:focus-visible{ outline: 2px solid var(--copper-text); outline-offset: 2px; }
+.ig-links a:hover, .ig-links a:focus-visible{ border-color: var(--copper-dim); outline: none; }
 .guide ol li{ margin-bottom: 8px; }
 .guide ol b{ color: var(--copper-text); font-weight: 600; }
 .guide .note{ margin-top: 10px; font-size: 13px; line-height: 18px; color: var(--text-dim); border-top: 1px solid var(--line); padding-top: 10px; }
