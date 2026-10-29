@@ -44,7 +44,7 @@
 
       <details class="guide privacy-note">
         <summary>Confidentialité de vos données <span class="chev">›</span></summary>
-        <p>Cette application enregistre votre nom, les marques/modèles des machines traitées, les horaires de service, vos notes et les photos que vous ajoutez (bon de commande, machine terminée). Ces données servent au suivi interne des services et à l'analyse d'activité, et ne sont visibles que par vous et les comptes administrateurs.</p>
+        <p>Cette application enregistre votre nom, les marques/modèles des machines traitées, les horaires de service, l'heure de votre première et dernière activité dans l'application chaque jour, vos notes et les photos que vous ajoutez (bon de commande, machine terminée). Ces données servent au suivi interne des services et à l'analyse d'activité, et ne sont visibles que par vous et les comptes administrateurs.</p>
         <p>Vous pouvez exporter vos propres données à tout moment depuis l'onglet <b>Suivi</b> une fois connecté(e). Pour toute question, contactez la personne responsable de cette application.</p>
       </details>
     </div>
@@ -64,6 +64,8 @@
 
         <span class="account-name" id="accountName">…</span>
 
+        <button class="btn-logout-icon btn-presence" id="btnPresence" type="button" title="Mon temps de connexion" aria-label="Voir mon temps de connexion" aria-expanded="false" aria-controls="presencePanel" hidden>⏱</button>
+
         <button class="btn-logout-icon" id="btnLogout" type="button" title="Se déconnecter" aria-label="Se déconnecter">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3v7"/>
@@ -71,6 +73,7 @@
           </svg>
         </button>
       </div>
+      <p class="presence-panel" id="presencePanel" hidden></p>
       <p class="eyebrow">Reconditionnement · Suivi</p>
       <h1>ReproBench</h1>
       <p class="sub">Pièces de référence + suivi de service</p>
@@ -281,8 +284,10 @@
               <img class="running-thumb" id="runningThumb" alt="Photo du bon de commande">
               <p class="running-brand" id="runningBrand"></p>
             </div>
-            <p class="timer-display" id="timerDisplay" aria-live="off">00:00:00</p>
             <p class="timer-status" id="timerStatus">● En cours</p>
+            <!-- Chrono masqué par défaut : il tourne quand même, on l'affiche à la demande -->
+            <p class="timer-display" id="timerDisplay" aria-live="off" hidden>00:00:00</p>
+            <button type="button" class="btn-timer-toggle" id="btnToggleTimer" aria-controls="timerDisplay" aria-expanded="false">⏱ Voir le chrono</button>
           </div>
           <div class="actions-col">
             <button class="btn-switch" id="btnSwitchService" type="button">↩ Mettre en pause et voir mes services</button>
@@ -435,6 +440,11 @@
       <div id="admin-content" hidden>
         <div id="adminOverview">
           <div class="summary-grid" id="adminSummaryGrid"></div>
+
+          <details class="guide" id="adminPresence">
+            <summary>Présence aujourd'hui <span class="chev">›</span></summary>
+            <ul class="model-manage-list" id="adminPresenceList"></ul>
+          </details>
 
           <details class="guide">
             <summary>Gérer les modèles d'imprimante <span class="chev">›</span></summary>

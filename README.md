@@ -26,7 +26,10 @@ específica:
   (tenta preencher marca/modelo sozinho a partir da foto)
 - Marca + Modelo, com sugestão automática de modelos reais por marca
   (lista guardada no banco, editável pelo admin — ver seção Admin)
-- Cronômetro com pausas nomeadas (Matin/Déjeuner/Après-midi ou manual)
+- Cronômetro com pausas nomeadas (Matin/Déjeuner/Après-midi ou manual).
+  O tempo conta desde o início, mas fica **escondido** — o botão
+  "⏱ Voir le chrono" mostra/esconde. Nos serviços em pausa, o ⏱ de cada
+  máquina mostra o tempo já passado nela
 - Botão para pausar e ir cuidar de outro serviço, podendo retomar depois
   (mais de um serviço pode ficar em pausa ao mesmo tempo)
 - Ao terminar: foto da máquina pronta, checklist oficial de 12 itens,
@@ -117,6 +120,12 @@ tudo o que eles faziam.
 gerenciável pelo Admin) e já vem populada com os modelos que estavam fixos
 no código antes. Depende da função `is_admin()` criada pelo script anterior.
 
+Rode também `supabase/presence.sql` — cria a tabela `presence` (primeira e
+última atividade de cada técnico por dia, com a hora do **servidor**, não
+do navegador). O técnico vê o próprio tempo no botão ⏱ do topo; o admin vê
+a equipe inteira em Admin → "Présence aujourd'hui". Sem esse script o
+botão ⏱ simplesmente não aparece.
+
 **Por último**, rode `supabase/harden-admin-check.sql` — ele restringe quem
 pode até *perguntar* "sou admin?" ao banco (só usuários logados, nunca
 visitantes anônimos).
@@ -201,6 +210,7 @@ supabase/
   setup-complete.sql        ⭐ rodar 1º (colunas + segurança)
   printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)
   harden-admin-check.sql    ⭐ rodar 3º (tranca quem pode chamar is_admin())
+  presence.sql              ⭐ tempo de conexão por técnico (botão ⏱ + Admin)
   rls-admin-vs-own.sql      histórico, não precisa rodar
   schema-additions.sql      histórico, não precisa rodar
 ```
