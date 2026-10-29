@@ -76,6 +76,7 @@ function initAuth(){
   document.getElementById('btnLogin').addEventListener('click', handleLogin);
   document.getElementById('btnLogout').addEventListener('click', handleLogout);
   wireAccountEvents();
+  wirePresenceEvents();
 
   // onAuthStateChange sozinho já cobre tudo: dispara "INITIAL_SESSION" assim que
   // registra (cobre o carregamento da página) e depois "SIGNED_IN"/"SIGNED_OUT"
@@ -85,6 +86,10 @@ function initAuth(){
     if(newUserId !== currentUserId){
       currentUserId = newUserId;
       resetPerUserState();
+      // setTimeout : pas d'appel Supabase "await" directement dans ce callback
+      // (recommandation de la lib, sinon risque de blocage).
+      if(newUserId) setTimeout(startPresence, 0);
+      else stopPresence();
     }
     if(session){
       showApp();
@@ -138,6 +143,77 @@ function showApp(){
 function showAuthGate(){
   document.getElementById('app-shell').hidden = true;
   document.getElementById('auth-gate').hidden = false;
+}
+
+/* --- Temps de connexion (présence) ---
+   Une ligne par personne et par jour dans la table "presence" : première et
+   dernière activité dans l'app. L'heure vient du serveur (fonction SQL
+   touch_presence()), jamais du navigateur — impossible de la trafiquer.
+   Le technicien voit son propre temps derrière le bouton ⏱ (masqué par
+   défaut), l'admin voit toute l'équipe dans l'onglet Admin.
+   Si supabase/presence.sql n'a pas été lancé, le bouton reste caché. */
+const PRESENCE_HEARTBEAT_MS = 60 * 1000;     // "je suis là" toutes les minutes
+const PRESENCE_ONLINE_MS = 3 * 60 * 1000;    // vu il y a moins de 3 min = en ligne
+let presenceFirstSeen = null;
+let presenceHeartbeat = null;
+let presencePanelTick = null;
+
+async function touchPresence(){
+  const { data, error } = await sb.rpc('touch_presence');
+  if(error){ console.error('Erreur touch_presence:', error); return false; }
+  const row = Array.isArray(data) ? data[0] : data;
+  if(row) presenceFirstSeen = row.first_seen;
+  return true;
+}
+
+async function startPresence(){
+  stopPresence();
+  const ok = await touchPresence();
+  document.getElementById('btnPresence').hidden = !ok;
+  if(!ok) return;
+  // Pas de battement quand l'onglet est en arrière-plan : le navigateur
+  // ralentit les timers de toute façon, et "app ouverte mais cachée" ne
+  // compte pas comme activité.
+  presenceHeartbeat = setInterval(() => {
+    if(document.visibilityState === 'visible') touchPresence();
+  }, PRESENCE_HEARTBEAT_MS);
+}
+
+function stopPresence(){
+  clearInterval(presenceHeartbeat);
+  clearInterval(presencePanelTick);
+  presenceHeartbeat = null;
+  presencePanelTick = null;
+  presenceFirstSeen = null;
+  document.getElementById('btnPresence').hidden = true;
+  document.getElementById('btnPresence').setAttribute('aria-expanded', 'false');
+  document.getElementById('presencePanel').hidden = true;
+}
+
+function renderPresencePanel(){
+  const el = document.getElementById('presencePanel');
+  if(!presenceFirstSeen){ el.textContent = '…'; return; }
+  const since = new Date(presenceFirstSeen);
+  const hhmm = since.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  el.textContent = `Connecté depuis ${hhmm} · ${fmtHMS((Date.now() - since.getTime()) / 1000)}`;
+}
+
+function wirePresenceEvents(){
+  const btn = document.getElementById('btnPresence');
+  const panel = document.getElementById('presencePanel');
+  btn.addEventListener('click', () => {
+    panel.hidden = !panel.hidden;
+    btn.setAttribute('aria-expanded', String(!panel.hidden));
+    clearInterval(presencePanelTick);
+    if(!panel.hidden){
+      renderPresencePanel();
+      presencePanelTick = setInterval(renderPresencePanel, 1000);
+    }
+  });
+  // Retour sur l'onglet après une absence : on signale tout de suite.
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && presenceHeartbeat) touchPresence();
+  });
 }
 
 /* --- Photo de profil (avatar) ---
@@ -938,6 +1014,9 @@ let tickInterval = null;
 let pendingPhotoBase64 = null;
 let pendingPhotoFinalBase64 = null;
 let activeJobId = null;
+// Chronos que le technicien a choisi d'afficher (par service). Masqués par
+// défaut : le temps compte quand même, on ne le montre qu'à la demande.
+const revealedTimers = new Set();
 
 function showState(name){
   ['idle', 'form', 'activity', 'running', 'finish'].forEach(s => {
@@ -980,9 +1059,10 @@ function renderPausedList(pausedJobs){
       ${PHOTOS_ENABLED ? `<div class="job-thumbs">${thumb}</div>` : ''}
       <div class="job-info">
         <p class="job-model">${jobTitleLine(job)}</p>
-        <p class="job-meta">⏸ ${lastPause ? escapeHtml(lastPause.label) : 'En pause'}${job.name ? ' · ' + escapeHtml(job.name) : ''}</p>
+        <p class="job-meta">⏸ ${lastPause ? escapeHtml(lastPause.label) : 'En pause'}${job.name ? ' · ' + escapeHtml(job.name) : ''}<span class="job-time" hidden> · ${fmtHShort(getActiveSeconds(job, new Date()))}</span></p>
       </div>
       <div class="job-actions">
+        <button type="button" class="btn-job-time" data-time-for="${job.id}" aria-expanded="false" aria-label="Voir le temps passé sur cette machine">⏱</button>
         <button type="button" class="btn-resume" data-id="${job.id}">▶ Reprendre</button>
       </div>`;
     listEl.appendChild(li);
@@ -992,6 +1072,15 @@ function renderPausedList(pausedJobs){
     btn.addEventListener('click', () => {
       const job = pausedJobs.find(j => j.id === btn.dataset.id);
       if(job) showRunning(job);
+    });
+  });
+
+  // En pause le temps ne bouge plus : pas besoin de le rafraîchir, on le révèle juste.
+  listEl.querySelectorAll('button[data-time-for]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const timeEl = btn.closest('.job-card').querySelector('.job-time');
+      timeEl.hidden = !timeEl.hidden;
+      btn.setAttribute('aria-expanded', String(!timeEl.hidden));
     });
   });
 
@@ -1576,6 +1665,21 @@ function showRunning(job){
     : escapeHtml(job.etape || 'Activité');
   document.getElementById('runningBrand').innerHTML =
     `${titleLine}<small>${escapeHtml(job.name)} · démarré à ${startedTime}</small>`;
+
+  const timerEl = document.getElementById('timerDisplay');
+  const toggleBtn = document.getElementById('btnToggleTimer');
+  const applyTimerVisibility = () => {
+    const shown = revealedTimers.has(job.id);
+    timerEl.hidden = !shown;
+    toggleBtn.textContent = shown ? 'Masquer le chrono' : '⏱ Voir le chrono';
+    toggleBtn.setAttribute('aria-expanded', String(shown));
+  };
+  toggleBtn.onclick = () => {
+    if(revealedTimers.has(job.id)) revealedTimers.delete(job.id);
+    else revealedTimers.add(job.id);
+    applyTimerVisibility();
+  };
+  applyTimerVisibility();
 
   clearInterval(tickInterval);
   tickInterval = setInterval(() => tick(job), 1000);
@@ -2242,6 +2346,10 @@ async function initAdmin(){
       if(e.target.closest('#adminTechCard')) showAdminSubview('technicians');
     });
     document.getElementById('btnAdminTechBack').addEventListener('click', () => showAdminSubview('overview'));
+    // Présence chargée seulement quand on ouvre le panneau (masqué par défaut).
+    document.getElementById('adminPresence').addEventListener('toggle', (e) => {
+      if(e.target.open) renderAdminPresence();
+    });
     document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
     document.getElementById('lightbox').addEventListener('click', (e) => {
       if(e.target.id === 'lightbox') closeLightbox();
@@ -2250,6 +2358,52 @@ async function initAdmin(){
 
   document.getElementById('admin-loading').hidden = true;
   document.getElementById('admin-content').hidden = false;
+}
+
+/* --- Présence du jour de toute l'équipe (table presence, lecture admin) ---
+   Durée = de la première activité jusqu'à maintenant si la personne est
+   encore en ligne, sinon jusqu'à sa dernière activité. */
+async function renderAdminPresence(){
+  const listEl = document.getElementById('adminPresenceList');
+  listEl.innerHTML = '<li class="model-manage-row">Chargement…</li>';
+
+  const [{ data, error }, members] = await Promise.all([
+    sb.from('presence').select('user_id, first_seen, last_seen').eq('day', localDateInputValue(new Date())),
+    getTeamMembers()
+  ]);
+  if(error){
+    console.error('Erreur presence:', error);
+    listEl.innerHTML = '<li class="model-manage-row">Présence indisponible — lancez supabase/presence.sql dans Supabase.</li>';
+    return;
+  }
+
+  const byUser = new Map((data || []).map(r => [r.user_id, r]));
+  const now = Date.now();
+  const fmtTime = d => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const rows = members.filter(m => !m.removed || byUser.has(m.id)).map(m => {
+    const p = byUser.get(m.id);
+    if(!p) return { label: m.label, order: 2, meta: 'Pas connecté aujourd\'hui' };
+    const first = new Date(p.first_seen);
+    const last = new Date(p.last_seen);
+    const online = now - last.getTime() < PRESENCE_ONLINE_MS;
+    const seconds = ((online ? now : last.getTime()) - first.getTime()) / 1000;
+    return {
+      label: m.label,
+      order: online ? 0 : 1,
+      meta: online
+        ? `<span class="presence-online">● en ligne</span> · depuis ${fmtTime(first)} · ${fmtHShort(seconds)}`
+        : `${fmtTime(first)} → ${fmtTime(last)} · ${fmtHShort(seconds)}`
+    };
+  });
+  rows.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label, 'fr'));
+
+  listEl.innerHTML = rows.length
+    ? rows.map(r => `
+      <li class="model-manage-row presence-row">
+        <span>${escapeHtml(r.label)}</span>
+        <span class="presence-meta">${r.meta}</span>
+      </li>`).join('')
+    : '<li class="model-manage-row">Aucun technicien.</li>';
 }
 
 /* --- Création de compte technicien (email + mot de passe) ---
