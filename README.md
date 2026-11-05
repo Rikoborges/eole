@@ -127,6 +127,17 @@ antigos continuam lá; nada é apagado. Pode rodar de novo sem duplicar. O
 cabeçalho do arquivo lista o que foi limpo (5 linhas duplicadas, 4 modelos
 Sharp marcados como Canon) e o que ainda falta confirmar com a oficina.
 
+Depois rode `supabase/atelier-schema.sql` — a **base da nova ferramenta de
+declaração de atividade** (cahier des charges do Responsable des Ateliers):
+métiers, formatos 37 h / 39 h, atividades com **standards com histórico**,
+motivos hors production e de abandono, regras de correção, a ficha de cada
+collaborateur (métier, formato, intérim, direitos), **operações com
+matricule** (vários dias, status en cours / à poursuivre / finalisée /
+abandonnée / annulée) e as **declarações**, que nunca são apagadas (só
+anuladas). O próprio banco copia o standard em vigor em cada declaração e
+aplica as regras (matricule único por étape, prazo de correção, só o
+responsável abandona). Também liga o tempo real nessas duas tabelas.
+
 Rode também `supabase/presence.sql` — cria a tabela `presence` (primeira e
 última atividade de cada técnico por dia, com a hora do **servidor**, não
 do navegador). O técnico vê o próprio tempo no botão ⏱ do topo; o admin vê
@@ -217,6 +228,7 @@ supabase/
   setup-complete.sql        ⭐ rodar 1º (colunas + segurança)
   printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)
   machine-models.sql        ⭐ rodar depois do 2º (248 modelos da oficina + código famille)
+  atelier-schema.sql        ⭐ base da declaração de atividade (cahier des charges)
   harden-admin-check.sql    ⭐ rodar 3º (tranca quem pode chamar is_admin())
   presence.sql              ⭐ tempo de conexão por técnico (botão ⏱ + Admin)
   rls-admin-vs-own.sql      histórico, não precisa rodar
