@@ -465,6 +465,69 @@ group by o.id;
 
 
 -- ############################################################################
+-- ##  6b. FONCTIONS APPELÉES PAR L'ÉCRAN « SAISIR »
+-- ############################################################################
+
+-- Ce que l'atelier sait déjà d'un N° de série : modèle et étapes déjà faites
+-- (par tout le monde). Ne renvoie que ces informations, rien d'autre.
+create or replace function lookup_serial(p_serial text)
+returns table (activite_id uuid, activite text, status text, model_id uuid,
+               collaborateur text, started_on date, is_mine boolean)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select o.activite_id, a.name, o.status, o.model_id, c.display_name, o.started_on,
+         o.user_id = auth.uid()
+  from operations o
+  join activites a on a.id = o.activite_id
+  left join collaborateurs c on c.user_id = o.user_id
+  where auth.uid() is not null
+    and o.serial = upper(trim(p_serial))
+    and o.status <> 'annulee'
+  order by o.created_at desc
+  limit 20;
+$$;
+revoke all on function lookup_serial(text) from public;
+revoke all on function lookup_serial(text) from anon;
+grant execute on function lookup_serial(text) to authenticated;
+
+-- Déclarer du temps sur une étape avec matricule, en une seule transaction :
+-- crée l'opération si besoin, enregistre le temps du jour, puis la laisse
+-- « à poursuivre » ou la finalise. Security invoker : les policies RLS
+-- s'appliquent exactement comme pour un appel direct.
+create or replace function declare_machine_step(
+  p_activite uuid, p_operation uuid, p_serial text, p_model uuid,
+  p_hours numeric, p_note text, p_finalize boolean)
+returns uuid
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare v_op uuid := p_operation; v_decl uuid;
+begin
+  if v_op is null then
+    insert into operations (activite_id, serial, model_id, status)
+    values (p_activite, nullif(upper(trim(p_serial)), ''), p_model, 'pause')
+    returning id into v_op;
+  end if;
+  insert into declarations (activite_id, operation_id, hours, note)
+  values (p_activite, v_op, p_hours, nullif(trim(p_note), ''))
+  returning id into v_decl;
+  update operations
+     set status = case when p_finalize then 'final' else 'pause' end,
+         final_declaration_id = case when p_finalize then v_decl else null end
+   where id = v_op;
+  if not found then raise exception 'Opération introuvable ou déjà clôturée.'; end if;
+  return v_decl;
+end $$;
+revoke all on function declare_machine_step(uuid, uuid, text, uuid, numeric, text, boolean) from public;
+revoke all on function declare_machine_step(uuid, uuid, text, uuid, numeric, text, boolean) from anon;
+grant execute on function declare_machine_step(uuid, uuid, text, uuid, numeric, text, boolean) to authenticated;
+
+
+-- ############################################################################
 -- ##  7. TEMPS RÉEL (le tableau de bord se met à jour sans recharger)
 -- ############################################################################
 do $$

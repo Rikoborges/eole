@@ -12,6 +12,18 @@ peças. Roda direto no navegador, sem instalação — é um site estático
 
 ## Funcionalidades
 
+### ✍️ Saisir (Declarar) — nova aba principal
+Tela de declaração de atividade do cahier des charges (precisa do
+`supabase/atelier-schema.sql`). Em 5 passos: atividade → quantidade (ou
+N° de série + modelo, com busca 🔍) → tempo (botões rápidos ou "1h30",
+"45 min") → status → validar. Mostra o objetivo do dia segundo o formato
+37 h / 39 h e o "reste à déclarer". Etapas com matricule: 1 matricule = 1
+quantidade, contada só na finalização; podem ficar "à poursuivre" e ser
+retomadas em outro dia ("Mes étapes en cours"). O mesmo N° de série não
+pode ser lançado duas vezes na mesma etapa. Dias anteriores consultáveis
+(‹ ›); correção só dentro do prazo definido pelo responsável; uma
+declaração nunca é apagada, só anulada (fica riscada). Código em `saisie.js`.
+
 ### 🔧 Pièces (Peças)
 Catálogo de referência de componentes de impressora/copiadora, com nome em
 francês, português e inglês, categoria (Nettoyage / Montage / Électrique),
