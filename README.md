@@ -35,6 +35,28 @@ matricule contam só quando finalizadas, com o tempo somado de todos os
 dias. Se o responsável desligar "resultats_visibles", o collaborateur vê
 só a ficha. Código em `semaine.js`.
 
+### 🧭 Pilotage (só para o Responsable des Ateliers)
+Aba que só aparece para quem é responsable (`is_responsable()`: os admins +
+quem tiver o direito "responsable" na ficha). Cinco visões:
+- **Atelier**: período (semana com ‹ ›, 4 ou 8 semanas), filtros métier e
+  37 h / 39 h, os números do cahier des charges, tabela da equipe
+  (clicável), "Où passe le temps", alertas (tempo incompleto ou acima,
+  matricule/modelo faltando, étape parada há 2 dias úteis ou mais, fichas
+  sem métier/formato), atividade ao vivo (Realtime) e exports Excel
+  (détail, par collaborateur, par activité, opérations).
+- **Opérations**: étapes com matricule em curso / finalizadas / encerradas;
+  "Clôturer : abandonnée" ou "Supprimer" (= anular e arquivar) com motivo
+  obrigatório ("Autre" exige comentário). Nada é apagado.
+- **Collaborateurs**: resultados de uma pessoa, pontos de maîtrise,
+  tendência, étapes em curso, alertas e horário de conexão (escondido).
+- **Activités**: melhores resultados e maiores écarts por étape, filtro
+  por marca de máquina, em curso e abandonos.
+- **Machines**: rastreabilidade por N° de série, tempo dia a dia e total.
+
+O "attendu" de cada pessoa começa no primeiro dia em que ela declarou, para
+o início do uso (ou a chegada de um intérim) não aparecer como horas
+faltando. Código em `pilotage.js`.
+
 ### 🔧 Pièces (Peças)
 Catálogo de referência de componentes de impressora/copiadora, com nome em
 francês, português e inglês, categoria (Nettoyage / Montage / Électrique),

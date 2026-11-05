@@ -85,6 +85,7 @@
       <button class="tab" data-view="pecas" aria-selected="false">Pièces</button>
       <button class="tab" data-view="registro" aria-selected="false">Suivi</button>
       <button class="tab" data-view="analyse" aria-selected="false">Analyse</button>
+      <button class="tab" data-view="pilotage" id="tab-pilotage-btn" aria-selected="false" hidden>Pilotage</button>
       <button class="tab" data-view="admin" id="tab-admin-btn" aria-selected="false" hidden>Admin</button>
     </nav>
     <div class="stripe" aria-hidden="true"></div>
@@ -101,6 +102,11 @@
     <!-- ===================== SECTION : SEMAINE (ma fiche + mes résultats) ===================== -->
     <section class="view" id="view-semaine" aria-labelledby="tab-semaine">
       <div id="semaine-root"></div>
+    </section>
+
+    <!-- ===================== SECTION : PILOTAGE (responsable des ateliers) ===================== -->
+    <section class="view" id="view-pilotage" aria-labelledby="tab-pilotage-btn">
+      <div id="pilotage-root"></div>
     </section>
 
     <section class="view" id="view-pecas" aria-labelledby="tab-pecas">
@@ -603,5 +609,6 @@
   <script src="script.js"></script>
   <script src="saisie.js"></script>
   <script src="semaine.js"></script>
+  <script src="pilotage.js"></script>
 </body>
 </html>

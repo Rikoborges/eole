@@ -634,6 +634,7 @@ function switchTab(view){
 
   if(view === 'saisie' && window.initSaisie) window.initSaisie();
   if(view === 'semaine' && window.initSemaine) window.initSemaine(true);
+  if(view === 'pilotage' && window.initPilotage) window.initPilotage();
   if(view === 'registro') initRegistro();
   if(view === 'analyse') initAnalyse();
   if(view === 'admin') initAdmin();
