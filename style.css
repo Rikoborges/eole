@@ -1521,3 +1521,16 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 .pl-daylist{ list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
 .pl-daylist li{ display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; }
 .pl-daylist small{ color: var(--text-dim); }
+/* Saisir : chrono compact à côté (style ancien Suivi) et déclarations repliables */
+.sx-chronocard{ display: grid; gap: 8px; }
+.sx-chronocard.run{ border-color: var(--copper-dim); }
+.sx-chrono-t{ font: 600 30px 'IBM Plex Mono', monospace; letter-spacing: .02em; color: var(--text); font-variant-numeric: tabular-nums; }
+.sx-chronocard.paused .sx-chrono-t{ color: var(--text-dim); }
+.sx-link{ background: none; border: 0; padding: 4px; color: var(--text-dim); font: 500 13px 'Barlow', sans-serif; text-decoration: underline; cursor: pointer; }
+.sx-daydetails > summary{ list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 32px; }
+.sx-daydetails > summary::-webkit-details-marker{ display: none; }
+.sx-daydetails > summary .sx-summ{ text-decoration: underline; }
+.sx-daydetails > summary:focus-visible{ outline: 2px solid var(--copper); outline-offset: 4px; border-radius: 6px; }
+@container app (min-width: 820px){
+  .sx-side{ position: sticky; top: 170px; max-height: calc(100vh - 190px); overflow-y: auto; overscroll-behavior: contain; }
+}

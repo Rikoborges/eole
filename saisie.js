@@ -247,7 +247,7 @@
         <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}</h3>
           <div class="sx-quick">${[0.25, 0.5, 1, 1.5, 2, 3].map(v => `<button type="button" data-tq="${v}" aria-pressed="false">${h2(v)}</button>`).join('')}</div>
           <div class="sx-row sx-mt"><input type="text" id="sxTime" class="sx-mono sx-time" value="${esc(f.tRaw)}" placeholder="ex : 1h30, 45 min" aria-label="Temps consacré" inputmode="decimal"><span id="sxConv" class="sx-small"></span></div>
-          ${SX.rules.chrono === true ? chronoHTML() : ''}
+          ${SX.rules.chrono === true && chronoGet() ? '<p class="sx-small sx-mt">⏱ Chrono en marche : son bouton « Utiliser ce temps » remplit ce champ.</p>' : ''}
         </div></div>
         ${isM ? `<div class="sx-step"><span class="sx-num">${N()}</span><div><h3>Statut de l'étape</h3>
           <div class="sx-stchoice">
@@ -262,6 +262,7 @@
       </div>
 
       <div class="sx-side">
+        ${SX.rules.chrono === true ? chronoHTML() : ''}
         ${alertsCard()}
         ${dayCard()}
       </div>
@@ -296,13 +297,14 @@
   function dayCard(){
     const d = SX.viewDate, isToday = d === SX.today, list = SX.viewDecls, live = list.filter(x => !x.cancelled);
     const minDate = addDays(SX.today, -60);
-    return `<div class="sx-card">
-      <div class="sx-row sx-between sx-mb"><h2 class="sx-h2">${isToday ? 'Aujourd\'hui' : esc(cap(shortLabel(d)))} · ${live.length} déclaration${live.length > 1 ? 's' : ''}</h2>
+    return `<details class="sx-card sx-daydetails" id="sxDayDetails" ${SX.dayOpen ? 'open' : ''}>
+      <summary><span class="sx-h2">${isToday ? 'Aujourd\'hui' : esc(cap(shortLabel(d)))} · ${live.length} déclaration${live.length > 1 ? 's' : ''} · ${hm(dayTotal(list))}</span><span class="sx-small sx-summ">${SX.dayOpen ? 'Masquer' : 'Afficher'}</span></summary>
+      <div class="sx-row sx-between sx-mb sx-mt"><span class="sx-small">Jour affiché</span>
         <span class="week-nav sx-daynav"><button type="button" data-day="-1" aria-label="Jour précédent" ${d <= minDate ? 'disabled' : ''}>‹</button><button type="button" data-day="1" aria-label="Jour suivant" ${isToday ? 'disabled' : ''}>›</button></span></div>
       ${isToday ? '' : `<p class="sx-small sx-mb">${hm(dayTotal(list))} déclarées${objectiveFor(d) ? ' sur ' + hm(objectiveFor(d)) : ''} · <button type="button" class="sx-btn sx-sm" data-day="0">Revenir à aujourd'hui</button></p>`}
       <ul class="sx-entries">${list.slice().reverse().map(entryHTML).join('') || '<li class="sx-small">Rien de déclaré ce jour-là.</li>'}</ul>
       <p class="sx-small sx-mt">Modifiable ${corrLabel()}. Une déclaration annulée reste visible (barrée) pour garder l'historique.</p>
-    </div>`;
+    </details>`;
   }
 
   function entryHTML(d){
@@ -354,13 +356,16 @@
   const chronoGet = () => { try{ const v = JSON.parse(localStorage.getItem(chronoKey()) || 'null'); return v && typeof v === 'object' ? v : null; }catch(e){ return null; } };
   const chronoSet = v => { try{ if(v) localStorage.setItem(chronoKey(), JSON.stringify(v)); else localStorage.removeItem(chronoKey()); }catch(e){ toast('Chrono indisponible sur ce navigateur.'); } };
   const chronoMs = c => c ? c.acc + (c.start ? Date.now() - c.start : 0) : 0;
+  const hms = ms => { const t = Math.floor(ms / 1000); return [t / 3600 | 0, (t % 3600) / 60 | 0, t % 60].map(n => String(n).padStart(2, '0')).join(':'); };
   function chronoHTML(){
     const c = chronoGet();
-    if(!c) return '<div class="sx-row sx-mt sx-chrono"><button type="button" class="sx-btn" data-a="chronoStart">⏱ Démarrer le chrono</button><span class="sx-small">facultatif : il propose le temps, vous validez</span></div>';
-    return `<div class="sx-row sx-mt sx-chrono"><span id="sxChronoT" class="sx-mono sx-chrono-t">${hm(chronoMs(c) / 3600000)}</span>${c.start ? '' : ' <span class="sx-pill sx-mid">en pause</span>'}
-      <button type="button" class="sx-btn" data-a="${c.start ? 'chronoPause' : 'chronoResume'}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button>
-      <button type="button" class="sx-btn sx-primary" data-a="chronoStop">⏹ Arrêter et utiliser ce temps</button>
-      <button type="button" class="sx-btn sx-danger" data-a="chronoReset">Remettre à zéro</button></div>`;
+    if(!c) return `<div class="sx-card sx-chronocard"><div class="sx-row sx-between"><span class="sx-h2">⏱ Chrono</span><button type="button" class="sx-btn sx-sm" data-a="chronoStart">Démarrer</button></div>
+      <p class="sx-small">Facultatif, comme l'ancien Suivi : lancez-le en commençant, il remplit le temps quand vous avez fini.</p></div>`;
+    return `<div class="sx-card sx-chronocard ${c.start ? 'run' : 'paused'}"><div class="sx-row sx-between"><span class="sx-h2">⏱ Chrono${c.start ? '' : ' · en pause'}</span>
+        <button type="button" class="sx-link" data-a="chronoReset">Remettre à zéro</button></div>
+      <div id="sxChronoT" class="sx-chrono-t">${hms(chronoMs(c))}</div>
+      <div class="sx-row"><button type="button" class="sx-btn sx-sm" data-a="${c.start ? 'chronoPause' : 'chronoResume'}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button>
+        <button type="button" class="sx-btn sx-sm sx-primary" data-a="chronoStop">Utiliser ce temps</button></div></div>`;
   }
   function chronoAction(a){
     const c = chronoGet();
@@ -371,7 +376,7 @@
     else if(a === 'chronoReset') chronoSet(null);
     render();
   }
-  setInterval(() => { const el = document.getElementById('sxChronoT'), c = chronoGet(); if(el && c && c.start) el.textContent = hm(chronoMs(c) / 3600000); }, 15000);
+  setInterval(() => { const el = document.getElementById('sxChronoT'); if(!el) return; const c = chronoGet(); if(c && c.start) el.textContent = hms(chronoMs(c)); }, 1000);
 
   /* ---------- modèle : recherche avec loupe ---------- */
   function searchModels(q, limit = 8){
@@ -536,6 +541,7 @@
 
   function startEdit(id){
     const d = [...SX.viewDecls, ...SX.todayDecls].find(x => x.id === id); if(!d) return;
+    SX.dayOpen = true;
     SX.form = Object.assign(blankForm(), { kind: d.activite_id ? 'prod' : 'hp', act: d.activite_id, hp: d.hors_production_id,
       qte: d.quantity || 1, tRaw: h2(d.hours), note: d.note || '', editId: d.id, checks: Array.isArray(d.checklist) ? d.checklist : [] });
     render(); document.getElementById('sxFormCard').scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -570,11 +576,17 @@
     else if(d.cancel){ if(SX.confirmCancel === d.cancel) await cancelDeclaration(d.cancel); else { SX.confirmCancel = d.cancel; render(); } }
     else if(d.day !== undefined){
       const step = +d.day;
+      SX.dayOpen = true;
       SX.viewDate = step === 0 ? SX.today : addDays(SX.viewDate, step);
       if(SX.viewDate > SX.today) SX.viewDate = SX.today;
       await loadDay(); render();
     }
   });
+  root.addEventListener('toggle', e => {
+    if(e.target.id !== 'sxDayDetails') return;
+    SX.dayOpen = e.target.open;
+    const sm = e.target.querySelector('.sx-summ'); if(sm) sm.textContent = SX.dayOpen ? 'Masquer' : 'Afficher';
+  }, true);
   root.addEventListener('input', e => {
     const t = e.target, f = SX.form;
     if(t.id === 'sxTime'){ f.tRaw = t.value; updConv(); }
