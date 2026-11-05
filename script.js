@@ -147,7 +147,10 @@ async function handleLogin(){
   errEl.hidden = false;
 
   try{
-    const email = document.getElementById('authEmail').value.trim();
+    // Identifiant atelier (ex. « paul.durand ») : le compte a été créé avec
+    // l'adresse technique paul.durand@eole-atelier.local, jamais utilisée pour écrire.
+    let email = document.getElementById('authEmail').value.trim().toLowerCase();
+    if(email && !email.includes('@')) email += '@eole-atelier.local';
     const password = document.getElementById('authPassword').value;
 
     if(!email || !password){

@@ -443,23 +443,25 @@
         <td><select data-cu="${u.user_id}" data-cf="metier_id" aria-label="Métier de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.metiers.filter(m => m.active || m.id === u.metier_id).map(m => `<option value="${m.id}" ${u.metier_id === m.id ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></td>
         <td><select data-cu="${u.user_id}" data-cf="format_id" aria-label="Format de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.formats.map(f => `<option value="${f.id}" ${u.format_id === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></td>
         <td>${cb(`data-cu="${u.user_id}" data-cf="interim"`, u.interim, 'Intérim')}</td>
-        <td><select data-cu="${u.user_id}" data-cf="role" aria-label="Droits"><option value="collaborateur" ${u.role === 'collaborateur' ? 'selected' : ''}>Collaborateur</option><option value="responsable" ${u.role === 'responsable' ? 'selected' : ''}>Responsable</option></select></td>
+        <td><select data-cu="${u.user_id}" data-cf="role" aria-label="Droits"><option value="collaborateur" ${u.role === 'collaborateur' ? 'selected' : ''}>Collaborateur</option><option value="responsable" ${u.role === 'responsable' ? 'selected' : ''}>Admin</option></select></td>
         <td>${cb(`data-cu="${u.user_id}" data-cf="active"`, u.active, 'Actif')}</td></tr>`).join('')}</tbody></table></div>
-      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Responsable » donne accès au Pilotage et aux Paramètres.</p>
+      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Admin » donne accès au mode Admin (Atelier, Opérations… Paramètres).</p>
       <h3 class="pl-h3">Créer un compte</h3>
       <div class="sx-row pl-addrow"><input type="text" id="ncName" placeholder="Nom (ex : Paul D.)" aria-label="Nom" autocomplete="off">
-        <input type="text" id="ncEmail" inputmode="email" placeholder="E-mail" aria-label="E-mail" autocomplete="off">
+        <input type="text" id="ncEmail" placeholder="Identifiant (ex : paul.durand) ou e-mail" aria-label="Identifiant ou e-mail" autocomplete="off" autocapitalize="none">
         <input type="text" id="ncPass" placeholder="Mot de passe provisoire (8 caractères min.)" aria-label="Mot de passe provisoire" autocomplete="off">
         <button type="button" class="sx-btn sx-primary" data-a="addAccount">+ Créer le compte</button></div>
-      <p class="sx-small sx-mt">Communiquez le mot de passe à la personne. Sa fiche apparaît aussitôt dans le tableau : choisissez ensuite son métier et son format.</p>`;
+      <p class="sx-small sx-mt">Pas d'e-mail EOLE (intérim…) ? Laissez l'identifiant vide : il est créé à partir du nom (ex. « paul.durand »), et la personne se connecte avec cet identifiant, sans e-mail personnel. Communiquez-lui l'identifiant et le mot de passe. Sa fiche apparaît aussitôt : choisissez ensuite son métier et son format.</p>`;
   }
   function pActs(){
     return P.metiers.map(m => `<h3 class="pl-h3">${esc(m.label)}${m.active ? '' : ' <span class="sx-pill sx-dim">désactivé</span>'}</h3>
-      <div class="sx-tscroll"><table class="sx-table pl-ptable"><thead><tr><th>Activité</th><th class="n">Standard h / qté</th><th>Matricule obligatoire</th><th>Active</th><th>Historique du standard</th></tr></thead><tbody>
+      <div class="sx-tscroll"><table class="sx-table pl-ptable"><thead><tr><th>Activité</th><th class="n">Standard h / qté</th><th>Matricule obligatoire</th><th>Quantité</th><th>Checklist</th><th>Active</th><th>Historique du standard</th></tr></thead><tbody>
       ${P.acts.filter(a => a.metier_id === m.id).map(a => { const st = curStd(a.id), hist = P.standards.filter(s => s.activite_id === a.id);
         return `<tr><td><input type="text" data-af="name" data-aid="${a.id}" value="${esc(a.name)}" aria-label="Nom de l'activité"></td>
           <td class="n"><input type="text" class="pl-num" inputmode="decimal" data-std="${a.id}" value="${st && st.hours_per_unit !== null ? h2(st.hours_per_unit) : ''}" placeholder="—" aria-label="Standard ${esc(a.name)}"></td>
           <td>${cb(`data-af="requires_machine" data-aid="${a.id}"`, a.requires_machine, 'Matricule obligatoire')}</td>
+          <td>${a.requires_machine ? '<span class="sx-small">1 / machine</span>' : cb(`data-af="uses_quantity" data-aid="${a.id}"`, a.uses_quantity !== false, 'Demander une quantité')}</td>
+          <td><select data-af="checklist" data-aid="${a.id}" aria-label="Checklist"><option value="" ${!a.checklist ? 'selected' : ''}>Aucune</option><option value="reconditionnement" ${a.checklist === 'reconditionnement' ? 'selected' : ''}>Reconditionnement</option><option value="installation" ${a.checklist === 'installation' ? 'selected' : ''}>Installation</option></select></td>
           <td>${cb(`data-af="active" data-aid="${a.id}"`, a.active, 'Active')}</td>
           <td class="sx-small">${hist.map(s => `${s.hours_per_unit === null ? '—' : h2(s.hours_per_unit)} depuis le ${esc(fmtDate(s.valid_from, { day: '2-digit', month: '2-digit', year: 'numeric' }))}`).join('<br>') || '—'}</td></tr>`; }).join('')}</tbody></table></div>`).join('') + `
       <h3 class="pl-h3">Ajouter une activité</h3>
@@ -534,7 +536,7 @@
     }
     if(d.af){
       if(d.af === 'name' && !val.trim()) return render();
-      return saveParam(sb.from('activites').update({ [d.af]: d.af === 'name' ? val.trim() : val }).eq('id', d.aid), 'Activité mise à jour.');
+      return saveParam(sb.from('activites').update({ [d.af]: d.af === 'name' ? val.trim() : d.af === 'checklist' ? (val || null) : val }).eq('id', d.aid), 'Activité mise à jour.');
     }
     if(d.std){
       const n = parseNum(val);
@@ -579,8 +581,13 @@
       return true;
     }
     if(d.a === 'addAccount'){
-      const name = document.getElementById('ncName').value.trim(), email = document.getElementById('ncEmail').value.trim(), password = document.getElementById('ncPass').value;
-      if(!email.includes('@')){ toastPl('E-mail invalide.'); return true; }
+      const name = document.getElementById('ncName').value.trim(), password = document.getElementById('ncPass').value;
+      let login = document.getElementById('ncEmail').value.trim().toLowerCase();
+      if(!login) login = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '');
+      if(!login){ toastPl('Indiquez un nom ou un identifiant.'); return true; }
+      if(!/^[a-z0-9._@-]+$/.test(login)){ toastPl('Identifiant : lettres, chiffres, point ou tiret seulement.'); return true; }
+      const email = login.includes('@') ? login : login + '@eole-atelier.local';
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toastPl('E-mail invalide.'); return true; }
       if(password.length < 8){ toastPl('Le mot de passe doit avoir au moins 8 caractères.'); return true; }
       const { data: { session } } = await sb.auth.getSession();
       if(!session){ toastPl('Session expirée : reconnectez-vous.'); return true; }
@@ -591,7 +598,7 @@
         const body = await res.json().catch(() => ({}));
         if(!res.ok){ toastPl(body.error || 'Erreur lors de la création du compte.'); return true; }
         await loadRefs(); render();
-        toastPl(`Compte créé pour ${body.email || email}. Choisissez maintenant son métier et son format.`);
+        toastPl(email.endsWith('@eole-atelier.local') ? `Compte créé. Identifiant de connexion : ${email.replace('@eole-atelier.local', '')}` : `Compte créé pour ${body.email || email}. Choisissez maintenant son métier et son format.`);
       }catch(err){ console.error(err); toastPl('Erreur réseau : réessayez.'); }
       return true;
     }

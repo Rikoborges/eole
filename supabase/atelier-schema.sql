@@ -214,6 +214,16 @@ create table if not exists declarations (
   constraint declaration_activite_ou_hp check ((activite_id is null) <> (hors_production_id is null))
 );
 create index if not exists declarations_user_date on declarations (user_id, work_date);
+
+-- Saisie sans quantité (ex. Déballage : seulement du temps) et checklist à cocher
+alter table activites add column if not exists uses_quantity boolean not null default true;
+alter table activites add column if not exists checklist text;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'activites_checklist_check') then
+    alter table activites add constraint activites_checklist_check check (checklist is null or checklist in ('reconditionnement', 'installation'));
+  end if;
+end $$;
+alter table declarations add column if not exists checklist jsonb;   -- éléments cochés (liste de libellés)
 create index if not exists declarations_operation on declarations (operation_id);
 
 do $$ begin
@@ -239,7 +249,7 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare v_machine boolean; v_op operations%rowtype;
+declare v_machine boolean; v_uses_qty boolean; v_op operations%rowtype;
 begin
   if tg_op = 'UPDATE' then
     if new.user_id <> old.user_id then raise exception 'Le collaborateur d''une déclaration ne peut pas changer.'; end if;
@@ -250,7 +260,7 @@ begin
   end if;
 
   if new.activite_id is not null then
-    select requires_machine into v_machine from activites where id = new.activite_id;
+    select requires_machine, uses_quantity into v_machine, v_uses_qty from activites where id = new.activite_id;
     if v_machine then
       if new.operation_id is null then raise exception 'Cette étape demande un matricule : la déclaration doit être liée à une opération.'; end if;
       select * into v_op from operations where id = new.operation_id;
@@ -261,7 +271,8 @@ begin
       new.std_value := v_op.std_value;
     else
       if new.operation_id is not null then raise exception 'Cette étape ne se rattache pas à une machine.'; end if;
-      if new.quantity < 1 then raise exception 'La quantité doit être au moins 1.'; end if;
+      if not coalesce(v_uses_qty, true) then new.quantity := 0;
+      elsif new.quantity < 1 then raise exception 'La quantité doit être au moins 1.'; end if;
       if tg_op = 'INSERT' or new.activite_id is distinct from old.activite_id or new.work_date is distinct from old.work_date then
         new.std_value := standard_at(new.activite_id, new.work_date);
       else
@@ -637,6 +648,22 @@ insert into collaborateurs (user_id, display_name)
 select u.id, coalesce(u.raw_user_meta_data ->> 'name', split_part(u.email, '@', 1))
 from auth.users u
 on conflict (user_id) do nothing;
+
+
+-- Réglages par défaut de la fusion Suivi → Saisir (une seule fois : ensuite,
+-- c'est le responsable qui décide dans Paramètres)
+insert into activites (metier_id, name, requires_machine, sort) values
+  ('TECH', 'Installation imprimante neuve', false, 20),
+  ('TECH', 'Mise en route imprimante neuve', false, 21)
+on conflict (metier_id, name) do nothing;
+do $$ begin
+  if not exists (select 1 from regles_saisie where key = 'defauts_suivi_v1') then
+    update activites set uses_quantity = false where name in ('Déballage pour MAT NEUF', 'Déballage');
+    update activites set checklist = 'reconditionnement' where name in ('Partie technique machine nettoyée', 'Partie technique machine FULL');
+    update activites set checklist = 'installation' where name in ('Installation imprimante neuve', 'Mise en route imprimante neuve');
+    insert into regles_saisie (key, value) values ('defauts_suivi_v1', 'true');
+  end if;
+end $$;
 
 
 -- ############################################################################

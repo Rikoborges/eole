@@ -225,7 +225,8 @@
             return `<td class="n ${cls}">${Math.abs(r) < 0.01 ? '✓' : r < 0 ? '+' + h2(-r) : h2(r)}</td>`;
           }).join('')}<td colspan="4"></td></tr>
         </tfoot></table></div>
-      <p class="sx-small">Heures (quantité). ⏸ = étape à poursuivre : le temps compte le jour où il est fait, la machine est comptée le jour où elle est finalisée.</p>`;
+      <p class="sx-small">Heures (quantité). ⏸ = étape à poursuivre : le temps compte le jour où il est fait, la machine est comptée le jour où elle est finalisée.</p>
+      <div class="sx-row"><button type="button" class="sx-btn" data-a="exportWeek">⬇ Exporter cette semaine (Excel)</button><button type="button" class="sx-btn" data-a="exportMine">⬇ Exporter toutes mes données (RGPD)</button></div>`;
   }
 
   const kpi = (l, v, k, h) => `<div class="sw-kpi"><span class="sw-lbl">${l}</span><span class="sw-val ${k ? 'sx-' + k : ''}">${v}</span><span class="sx-small">${esc(h)}</span></div>`;
@@ -284,11 +285,42 @@
     return s + '</svg>';
   }
 
+  /* ---------- exports (repris de l'ancien Suivi) ---------- */
+  const num = v => (v === null || v === undefined || isNaN(v)) ? '' : String(r2(Number(v))).replace('.', ',');
+  async function exportWeek(){
+    const m = S.week, to = addDays(m, 6);
+    const { data, error } = await sb.from('declarations').select('work_date, activite_id, hors_production_id, operation_id, quantity, hours, std_value, note, checklist')
+      .eq('user_id', S.userId).eq('cancelled', false).gte('work_date', m).lte('work_date', to).order('work_date');
+    if(error){ alert('Export impossible : ' + error.message); return; }
+    const opIds = [...new Set(data.map(d => d.operation_id).filter(Boolean))];
+    const ops = opIds.length ? ((await sb.from('operations_avec_temps').select('id, serial, status').in('id', opIds)).data || []) : [];
+    const rows = [['Date', 'Activité / motif', 'Quantité', 'Temps (h)', 'Standard (h/qté)', 'Théorique (h)', 'N° de série', 'Étape', 'Checklist', 'Commentaire']];
+    data.forEach(d => {
+      const o = ops.find(x => x.id === d.operation_id);
+      rows.push([d.work_date, d.activite_id ? ((actById(d.activite_id) || {}).name || '') : ((S.hp.find(h => h.id === d.hors_production_id) || {}).label || ''),
+        d.operation_id ? '' : (d.quantity || ''), num(d.hours), num(d.std_value), d.operation_id || d.std_value === null || !d.quantity ? '' : num(d.quantity * d.std_value),
+        o ? o.serial || '' : '', o ? ({ encours: 'En cours', pause: 'À poursuivre', final: 'Finalisée', abandon: 'Abandonnée', annulee: 'Annulée' })[o.status] : '',
+        Array.isArray(d.checklist) ? d.checklist.length + ' points' : '', d.note || '']);
+    });
+    const csv = '\uFEFF' + rows.map(r => r.map(csvCell).join(';')).join('\r\n');
+    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `ma-semaine-S${isoWeek(m)}.csv`);
+  }
+  async function exportMine(){
+    const [d, o, p] = await Promise.all([
+      sb.from('declarations').select('*').eq('user_id', S.userId).order('work_date').limit(20000),
+      sb.from('operations').select('*').eq('user_id', S.userId).limit(20000),
+      sb.from('collaborateurs').select('*').eq('user_id', S.userId).maybeSingle()]);
+    const blob = new Blob([JSON.stringify({ exporte_le: new Date().toISOString(), fiche: p.data, declarations: d.data || [], operations: o.data || [] }, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, `mes-donnees-reprobench-${S.today}.json`);
+  }
+
   /* ---------- événements ---------- */
   root.addEventListener('click', async e => {
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset;
-    if(d.tab){ S.tab = d.tab; render(); }
+    if(d.a === 'exportWeek') exportWeek();
+    else if(d.a === 'exportMine') exportMine();
+    else if(d.tab){ S.tab = d.tab; render(); }
     else if(d.period){ S.period = d.period; render(); }
     else if(d.week !== undefined){
       const step = +d.week, cur = mondayOf(S.today);

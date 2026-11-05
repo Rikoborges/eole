@@ -20,6 +20,16 @@ Collaborateurs · Activités · Machines · Paramètres. A criação de contas f
 em Paramètres › Collaborateurs (só admins). O modo escolhido fica guardado no
 navegador; um responsable abre em modo Responsable.
 
+### 🔀 Suivi dentro da Saisir
+A aba Suivi saiu: tudo o que ela fazia está na Saisir. Tempo attendu
+mostrado ao escolher a étape (e o théorique para a quantidade), cronômetro
+com pausa (se o admin ligar em Paramètres › Règles), checklist oficial ao
+finalizar (reconditionnement nas Parties techniques, installation em
+Installation / Mise en route — configurável por étape), étapes sem
+quantidade (ex.: Déballage, só tempo). Exports da semana (Excel) e "mes
+données" (RGPD) ficam em Ma semaine. Contas sem e-mail pessoal: o admin cria
+um identificador (ex.: paul.durand) e a pessoa entra com ele.
+
 ### ✍️ Saisir (Declarar) — nova aba principal
 Tela de declaração de atividade do cahier des charges (precisa do
 `supabase/atelier-schema.sql`). Em 5 passos: atividade → quantidade (ou

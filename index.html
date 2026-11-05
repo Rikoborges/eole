@@ -33,8 +33,8 @@
       <h1>ReproBench</h1>
       <p class="sub">Connectez-vous pour accéder à vos données</p>
 
-      <label class="field-label" for="authEmail">Email</label>
-      <input type="email" id="authEmail" placeholder="vous@exemple.com" autocomplete="email">
+      <label class="field-label" for="authEmail">Identifiant ou e-mail</label>
+      <input type="text" id="authEmail" placeholder="identifiant ou e-mail" autocomplete="username" autocapitalize="none" spellcheck="false">
 
       <label class="field-label" for="authPassword">Mot de passe</label>
       <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
@@ -60,7 +60,7 @@
       <h1 class="brand">Repro<b>Bench</b></h1>
       <div class="role-switch" id="roleSwitch" role="group" aria-label="Voir l'application comme" hidden>
         <button type="button" data-role-set="col" aria-pressed="true">Collaborateur</button>
-        <button type="button" data-role-set="resp" aria-pressed="false">Responsable</button>
+        <button type="button" data-role-set="resp" aria-pressed="false">Admin</button>
       </div>
       <div class="account-row">
         <button type="button" class="avatar-btn" id="avatarBtn" title="Changer ma photo de profil" aria-label="Changer ma photo de profil">
@@ -90,7 +90,6 @@
       <!-- Collaborateur -->
       <button class="tab active" data-role="col" data-view="saisie" id="tab-saisie" aria-selected="true">Saisir</button>
       <button class="tab" data-role="col" data-view="semaine" id="tab-semaine" aria-selected="false">Ma semaine</button>
-      <button class="tab" data-role="col" data-view="registro" aria-selected="false">Suivi</button>
       <button class="tab" data-role="col" data-view="pecas" aria-selected="false">Pièces</button>
       <!-- Responsable (visibles seulement pour un responsable, en mode Responsable) -->
       <button class="tab" data-role="resp" data-view="pilotage" data-pview="atelier" id="tab-pilotage-btn" aria-selected="false" hidden>Atelier</button>
