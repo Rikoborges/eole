@@ -44,8 +44,47 @@ async function amIAdmin(){
 }
 
 async function updateAdminTabVisibility(){
-  document.getElementById('tab-admin-btn').hidden = !(await amIAdmin());
+  await amIAdmin();
+  refreshNav();
 }
+
+/* --- Navigation par rôle ---
+   Un collaborateur voit : Saisir · Ma semaine · Suivi · Pièces.
+   Un responsable a en plus le bouton Collaborateur / Responsable dans
+   l'en-tête ; en mode Responsable il voit : Atelier · Opérations ·
+   Collaborateurs · Activités · Machines · Paramètres · Analyse Suivi ·
+   Comptes (création de comptes, réservée aux admins).
+   Le choix du mode est gardé sur ce navigateur. */
+let isResponsableUser = false;     // renseigné par pilotage.js (is_responsable())
+function getRole(){
+  if(!isResponsableUser) return 'col';
+  try{ return localStorage.getItem('rb-role') || 'resp'; }catch(e){ return 'resp'; }
+}
+function setRole(role){
+  try{ localStorage.setItem('rb-role', role); }catch(e){}
+  refreshNav(true);
+}
+function refreshNav(goFirst){
+  const role = getRole();
+  document.getElementById('roleSwitch').hidden = !isResponsableUser;
+  document.querySelectorAll('[data-role-set]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.roleSet === role)));
+  document.querySelectorAll('.tab').forEach(t => {
+    let show = t.dataset.role === role;
+    if(t.id === 'tab-admin-btn') show = show && isAdminUser === true;
+    t.hidden = !show;
+  });
+  const active = document.querySelector('.tab.active');
+  if(goFirst || !active || active.hidden){
+    const first = document.querySelector('.tab:not([hidden])');
+    if(first) activateTab(first);
+  }
+}
+window.setResponsable = function(v){ isResponsableUser = !!v; refreshNav(); };
+// Appelé par pilotage.js quand la vue interne change (ex. clic sur un collaborateur)
+window.markPilotageTab = function(pview){
+  const t = document.querySelector(`.tab[data-view="pilotage"][data-pview="${pview}"]`);
+  if(t && document.getElementById('view-pilotage').classList.contains('active')) markActiveTab(t);
+};
 
 /* Qui est connecté. Lu depuis la session locale (pas d'appel réseau).
    Sert à filtrer "mes" données : un admin voit toute l'équipe grâce aux
@@ -623,12 +662,20 @@ chipButtons.forEach(chip => {
 renderParts();
 
 /* ======================= NAVIGATION PAR ONGLETS ======================= */
-function switchTab(view){
+function markActiveTab(tab){
   document.querySelectorAll('.tab').forEach(t => {
-    const on = t.dataset.view === view;
+    const on = t === tab;
     t.classList.toggle('active', on);
     t.setAttribute('aria-selected', String(on));
   });
+}
+function activateTab(tab){
+  if(tab.dataset.pview && window.setPilotageView) window.setPilotageView(tab.dataset.pview);
+  switchTab(tab.dataset.view, tab);
+}
+function switchTab(view, tab){
+  const visible = [...document.querySelectorAll('.tab')].filter(t => !t.hidden && t.dataset.view === view);
+  markActiveTab(tab || visible[0] || document.querySelector(`.tab[data-view="${view}"]`));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
 
@@ -639,11 +686,12 @@ function switchTab(view){
   if(view === 'analyse') initAnalyse();
   if(view === 'admin') initAdmin();
 }
+document.querySelectorAll('[data-role-set]').forEach(b => b.addEventListener('click', () => setRole(b.dataset.roleSet)));
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     // Un clic direct sur l'onglet (pas un renvoi depuis l'Admin) quitte le mode "un seul technicien".
     if(tab.dataset.view === 'analyse') analyseState.fromAdmin = false;
-    switchTab(tab.dataset.view);
+    activateTab(tab);
   });
 });
 

@@ -12,6 +12,14 @@ peças. Roda direto no navegador, sem instalação — é um site estático
 
 ## Funcionalidades
 
+### 🧑‍🔧 / 🧭 Modo Collaborateur e modo Responsable
+Cabeçalho compacto com o nome do app e, **só para quem é responsable**, o
+botão **Collaborateur / Responsable**. Abas do collaborateur: Saisir ·
+Ma semaine · Suivi · Pièces. Abas do responsable: Atelier · Opérations ·
+Collaborateurs · Activités · Machines · Paramètres · Analyse Suivi ·
+Comptes (criação de contas, só admins). O modo escolhido fica guardado no
+navegador; um responsable abre em modo Responsable.
+
 ### ✍️ Saisir (Declarar) — nova aba principal
 Tela de declaração de atividade do cahier des charges (precisa do
 `supabase/atelier-schema.sql`). Em 5 passos: atividade → quantidade (ou

@@ -1326,3 +1326,23 @@ html[data-theme="light"] .sx-toast{ box-shadow: 0 12px 40px #16242640; }
 .pl-toggle b{ display: block; }
 .pl-toggle .pl-cb{ margin-top: 2px; flex: none; }
 .pl-models{ max-height: 420px; overflow: auto; margin-top: 10px; }
+
+/* =========================================================
+   EN-TÊTE COMPACT + BOUTON COLLABORATEUR / RESPONSABLE
+   ========================================================= */
+.topbar{ display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
+.topbar .brand{ font-family: 'Oswald', sans-serif; font-size: 22px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin: 0; color: var(--text); }
+.topbar .brand b{ color: var(--copper-text); font-weight: 600; }
+.topbar .account-row{ margin: 0 0 0 auto; flex: 0 1 auto; min-width: 0; }
+.topbar .account-name{ flex: 0 1 auto; max-width: 220px; }
+.role-switch{ display: inline-flex; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.role-switch[hidden]{ display: none; }
+.role-switch button{ font: 600 13px 'Barlow', sans-serif; color: var(--text-dim); background: none; border: 0; border-radius: 7px; padding: 7px 14px; min-height: 38px; cursor: pointer; }
+.role-switch button[aria-pressed="true"]{ background: var(--panel-2); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+.role-switch button:focus-visible{ outline: 2px solid var(--copper-text); outline-offset: 2px; }
+.tab[hidden]{ display: none; }
+@media (max-width: 520px){
+  .topbar .account-name{ display: none; }
+  .topbar .brand{ font-size: 19px; }
+  .role-switch button{ padding: 6px 10px; }
+}

@@ -56,6 +56,12 @@
 
   <header class="app-header">
     <div class="plate">
+      <div class="topbar">
+      <h1 class="brand">Repro<b>Bench</b></h1>
+      <div class="role-switch" id="roleSwitch" role="group" aria-label="Voir l'application comme" hidden>
+        <button type="button" data-role-set="col" aria-pressed="true">Collaborateur</button>
+        <button type="button" data-role-set="resp" aria-pressed="false">Responsable</button>
+      </div>
       <div class="account-row">
         <button type="button" class="avatar-btn" id="avatarBtn" title="Changer ma photo de profil" aria-label="Changer ma photo de profil">
           <img class="avatar-img" id="avatarImg" alt="" hidden>
@@ -76,20 +82,25 @@
           </svg>
         </button>
       </div>
+      </div>
       <p class="presence-panel" id="presencePanel" hidden></p>
-      <p class="eyebrow">Reconditionnement · Suivi</p>
-      <h1>ReproBench</h1>
-      <p class="sub">Pièces de référence + suivi de service</p>
     </div>
 
     <nav class="tabs" aria-label="Navigation principale">
-      <button class="tab active" data-view="saisie" id="tab-saisie" aria-selected="true">Saisir</button>
-      <button class="tab" data-view="semaine" id="tab-semaine" aria-selected="false">Semaine</button>
-      <button class="tab" data-view="pecas" aria-selected="false">Pièces</button>
-      <button class="tab" data-view="registro" aria-selected="false">Suivi</button>
-      <button class="tab" data-view="analyse" aria-selected="false">Analyse</button>
-      <button class="tab" data-view="pilotage" id="tab-pilotage-btn" aria-selected="false" hidden>Pilotage</button>
-      <button class="tab" data-view="admin" id="tab-admin-btn" aria-selected="false" hidden>Admin</button>
+      <!-- Collaborateur -->
+      <button class="tab active" data-role="col" data-view="saisie" id="tab-saisie" aria-selected="true">Saisir</button>
+      <button class="tab" data-role="col" data-view="semaine" id="tab-semaine" aria-selected="false">Ma semaine</button>
+      <button class="tab" data-role="col" data-view="registro" aria-selected="false">Suivi</button>
+      <button class="tab" data-role="col" data-view="pecas" aria-selected="false">Pièces</button>
+      <!-- Responsable (visibles seulement pour un responsable, en mode Responsable) -->
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="atelier" id="tab-pilotage-btn" aria-selected="false" hidden>Atelier</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="operations" aria-selected="false" hidden>Opérations</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="collab" aria-selected="false" hidden>Collaborateurs</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="activites" aria-selected="false" hidden>Activités</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="machines" aria-selected="false" hidden>Machines</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="params" aria-selected="false" hidden>Paramètres</button>
+      <button class="tab" data-role="resp" data-view="analyse" aria-selected="false" hidden>Analyse Suivi</button>
+      <button class="tab" data-role="resp" data-view="admin" id="tab-admin-btn" aria-selected="false" hidden>Comptes</button>
     </nav>
     <div class="stripe" aria-hidden="true"></div>
   </header>

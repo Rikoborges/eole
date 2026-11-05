@@ -21,8 +21,7 @@
   'use strict';
 
   const root = document.getElementById('pilotage-root');
-  const tabBtn = document.getElementById('tab-pilotage-btn');
-  if(!root || !tabBtn) return;
+  if(!root) return;
 
   /* ---------- utilitaires ---------- */
   const TZ = 'Europe/Paris';
@@ -91,7 +90,7 @@
   async function checkAccess(){
     const { data, error } = await sb.rpc('is_responsable');
     P.allowed = !error && !!data;
-    tabBtn.hidden = !P.allowed;
+    if(window.setResponsable) window.setResponsable(P.allowed);
     return P.allowed;
   }
 
@@ -149,6 +148,7 @@
     render();
   }
   window.initPilotage = initPilotage;
+  window.setPilotageView = v => { P.view = v; P.closing = null; };
 
   /* ---------- temps réel : chaque déclaration met le tableau à jour ---------- */
   function subscribe(){
@@ -253,10 +253,11 @@
 
   function render(){
     if(P.error){ root.innerHTML = `<div class="sx-card sx-notice"><h2 class="sx-h2">Pilotage indisponible</h2><p>${esc(P.error)}</p></div>`; return; }
-    const views = [['atelier', 'Atelier'], ['operations', 'Opérations'], ['collab', 'Collaborateurs'], ['activites', 'Activités'], ['machines', 'Machines'], ['params', 'Paramètres']];
     const nOpen = P.ops.filter(o => OPEN.includes(o.status)).length;
-    root.innerHTML = `<div class="pl-subnav" role="group" aria-label="Vues du pilotage">${views.map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${P.view === k}">${l}${k === 'operations' && nOpen ? ` <span class="pl-count">${nOpen}</span>` : ''}</button>`).join('')}</div>
-      ${({ atelier: vAtelier, operations: vOperations, collab: vCollab, activites: vActivites, machines: vMachines, params: vParams })[P.view]()}`;
+    if(window.markPilotageTab) window.markPilotageTab(P.view);
+    const opTab = document.querySelector('.tab[data-pview="operations"]');
+    if(opTab) opTab.innerHTML = 'Opérations' + (nOpen ? ` <span class="pl-count">${nOpen}</span>` : '');
+    root.innerHTML = `${({ atelier: vAtelier, operations: vOperations, collab: vCollab, activites: vActivites, machines: vMachines, params: vParams })[P.view]()}`;
   }
 
   function vAtelier(){
@@ -696,7 +697,7 @@
   /* ---------- connexion ---------- */
   sb.auth.onAuthStateChange((_event, session) => {
     if(!session){
-      Object.assign(P, { me: null, allowed: null, ready: false }); tabBtn.hidden = true; root.innerHTML = '';
+      Object.assign(P, { me: null, allowed: null, ready: false }); if(window.setResponsable) window.setResponsable(false); root.innerHTML = '';
       if(P.channel){ sb.removeChannel(P.channel); P.channel = null; }
       return;
     }
