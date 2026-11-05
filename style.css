@@ -1428,3 +1428,78 @@ body{ -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 #view-registro .field-label{ margin-top: 14px; }
 #view-registro .btn-primary, #view-registro .btn-secondary{ font: 600 15px 'Barlow', sans-serif; text-transform: none; letter-spacing: .01em; border-radius: 10px; }
 #view-registro .hist-head{ margin-top: 20px; }
+
+/* =========================================================
+   PALETTE ATELIER (validée) — règle 70 / 20 / 8 / 2
+   70 % gris foncé (fond, cartes) · 20 % gris moyen (bordures, texte
+   secondaire, champs) · 8 % blanc (texte principal, chiffres) ·
+   2 % jaune (bouton principal, onglet actif, chiffre clé, focus).
+   Vert / orange / rouge : uniquement pour un statut.
+   ========================================================= */
+:root, :root[data-theme="dark"]{
+  --bg: #0F1720;  --panel: #18212B;  --panel-2: #202B37;  --line: #2A3644;
+  --text: #E5E7EB;  --text-dim: #94A3B8;
+  --copper: #D4A017;  --copper-hover: #EAB308;  --copper-dim: #8A6A12;  --copper-text: #E0B12A;
+  --clean: #22C55E;  --warning: #F97316;  --elec: #F87171;  --warn: #EF4444;
+  --tint-ok: rgba(34,197,94,.14);  --tint-warning: rgba(249,115,22,.14);  --tint-bad: rgba(239,68,68,.15);  --tint-accent: rgba(212,160,23,.12);
+  color-scheme: dark;
+}
+:root[data-theme="light"]{
+  --bg: #F3F4F6;  --panel: #FFFFFF;  --panel-2: #EEF1F5;  --line: #D9DEE5;
+  --text: #111827;  --text-dim: #4B5563;
+  --copper: #D4A017;  --copper-hover: #EAB308;  --copper-dim: #E9D08A;  --copper-text: #A16207;
+  --clean: #15803D;  --warning: #C2410C;  --elec: #B91C1C;  --warn: #DC2626;
+  --tint-ok: rgba(21,128,61,.10);  --tint-warning: rgba(194,65,12,.10);  --tint-bad: rgba(220,38,38,.10);  --tint-accent: rgba(212,160,23,.14);
+  color-scheme: light;
+}
+
+/* Fini la bande zébrée : une ligne fine, l'onglet actif souligné en jaune */
+.stripe{ height: 1px; background: var(--line); opacity: 1; }
+.tab{ background: transparent; border-bottom: 2px solid transparent; }
+.tab.active{ background: transparent; color: var(--text); border-bottom-color: var(--copper); font-weight: 600; }
+.tab:hover{ color: var(--text); }
+.app-header{ background: var(--bg); }
+.plate{ background: var(--panel); border-color: var(--line); border-radius: 12px; }
+.plate::before, .plate::after{ display: none; }
+
+/* Boutons : un seul jaune (l'action principale) */
+.btn-primary, .sx-btn.sx-primary, #view-registro .btn-new:not(.btn-new-secondary){ background: var(--copper); color: #0F1720; }
+.btn-primary:hover, .sx-btn.sx-primary:hover, #view-registro .btn-new:not(.btn-new-secondary):hover{ background: var(--copper-hover); filter: none; }
+
+/* Sélections : contour net au lieu d'aplats jaunes */
+.sx-chip[aria-pressed="true"], .sx-quick button[aria-pressed="true"]{
+  background: var(--panel-2); color: var(--text); border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text);
+}
+.sx-chip[aria-pressed="true"] small, .sx-chip[aria-pressed="true"] .sx-star{ color: var(--text-dim); }
+.sx-star{ color: var(--text-dim); }
+.sx-num{ background: var(--panel-2); color: var(--text-dim); }
+.sx-ops{ border-color: var(--line); box-shadow: none; }
+.sx-mlist li[aria-selected="true"], .sx-mlist li:hover{ background: var(--panel-2); }
+.chip.active, .chip-top.active{ background: var(--panel-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
+.period-btn.active, .period-btn[aria-pressed="true"]{ background: var(--panel-2); color: var(--text); }
+
+/* Statuts : vert / orange / rouge seulement */
+.sx-ok{ color: var(--clean); }  .sx-mid{ color: var(--warning); }  .sx-bad{ color: var(--elec); }
+.sx-pill.sx-ok{ background: var(--tint-ok); color: var(--clean); }
+.sx-pill.sx-mid{ background: var(--tint-warning); color: var(--warning); }
+.sx-pill.sx-bad{ background: var(--tint-bad); color: var(--elec); }
+.sx-alert-mid{ background: var(--tint-warning); } .sx-alert-mid b{ color: var(--warning); }
+.sx-alert-bad{ background: var(--tint-bad); } .sx-alert-bad b{ color: var(--elec); }
+.sx-info-ok, .sx-msel{ background: var(--tint-ok); }
+.sx-info-bad, .sx-error{ background: var(--tint-bad); }
+.sx-stchoice button.pau[aria-pressed="true"]{ border-color: var(--warning); color: var(--warning); background: var(--tint-warning); }
+.sx-stchoice button.fin[aria-pressed="true"]{ background: var(--tint-ok); }
+.pl-count{ background: var(--tint-warning); color: var(--warning); }
+
+/* Barres et graphiques : gris, le jaune reste pour la courbe clé */
+.pl-track span{ background: var(--text-dim); opacity: .7; }
+.pl-track span.hp{ background: var(--line); opacity: 1; }
+.sx-bar span{ background: var(--copper); }
+.sx-bar span.full{ background: var(--clean); } .sx-bar span.over{ background: var(--warn); }
+
+/* Chiffres : blancs ; seul le taux d'efficience garde sa couleur de statut */
+.sw-val{ color: var(--text); }
+.topbar .brand b{ color: var(--copper); }
+:focus-visible{ outline-color: var(--copper); }
+html[data-theme="light"] .sx-card, html[data-theme="light"] .sw-kpi, html[data-theme="light"] .sx-prog, html[data-theme="light"] .plate{ box-shadow: 0 1px 2px rgba(17,24,39,.06); }
+html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }

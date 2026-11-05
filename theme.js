@@ -10,7 +10,7 @@
   function apply(t){
     document.documentElement.setAttribute('data-theme', effective(t));
     var meta = document.querySelector('meta[name="theme-color"]');
-    if(meta) meta.setAttribute('content', effective(t) === 'light' ? '#eef3f2' : '#12181a');
+    if(meta) meta.setAttribute('content', effective(t) === 'light' ? '#F3F4F6' : '#0F1720');
     var b = document.getElementById('btnTheme');
     if(b){ b.title = 'Thème : ' + LABEL[t]; b.setAttribute('aria-label', 'Changer le thème (actuel : ' + LABEL[t] + ')'); b.textContent = t === 'light' ? '☀' : t === 'dark' ? '☾' : '◐'; }
   }
