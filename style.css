@@ -1218,3 +1218,31 @@ textarea{ resize: vertical; min-height: 70px; }
 .sx-time-v{ font: 600 15px 'IBM Plex Mono', monospace; white-space: nowrap; }
 .sx-toast{ position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 50; background: var(--text); color: var(--bg); border-radius: 12px; padding: 12px 16px; font-size: 14px; max-width: calc(100% - 32px); box-shadow: 0 12px 40px #000a; }
 .sx-toast[hidden]{ display: none; }
+
+/* =========================================================
+   ONGLET « SEMAINE » — ma fiche + mes résultats (semaine.js)
+   ========================================================= */
+#semaine-root{ display: grid; gap: var(--space-3); }
+#semaine-root > .sx-row .sx-seg{ margin-bottom: 0; }
+.sw-nav{ margin: 0; }
+.sw-kpis{ display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; }
+.sw-kpi{ background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 14px; display: grid; gap: 2px; min-width: 0; }
+.sw-lbl{ font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-dim); }
+.sw-val{ font-family: 'Oswald', sans-serif; font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sw-table td:first-child{ min-width: 180px; }
+.sw-table tfoot td{ font-weight: 600; border-top: 2px solid var(--line); border-bottom: 0; }
+.sw-table tr.sw-hp td:first-child{ color: var(--text-dim); }
+.sw-q{ color: var(--text-dim); }
+.sw-trend{ font-size: 18px; }
+.sw-grid{ display: grid; gap: var(--space-3); grid-template-columns: minmax(0, 1fr); }
+.sw-grid .sx-table td:first-child{ min-width: 200px; }
+.sw-grid .sw-svg{ max-width: 560px; display: block; }
+.sw-svg text{ fill: var(--text-dim); font: 11px 'IBM Plex Mono', monospace; }
+.sw-svg text.lbl{ fill: var(--copper-text); font-weight: 600; }
+.sw-svg .gl{ stroke: var(--line); } .sw-svg .tg{ stroke: var(--text-dim); stroke-dasharray: 4 4; }
+.sw-svg .ln{ stroke: var(--copper); fill: none; stroke-width: 2.2; } .sw-svg .ar{ fill: var(--copper); fill-opacity: .12; } .sw-svg .pt{ fill: var(--copper); }
+
+/* Plus d'onglets : sur petit écran, la barre défile au lieu d'écraser les libellés */
+.tabs{ overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar{ display: none; }
+.tab{ flex: 1 0 auto; white-space: nowrap; padding-left: 12px; padding-right: 12px; }

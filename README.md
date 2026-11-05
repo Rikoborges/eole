@@ -24,6 +24,17 @@ pode ser lançado duas vezes na mesma etapa. Dias anteriores consultáveis
 (‹ ›); correção só dentro do prazo definido pelo responsável; uma
 declaração nunca é apagada, só anulada (fica riscada). Código em `saisie.js`.
 
+### 📅 Semaine — Ma fiche + Mes résultats
+**Ma fiche**: a ficha do Excel da semana, preenchida sozinha a partir das
+declarações (atividade × dia, horas e quantidades, objetivo, "reste à
+déclarer"), com ‹ › para as semanas anteriores. **Mes résultats**: attendu,
+déclaré, hors production, théorique, écart e efficience (semana, 4 ou 8
+semanas), pontos de maîtrise por atividade (mínimo 5 operações, tendência
+↗ → ↘) e gráfico de efficience das 8 últimas semanas. Etapas com
+matricule contam só quando finalizadas, com o tempo somado de todos os
+dias. Se o responsável desligar "resultats_visibles", o collaborateur vê
+só a ficha. Código em `semaine.js`.
+
 ### 🔧 Pièces (Peças)
 Catálogo de referência de componentes de impressora/copiadora, com nome em
 francês, português e inglês, categoria (Nettoyage / Montage / Électrique),

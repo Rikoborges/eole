@@ -633,6 +633,7 @@ function switchTab(view){
   document.getElementById('view-' + view).classList.add('active');
 
   if(view === 'saisie' && window.initSaisie) window.initSaisie();
+  if(view === 'semaine' && window.initSemaine) window.initSemaine(true);
   if(view === 'registro') initRegistro();
   if(view === 'analyse') initAnalyse();
   if(view === 'admin') initAdmin();

@@ -81,6 +81,7 @@
 
     <nav class="tabs" aria-label="Navigation principale">
       <button class="tab active" data-view="saisie" id="tab-saisie" aria-selected="true">Saisir</button>
+      <button class="tab" data-view="semaine" id="tab-semaine" aria-selected="false">Semaine</button>
       <button class="tab" data-view="pecas" aria-selected="false">Pièces</button>
       <button class="tab" data-view="registro" aria-selected="false">Suivi</button>
       <button class="tab" data-view="analyse" aria-selected="false">Analyse</button>
@@ -95,6 +96,11 @@
     <!-- ===================== SECTION : SAISIR (déclaration d'activité) ===================== -->
     <section class="view active" id="view-saisie" aria-labelledby="tab-saisie">
       <div id="saisie-root"></div>
+    </section>
+
+    <!-- ===================== SECTION : SEMAINE (ma fiche + mes résultats) ===================== -->
+    <section class="view" id="view-semaine" aria-labelledby="tab-semaine">
+      <div id="semaine-root"></div>
     </section>
 
     <section class="view" id="view-pecas" aria-labelledby="tab-pecas">
@@ -596,5 +602,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js" integrity="sha384-qafw21c/iciq0VXsi9FzkfoQv5I/V0iqE4lSNcKXPnW9/UTJLnv5CcN4FHxVLnKg" crossorigin="anonymous"></script>
   <script src="script.js"></script>
   <script src="saisie.js"></script>
+  <script src="semaine.js"></script>
 </body>
 </html>
