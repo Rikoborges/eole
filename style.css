@@ -1503,3 +1503,8 @@ body{ -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 :focus-visible{ outline-color: var(--copper); }
 html[data-theme="light"] .sx-card, html[data-theme="light"] .sw-kpi, html[data-theme="light"] .sx-prog, html[data-theme="light"] .plate{ box-shadow: 0 1px 2px rgba(17,24,39,.06); }
 html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
+/* Filtres de Pièces : le filtre actif reste lisible dans les deux thèmes */
+.chip[data-cat].active{ background: var(--panel-2); color: var(--text); border-color: transparent; box-shadow: inset 0 0 0 1.5px var(--text); }
+.chip[data-cat="limpeza"].active{ box-shadow: inset 0 0 0 1.5px var(--clean); color: var(--clean); }
+.chip[data-cat="montagem"].active{ box-shadow: inset 0 0 0 1.5px var(--copper-text); color: var(--copper-text); }
+.chip[data-cat="eletrica"].active{ box-shadow: inset 0 0 0 1.5px var(--elec); color: var(--elec); }
