@@ -59,7 +59,7 @@
     view: 'atelier', period: 'w', week: null, today: null,
     filt: { metier: '', format: '', marque: '' }, opsF: 'open', selUser: null, mq: '',
     users: [], acts: [], hp: [], formats: [], metiers: [], models: [], motifs: [],
-    decls: [], ops: [], presence: [], firstDecl: {}, feed: [], closing: null, channel: null, reloadTimer: null
+    decls: [], ops: [], presence: [], firstDecl: {}, standards: [], rules: {}, pTab: 'collab', pmq: '', confirmDel: null, feed: [], closing: null, channel: null, reloadTimer: null
   };
   const userById = id => P.users.find(u => u.user_id === id);
   const uname = id => { const u = userById(id); return u ? (u.display_name || 'Sans nom') : '—'; };
@@ -96,21 +96,28 @@
   }
 
   /* ---------- chargement ---------- */
-  async function loadAll(){
-    const from = addDays(mondayOf(P.today), -7 * 7);
-    const [users, acts, hp, formats, metiers, models, motifs] = await Promise.all([
+  async function loadRefs(){
+    const [users, acts, hp, formats, metiers, models, motifs, standards, rules] = await Promise.all([
       sb.from('collaborateurs').select('*').order('display_name'),
       sb.from('activites').select('*').order('metier_id').order('sort'),
       sb.from('hors_production').select('*').order('sort'),
       sb.from('formats_horaires').select('*'),
       sb.from('metiers').select('*').order('sort'),
       sb.from('printer_models').select('id, brand, model, famille'),
-      sb.from('motifs_abandon').select('*').eq('active', true).order('sort')
+      sb.from('motifs_abandon').select('*').order('sort'),
+      sb.from('standards').select('*').order('valid_from'),
+      sb.from('regles_saisie').select('key, value')
     ]);
-    const bad = [users, acts, hp, formats, metiers, models, motifs].find(r => r.error);
+    const bad = [users, acts, hp, formats, metiers, models, motifs, standards, rules].find(r => r.error);
     if(bad) throw bad.error;
     Object.assign(P, { users: users.data, acts: acts.data, hp: hp.data, formats: formats.data, metiers: metiers.data,
-                       models: models.data, motifs: motifs.data });
+                       models: models.data, motifs: motifs.data, standards: standards.data,
+                       rules: Object.fromEntries(rules.data.map(r => [r.key, r.value])) });
+  }
+
+  async function loadAll(){
+    const from = addDays(mondayOf(P.today), -7 * 7);
+    await loadRefs();
     const [decls, opsRecent, opsOpen] = await Promise.all([
       fetchAll(() => sb.from('declarations').select('id, user_id, work_date, activite_id, hors_production_id, operation_id, quantity, hours, std_value, note, cancelled, created_at')
         .gte('work_date', from).order('work_date')),
@@ -246,10 +253,10 @@
 
   function render(){
     if(P.error){ root.innerHTML = `<div class="sx-card sx-notice"><h2 class="sx-h2">Pilotage indisponible</h2><p>${esc(P.error)}</p></div>`; return; }
-    const views = [['atelier', 'Atelier'], ['operations', 'Opérations'], ['collab', 'Collaborateurs'], ['activites', 'Activités'], ['machines', 'Machines']];
+    const views = [['atelier', 'Atelier'], ['operations', 'Opérations'], ['collab', 'Collaborateurs'], ['activites', 'Activités'], ['machines', 'Machines'], ['params', 'Paramètres']];
     const nOpen = P.ops.filter(o => OPEN.includes(o.status)).length;
     root.innerHTML = `<div class="pl-subnav" role="group" aria-label="Vues du pilotage">${views.map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${P.view === k}">${l}${k === 'operations' && nOpen ? ` <span class="pl-count">${nOpen}</span>` : ''}</button>`).join('')}</div>
-      ${({ atelier: vAtelier, operations: vOperations, collab: vCollab, activites: vActivites, machines: vMachines })[P.view]()}`;
+      ${({ atelier: vAtelier, operations: vOperations, collab: vCollab, activites: vActivites, machines: vMachines, params: vParams })[P.view]()}`;
   }
 
   function vAtelier(){
@@ -311,7 +318,7 @@
         const c = P.closing;
         const form = c && c.id === o.id ? `<tr class="pl-closing"><td colspan="10">
           <div class="sx-row pl-closeform"><b>${c.mode === 'abandon' ? 'Clôturer comme « Abandonnée / Non réalisable »' : 'Supprimer = annuler et archiver'}</b>
-            <label>Motif <select id="plMotif"><option value="">Choisir…</option>${P.motifs.map(m => `<option value="${m.id}" ${c.motif === m.id ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
+            <label>Motif <select id="plMotif"><option value="">Choisir…</option>${P.motifs.filter(m => m.active).map(m => `<option value="${m.id}" ${c.motif === m.id ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
             <label class="pl-grow">Commentaire${(P.motifs.find(m => m.id === c.motif) || {}).requires_comment ? ' (obligatoire)' : ''} <input type="text" id="plComment" value="${esc(c.comment)}"></label>
             <button type="button" class="sx-btn sx-primary" data-a="closeOk" ${c.busy ? 'disabled' : ''}>Confirmer</button><button type="button" class="sx-btn" data-a="closeCancel">Annuler</button></div>
           <p class="sx-small sx-mt">${c.mode === 'abandon' ? `Les ${h2(o.total_hours)} h restent dans le temps productif du collaborateur. La machine n'est pas comptée en quantité et l'opération ne fausse pas l'efficience.` : 'L\'opération et ses temps restent dans l\'historique (barrés) mais sortent des totaux. À utiliser pour une erreur de saisie.'}</p>
@@ -419,6 +426,183 @@
     return s + '</svg>';
   }
 
+  /* ---------- PARAMÈTRES : tout se règle ici, sans développeur ---------- */
+  const curStd = aid => { const l = P.standards.filter(s => s.activite_id === aid); return l.length ? l[l.length - 1] : null; };
+  const cb = (attrs, on, label) => `<input type="checkbox" class="pl-cb" ${attrs} ${on ? 'checked' : ''} aria-label="${esc(label)}">`;
+  function vParams(){
+    const tabs = [['collab', 'Collaborateurs'], ['acts', 'Activités et standards'], ['metiers', 'Métiers'], ['horaires', 'Formats horaires'],
+                  ['hp', 'Hors production'], ['motifs', 'Motifs d\'abandon'], ['models', 'Modèles machines'], ['rules', 'Règles de saisie']];
+    return `<p class="sx-small">Tout se règle ici. Les changements s'appliquent immédiatement à toute l'équipe.</p>
+      <div class="sx-seg pl-ptabs" role="group" aria-label="Paramètres">${tabs.map(([k, l]) => `<button type="button" data-ptab="${k}" aria-pressed="${P.pTab === k}">${l}</button>`).join('')}</div>
+      <div class="sx-card">${({ collab: pCollab, acts: pActs, metiers: pMetiers, horaires: pHoraires, hp: pHp, motifs: pMotifs, models: pModels, rules: pRules })[P.pTab]()}</div>`;
+  }
+  function pCollab(){
+    return `<div class="sx-tscroll"><table class="sx-table pl-ptable"><thead><tr><th>Nom affiché</th><th>Métier</th><th>Format</th><th>Intérim</th><th>Droits</th><th>Actif</th></tr></thead><tbody>
+      ${P.users.map(u => `<tr><td><input type="text" data-cu="${u.user_id}" data-cf="display_name" value="${esc(u.display_name || '')}" aria-label="Nom affiché"></td>
+        <td><select data-cu="${u.user_id}" data-cf="metier_id" aria-label="Métier de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.metiers.filter(m => m.active || m.id === u.metier_id).map(m => `<option value="${m.id}" ${u.metier_id === m.id ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></td>
+        <td><select data-cu="${u.user_id}" data-cf="format_id" aria-label="Format de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.formats.map(f => `<option value="${f.id}" ${u.format_id === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></td>
+        <td>${cb(`data-cu="${u.user_id}" data-cf="interim"`, u.interim, 'Intérim')}</td>
+        <td><select data-cu="${u.user_id}" data-cf="role" aria-label="Droits"><option value="collaborateur" ${u.role === 'collaborateur' ? 'selected' : ''}>Collaborateur</option><option value="responsable" ${u.role === 'responsable' ? 'selected' : ''}>Responsable</option></select></td>
+        <td>${cb(`data-cu="${u.user_id}" data-cf="active"`, u.active, 'Actif')}</td></tr>`).join('')}</tbody></table></div>
+      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Responsable » donne accès au Pilotage et aux Paramètres. Pour créer un compte (e-mail + mot de passe) : onglet Admin › Ajouter un technicien ; sa fiche apparaît ici aussitôt.</p>`;
+  }
+  function pActs(){
+    return P.metiers.map(m => `<h3 class="pl-h3">${esc(m.label)}${m.active ? '' : ' <span class="sx-pill sx-dim">désactivé</span>'}</h3>
+      <div class="sx-tscroll"><table class="sx-table pl-ptable"><thead><tr><th>Activité</th><th class="n">Standard h / qté</th><th>Matricule obligatoire</th><th>Active</th><th>Historique du standard</th></tr></thead><tbody>
+      ${P.acts.filter(a => a.metier_id === m.id).map(a => { const st = curStd(a.id), hist = P.standards.filter(s => s.activite_id === a.id);
+        return `<tr><td><input type="text" data-af="name" data-aid="${a.id}" value="${esc(a.name)}" aria-label="Nom de l'activité"></td>
+          <td class="n"><input type="text" class="pl-num" inputmode="decimal" data-std="${a.id}" value="${st && st.hours_per_unit !== null ? h2(st.hours_per_unit) : ''}" placeholder="—" aria-label="Standard ${esc(a.name)}"></td>
+          <td>${cb(`data-af="requires_machine" data-aid="${a.id}"`, a.requires_machine, 'Matricule obligatoire')}</td>
+          <td>${cb(`data-af="active" data-aid="${a.id}"`, a.active, 'Active')}</td>
+          <td class="sx-small">${hist.map(s => `${s.hours_per_unit === null ? '—' : h2(s.hours_per_unit)} depuis le ${esc(fmtDate(s.valid_from, { day: '2-digit', month: '2-digit', year: 'numeric' }))}`).join('<br>') || '—'}</td></tr>`; }).join('')}</tbody></table></div>`).join('') + `
+      <h3 class="pl-h3">Ajouter une activité</h3>
+      <div class="sx-row pl-addrow"><input type="text" id="npName" placeholder="Nom de l'activité" aria-label="Nom de l'activité">
+        <select id="npMetier" aria-label="Métier">${P.metiers.filter(m => m.active).map(m => `<option value="${m.id}">${esc(m.label)}</option>`).join('')}</select>
+        <input type="text" id="npStd" class="pl-num" inputmode="decimal" placeholder="Standard" aria-label="Standard en heures">
+        <label class="sx-check"><input type="checkbox" id="npMachine"> Matricule obligatoire</label>
+        <button type="button" class="sx-btn sx-primary" data-a="addAct">+ Ajouter</button></div>
+      <p class="sx-small sx-mt">Changer un standard ne modifie pas le passé : chaque déclaration garde la valeur en vigueur le jour où elle a été faite. Le nouveau standard s'applique à partir d'aujourd'hui. Une activité désactivée n'est plus proposée mais reste dans l'historique. « Matricule obligatoire » = 1 matricule = 1 quantité, étape suspendable.</p>`;
+  }
+  function pMetiers(){
+    return `<div class="sx-tscroll"><table class="sx-table pl-ptable"><thead><tr><th>Code</th><th>Nom</th><th>Actif</th><th class="n">Collaborateurs</th></tr></thead><tbody>
+      ${P.metiers.map(m => `<tr><td class="sx-mono">${esc(m.id)}</td><td><input type="text" data-mtf="label" data-mtid="${esc(m.id)}" value="${esc(m.label)}" aria-label="Nom du métier"></td><td>${cb(`data-mtf="active" data-mtid="${esc(m.id)}"`, m.active, 'Actif')}</td><td class="n">${P.users.filter(u => u.metier_id === m.id).length}</td></tr>`).join('')}</tbody></table></div>
+      <div class="sx-row pl-addrow sx-mt"><input type="text" id="nmt" placeholder="Nouveau métier (ex : Logisticien)" aria-label="Nouveau métier"><button type="button" class="sx-btn sx-primary" data-a="addMetier">+ Ajouter</button></div>
+      <p class="sx-small sx-mt">Chaque métier a ses propres activités (onglet Activités et standards). Un collaborateur ne voit que les activités de son métier.</p>`;
+  }
+  function pHoraires(){
+    const D = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+    return `<div class="sx-tscroll"><table class="sx-table pl-ptable"><thead><tr><th>Format</th><th class="n">Contrat (h)</th>${D.map(d => `<th class="n">${d}</th>`).join('')}<th class="n">Productif / semaine</th></tr></thead><tbody>
+      ${P.formats.map(f => `<tr><td><b>${esc(f.label)}</b></td><td class="n"><input type="text" class="pl-num" inputmode="decimal" data-fmtc="${esc(f.id)}" value="${h2(f.contract_hours)}" aria-label="Heures de contrat ${esc(f.label)}"></td>
+        ${f.day_hours.map((v, i) => `<td class="n"><input type="text" class="pl-num" inputmode="decimal" data-fmt="${esc(f.id)}" data-day="${i}" value="${h2(v)}" aria-label="${esc(f.label)} ${D[i]}"></td>`).join('')}
+        <td class="n"><b>${h2(f.day_hours.reduce((a, b) => a + Number(b), 0))} h</b></td></tr>`).join('')}</tbody></table></div>
+      <p class="sx-small sx-mt">Temps productif attendu par jour. L'objectif du jour de chaque collaborateur vient de son format (vendredi 4 h ou 6 h).</p>`;
+  }
+  function listParams(rows, kind, extra){
+    return `<div class="sx-tscroll"><table class="sx-table pl-ptable"><thead><tr><th>Libellé</th>${extra ? `<th>${extra.title}</th>` : ''}<th>Actif</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td><input type="text" data-lk="${kind}" data-lf="label" data-lid="${r.id}" value="${esc(r.label)}" aria-label="Libellé"></td>${extra ? `<td>${cb(`data-lk="${kind}" data-lf="${extra.field}" data-lid="${r.id}"`, r[extra.field], extra.title)}</td>` : ''}<td>${cb(`data-lk="${kind}" data-lf="active" data-lid="${r.id}"`, r.active, 'Actif')}</td></tr>`).join('')}</tbody></table></div>
+      <div class="sx-row pl-addrow sx-mt"><input type="text" id="nl-${kind}" placeholder="Nouveau motif" aria-label="Nouveau motif"><button type="button" class="sx-btn sx-primary" data-addl="${kind}">+ Ajouter</button></div>`;
+  }
+  const pHp = () => listParams(P.hp, 'hp') + '<p class="sx-small sx-mt">Ces motifs expliquent une journée atypique : ils ne comptent jamais comme contre-performance. Un motif désactivé n\'est plus proposé mais reste dans l\'historique.</p>';
+  const pMotifs = () => listParams(P.motifs, 'motif', { title: 'Commentaire obligatoire', field: 'requires_comment' }) + '<p class="sx-small sx-mt">Utilisés pour clôturer une opération (abandon ou suppression).</p>';
+  function pModels(){
+    const q = P.pmq.trim().toUpperCase().replace(/[\s.\-]/g, '');
+    const list = q ? P.models.filter(m => (m.model + (m.famille || '') + m.brand).toUpperCase().replace(/[\s.\-]/g, '').includes(q)) : P.models;
+    const brands = [...new Set(P.models.map(m => m.brand))].sort();
+    return `<div class="sx-row"><div class="sx-msearch pl-grow"><span class="sx-loupe" aria-hidden="true">🔍</span><input type="text" id="plPmq" class="sx-mono" value="${esc(P.pmq)}" placeholder="Rechercher parmi ${P.models.length} modèles" aria-label="Rechercher un modèle"></div>
+      <span class="sx-small">${brands.map(b => `${esc(b)} ${P.models.filter(m => m.brand === b).length}`).join(' · ')}</span></div>
+      <div id="plModels">${modelsTable(list)}</div>
+      <div class="sx-row pl-addrow sx-mt"><input type="text" id="nmD" class="sx-mono" placeholder="Désignation (ex : IRAC3530 REC)" aria-label="Désignation"><input type="text" id="nmF" class="sx-mono pl-num" placeholder="Famille (CA0…)" aria-label="Code famille">
+        <input type="text" id="nmB" list="plBrands" placeholder="Marque" aria-label="Marque"><datalist id="plBrands">${brands.map(b => `<option value="${esc(b)}">`).join('')}</datalist>
+        <button type="button" class="sx-btn sx-primary" data-a="addModel">+ Ajouter</button></div>
+      <p class="sx-small sx-mt">Un modèle déjà utilisé sur une machine ne peut pas être supprimé (l'historique en a besoin).</p>`;
+  }
+  function modelsTable(list){
+    return `<div class="sx-tscroll pl-models"><table class="sx-table"><thead><tr><th>Désignation</th><th>Famille</th><th>Marque</th><th></th></tr></thead><tbody>
+      ${list.slice(0, 150).map(m => `<tr><td class="sx-mono">${esc(m.model)}</td><td class="sx-mono sx-small">${esc(m.famille || '')}</td><td>${esc(m.brand)}</td><td><button type="button" class="sx-btn sx-sm sx-danger" data-delmodel="${m.id}">${P.confirmDel === m.id ? 'Confirmer' : 'Supprimer'}</button></td></tr>`).join('')}</tbody></table>
+      ${list.length > 150 ? `<p class="sx-small">… ${list.length - 150} autres : affinez la recherche.</p>` : ''}</div>`;
+  }
+  function pRules(){
+    const r = P.rules, corr = r.correction || 'day';
+    const tog = (k, title, help, def) => `<label class="pl-toggle">${cb(`data-rule="${k}"`, r[k] === undefined ? def : r[k] === true, title)}<span><b>${title}</b><span class="sx-small">${help}</span></span></label>`;
+    return `<label class="pl-filters">Correction par le collaborateur <select data-rule="correction">${[['day', 'Jusqu\'à la fin de la journée'], ['h24', 'Pendant 24 h'], ['week', 'Jusqu\'à la fin de la semaine'], ['none', 'Responsable uniquement']].map(([k, l]) => `<option value="${k}" ${corr === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${tog('resultats_visibles', 'Les collaborateurs voient « Mes résultats »', 'Sinon, seul le responsable voit les résultats individuels.', true)}
+      ${tog('chrono', 'Chrono facultatif dans Saisir', 'Désactivé par défaut : l\'outil est une déclaration, pas un pointage. Activé, il ne fait que proposer un temps que le collaborateur valide.', false)}
+      ${tog('photos_suivi', 'Photos, checklist et lecture IA du bon (onglet Suivi)', 'Fonctions de l\'onglet Suivi, gardées en option.', true)}`;
+  }
+
+  async function saveParam(promise, okMsg){
+    const { error } = await promise;
+    if(error){ toastPl('Erreur : ' + dbError(error)); }
+    else if(okMsg) toastPl(okMsg);
+    try{ await loadRefs(); }catch(e){ console.error(e); }
+    render();
+    return !error;
+  }
+  const parseNum = v => { const s = String(v).trim().replace(',', '.'); if(s === '') return null; const n = Number(s); return isNaN(n) ? NaN : n; };
+  async function onParamChange(t){
+    const d = t.dataset, val = t.type === 'checkbox' ? t.checked : t.value;
+    if(d.cu){
+      const v = (d.cf === 'metier_id' || d.cf === 'format_id') ? (val || null) : d.cf === 'display_name' ? (val.trim() || null) : val;
+      return saveParam(sb.from('collaborateurs').update({ [d.cf]: v }).eq('user_id', d.cu), 'Fiche mise à jour.');
+    }
+    if(d.af){
+      if(d.af === 'name' && !val.trim()) return render();
+      return saveParam(sb.from('activites').update({ [d.af]: d.af === 'name' ? val.trim() : val }).eq('id', d.aid), 'Activité mise à jour.');
+    }
+    if(d.std){
+      const n = parseNum(val);
+      if(Number.isNaN(n) || (n !== null && (n < 0 || n > 99))){ t.classList.add('pl-err'); toastPl('Standard invalide (ex : 0,25).'); return; }
+      const cur = curStd(d.std);
+      if(cur && (cur.hours_per_unit === null ? null : Number(cur.hours_per_unit)) === n) return;
+      return saveParam(sb.from('standards').upsert({ activite_id: d.std, hours_per_unit: n, valid_from: P.today }, { onConflict: 'activite_id,valid_from' }),
+        `Nouveau standard ${n === null ? 'vide' : h2(n) + ' h'} à partir d'aujourd'hui. Les déclarations passées gardent l'ancien.`);
+    }
+    if(d.mtf){
+      if(d.mtf === 'label' && !val.trim()) return render();
+      return saveParam(sb.from('metiers').update({ [d.mtf]: d.mtf === 'label' ? val.trim() : val }).eq('id', d.mtid), 'Métier mis à jour.');
+    }
+    if(d.fmt !== undefined || d.fmtc !== undefined){
+      const n = parseNum(val);
+      if(n === null || Number.isNaN(n) || n < 0 || n > 60){ t.classList.add('pl-err'); toastPl('Nombre d\'heures invalide.'); return; }
+      if(d.fmtc !== undefined) return saveParam(sb.from('formats_horaires').update({ contract_hours: n }).eq('id', d.fmtc), 'Format mis à jour.');
+      if(n > 12){ t.classList.add('pl-err'); toastPl('Au plus 12 h par jour.'); return; }
+      const f = P.formats.find(x => x.id === d.fmt), days = f.day_hours.map(Number); days[+d.day] = n;
+      return saveParam(sb.from('formats_horaires').update({ day_hours: days }).eq('id', d.fmt), 'Format mis à jour.');
+    }
+    if(d.lk){
+      const table = d.lk === 'hp' ? 'hors_production' : 'motifs_abandon';
+      if(d.lf === 'label' && !val.trim()) return render();
+      return saveParam(sb.from(table).update({ [d.lf]: d.lf === 'label' ? val.trim() : val }).eq('id', d.lid), 'Motif mis à jour.');
+    }
+    if(d.rule){
+      return saveParam(sb.from('regles_saisie').upsert({ key: d.rule, value: val, updated_at: new Date().toISOString() }), 'Règle mise à jour.');
+    }
+  }
+  async function onParamClick(d){
+    if(d.ptab){ P.pTab = d.ptab; P.confirmDel = null; render(); return true; }
+    if(d.a === 'addAct'){
+      const name = document.getElementById('npName').value.trim(), metier = document.getElementById('npMetier').value;
+      const std = parseNum(document.getElementById('npStd').value), machine = document.getElementById('npMachine').checked;
+      if(!name){ toastPl('Indiquez le nom de l\'activité.'); return true; }
+      if(Number.isNaN(std)){ toastPl('Standard invalide (ex : 0,25).'); return true; }
+      const sort = Math.max(0, ...P.acts.filter(a => a.metier_id === metier).map(a => a.sort || 0)) + 1;
+      const { data, error } = await sb.from('activites').insert({ metier_id: metier, name, requires_machine: machine, sort }).select().single();
+      if(error){ toastPl('Erreur : ' + (error.code === '23505' ? 'cette activité existe déjà pour ce métier.' : dbError(error))); return true; }
+      await saveParam(sb.from('standards').insert({ activite_id: data.id, hours_per_unit: std, valid_from: P.today }), `Activité « ${name} » ajoutée.`);
+      return true;
+    }
+    if(d.a === 'addMetier'){
+      const label = document.getElementById('nmt').value.trim(); if(!label) return true;
+      const id = label.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || ('M' + Date.now());
+      const sort = Math.max(0, ...P.metiers.map(m => m.sort || 0)) + 1;
+      await saveParam(sb.from('metiers').insert({ id, label, sort }), `Métier « ${label} » ajouté. Ajoutez maintenant ses activités.`);
+      return true;
+    }
+    if(d.addl){
+      const label = document.getElementById('nl-' + d.addl).value.trim(); if(!label) return true;
+      const table = d.addl === 'hp' ? 'hors_production' : 'motifs_abandon', list = d.addl === 'hp' ? P.hp : P.motifs;
+      await saveParam(sb.from(table).insert({ label, sort: Math.max(0, ...list.map(x => x.sort || 0)) + 1 }), `« ${label} » ajouté.`);
+      return true;
+    }
+    if(d.a === 'addModel'){
+      const model = document.getElementById('nmD').value.trim().toUpperCase(), famille = document.getElementById('nmF').value.trim().toUpperCase() || null;
+      const brand = document.getElementById('nmB').value.trim();
+      if(!model || !brand){ toastPl('Indiquez au moins la désignation et la marque.'); return true; }
+      await saveParam(sb.from('printer_models').insert({ brand, model, famille }), `Modèle « ${model} » ajouté.`);
+      return true;
+    }
+    if(d.delmodel){
+      if(P.confirmDel !== d.delmodel){ P.confirmDel = d.delmodel; render(); return true; }
+      P.confirmDel = null;
+      const { error } = await sb.from('printer_models').delete().eq('id', d.delmodel);
+      if(error) toastPl(error.code === '23503' ? 'Ce modèle est déjà utilisé sur une machine : il ne peut pas être supprimé.' : 'Erreur : ' + dbError(error));
+      else toastPl('Modèle supprimé.');
+      await loadRefs(); render();
+      return true;
+    }
+    return false;
+  }
+
   /* ---------- exports Excel (CSV ; séparateur « ; » et virgule décimale) ---------- */
   const num = v => (v === null || v === undefined || isNaN(v)) ? '' : String(r2(Number(v))).replace('.', ',');
   function exportCsv(kind){
@@ -485,6 +669,7 @@
     else if(d.a === 'closeOk') confirmClose();
     else if(d.export) exportCsv(d.export);
     else if(d.mq){ P.mq = d.mq; render(); }
+    else await onParamClick(d);
   });
   root.addEventListener('keydown', e => {
     const row = e.target.closest && e.target.closest('[data-open]');
@@ -493,6 +678,7 @@
   root.addEventListener('input', e => {
     const t = e.target;
     if(t.id === 'plComment' && P.closing) P.closing.comment = t.value;
+    else if(t.id === 'plPmq'){ P.pmq = t.value; const q = t.value.trim().toUpperCase().replace(/[\s.\-]/g, ''); document.getElementById('plModels').innerHTML = modelsTable(q ? P.models.filter(m => (m.model + (m.famille || '') + m.brand).toUpperCase().replace(/[\s.\-]/g, '').includes(q)) : P.models); }
     else if(t.id === 'plMq'){
       P.mq = t.value; const q = P.mq.trim().toUpperCase();
       const groups = {}; if(q.length >= 3) P.ops.filter(o => o.serial && o.serial.includes(q)).forEach(o => (groups[o.serial] = groups[o.serial] || []).push(o));
@@ -504,6 +690,7 @@
     if(t.dataset.filt !== undefined){ P.filt[t.dataset.filt] = t.value; render(); }
     else if(t.id === 'plUser'){ P.selUser = t.value; render(); }
     else if(t.id === 'plMotif' && P.closing){ P.closing.motif = t.value; P.closing.err = ''; render(); }
+    else if(t.closest('.pl-ptable') || t.dataset.rule !== undefined) onParamChange(t);
   });
 
   /* ---------- connexion ---------- */

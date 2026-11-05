@@ -451,6 +451,18 @@ create policy declarations_update_resp on declarations
   for update using (is_responsable());
 
 
+-- Modèles machines : gérables par tout responsable (pas seulement les e-mails admin)
+drop policy if exists "printer_models_insert_admin" on printer_models;
+drop policy if exists "printer_models_update_admin" on printer_models;
+drop policy if exists "printer_models_delete_admin" on printer_models;
+drop policy if exists printer_models_insert_resp on printer_models;
+drop policy if exists printer_models_update_resp on printer_models;
+drop policy if exists printer_models_delete_resp on printer_models;
+create policy printer_models_insert_resp on printer_models for insert with check (is_responsable());
+create policy printer_models_update_resp on printer_models for update using (is_responsable());
+create policy printer_models_delete_resp on printer_models for delete using (is_responsable());
+
+
 -- ############################################################################
 -- ##  6. VUE : temps cumulé par opération (respecte les droits de chacun)
 -- ############################################################################

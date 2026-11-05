@@ -632,7 +632,7 @@ function switchTab(view){
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
 
-  if(view === 'saisie' && window.initSaisie) window.initSaisie();
+  if(view === 'saisie' && window.initSaisie) window.initSaisie(true);
   if(view === 'semaine' && window.initSemaine) window.initSemaine(true);
   if(view === 'pilotage' && window.initPilotage) window.initPilotage();
   if(view === 'registro') initRegistro();

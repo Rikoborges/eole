@@ -244,6 +244,7 @@
         <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}</h3>
           <div class="sx-quick">${[0.25, 0.5, 1, 1.5, 2, 3].map(v => `<button type="button" data-tq="${v}" aria-pressed="false">${h2(v)}</button>`).join('')}</div>
           <div class="sx-row sx-mt"><input type="text" id="sxTime" class="sx-mono sx-time" value="${esc(f.tRaw)}" placeholder="ex : 1h30, 45 min" aria-label="Temps consacré" inputmode="decimal"><span id="sxConv" class="sx-small"></span></div>
+          ${SX.rules.chrono === true ? chronoHTML() : ''}
         </div></div>
         ${isM ? `<div class="sx-step"><span class="sx-num">${N()}</span><div><h3>Statut de l'étape</h3>
           <div class="sx-stchoice">
@@ -317,6 +318,28 @@
         : d.cancelled ? '' : '<span class="sx-small">🔒 Verrouillé</span>'}
     </li>`;
   }
+
+  /* ---------- chrono facultatif (si le responsable l'active) ----------
+     Il ne fait que proposer un temps : le collaborateur le voit dans le champ
+     et valide lui-même. Rien n'est enregistré en base tant qu'il ne valide pas. */
+  const chronoKey = () => 'rb-chrono-' + SX.userId;
+  const chronoStart = () => { try{ const v = localStorage.getItem(chronoKey()); return v ? Number(v) : null; }catch(e){ return null; } };
+  let chronoTick = null;
+  function chronoHTML(){
+    const st = chronoStart();
+    return `<div class="sx-row sx-mt sx-chrono"><button type="button" class="sx-btn" data-a="chrono">${st ? '⏹ Arrêter et utiliser ce temps' : '⏱ Chrono (facultatif)'}</button><span id="sxChronoT" class="sx-mono sx-small">${st ? hm((Date.now() - st) / 3600000) : ''}</span></div>`;
+  }
+  function chronoToggle(){
+    const st = chronoStart();
+    try{
+      if(st){
+        localStorage.removeItem(chronoKey());
+        SX.form.tRaw = h2(Math.max(0.01, r2((Date.now() - st) / 3600000)));
+      } else localStorage.setItem(chronoKey(), String(Date.now()));
+    }catch(e){ toast('Chrono indisponible sur ce navigateur.'); }
+    render();
+  }
+  setInterval(() => { const el = document.getElementById('sxChronoT'), st = chronoStart(); if(el && st) el.textContent = hm((Date.now() - st) / 3600000); }, 15000);
 
   /* ---------- modèle : recherche avec loupe ---------- */
   function searchModels(q, limit = 8){
@@ -493,6 +516,7 @@
     else if(d.a === 'qm'){ f.qte = Math.max(1, (parseInt(f.qte, 10) || 1) - 1); document.getElementById('sxQte').value = f.qte; }
     else if(d.a === 'qp'){ f.qte = (parseInt(f.qte, 10) || 0) + 1; document.getElementById('sxQte').value = f.qte; }
     else if(d.a === 'save') save();
+    else if(d.a === 'chrono') chronoToggle();
     else if(d.a === 'repeat'){ SX.form = Object.assign(blankForm(), SX.lastSaved); render(); toast('Activité et modèle repris : indiquez le matricule et le temps.'); }
     else if(d.a === 'cancelForm'){ SX.form = blankForm(); render(); }
     else if(d.a === 'mChange'){ f.model = null; const box = document.getElementById('sxModelBox'); box.innerHTML = modelBox(); document.getElementById('sxModelQ').focus(); }

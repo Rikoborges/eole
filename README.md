@@ -53,9 +53,21 @@ quem tiver o direito "responsable" na ficha). Cinco visões:
   por marca de máquina, em curso e abandonos.
 - **Machines**: rastreabilidade por N° de série, tempo dia a dia e total.
 
+- **Paramètres**: tudo o que o cahier des charges pede sem programador —
+  fichas dos collaborateurs (nome, métier, formato, intérim, direitos,
+  ativo), atividades e **standards com histórico** (o novo valor vale a
+  partir de hoje; o passado não muda), métiers, formatos horários, motivos
+  hors production e de abandono, modelos de máquina (busca, inclusão,
+  exclusão se nunca usado) e regras de saisie (prazo de correção,
+  "Mes résultats" visível, cronômetro opcional, fotos do Suivi).
+
 O "attendu" de cada pessoa começa no primeiro dia em que ela declarou, para
 o início do uso (ou a chegada de um intérim) não aparecer como horas
 faltando. Código em `pilotage.js`.
+
+### 🌗 Tema claro / escuro
+Botão ☾ / ☀ / ◐ no topo: escuro (padrão), claro ou automático (segue o
+aparelho). A escolha fica guardada no navegador (`theme.js`).
 
 ### 🔧 Pièces (Peças)
 Catálogo de referência de componentes de impressora/copiadora, com nome em
