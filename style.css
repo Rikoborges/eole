@@ -1397,3 +1397,34 @@ body{ -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 .tab.active{ color: var(--copper-text); }
 .sx-table .n, .sx-mono, .sx-time-v{ font-feature-settings: "tnum"; }
 .sx-table th.n{ font-family: 'Barlow', sans-serif; }
+
+/* =========================================================
+   SUIVI — même visuel que Saisir / Pilotage (fonctions inchangées)
+   ========================================================= */
+#view-registro .today-total{ font: 600 15px 'Barlow', sans-serif; color: var(--text-dim); text-align: left; margin: 0 0 14px; }
+#view-registro .today-total b{ font-family: 'Oswald', sans-serif; font-size: 20px; color: var(--copper-text); }
+#view-registro .btn-new{
+  background: var(--copper); color: oklch(18% 0.03 90);
+  font: 600 16px 'Barlow', sans-serif; letter-spacing: .01em; text-transform: none;
+  border-radius: 10px; padding: 14px; min-height: 52px; margin-bottom: 10px;
+}
+#view-registro .btn-new:hover{ filter: brightness(1.05); }
+#view-registro .btn-new-secondary{
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  font-weight: 600;
+}
+#view-registro .btn-new-secondary:hover{ border-color: var(--copper); filter: none; }
+#view-registro #state-idle > .btn-new:last-of-type{ margin-bottom: 22px; }
+#view-registro .hist-label{ font: 600 15px 'Barlow', sans-serif; color: var(--text); letter-spacing: .01em; text-transform: none; margin: 18px 0 10px; }
+#view-registro .job-card{ background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--copper); border-radius: var(--radius-md); }
+#view-registro .job-card h3, #view-registro .job-card .job-title{ font-family: 'Barlow', sans-serif; font-weight: 600; text-transform: none; letter-spacing: 0; }
+#view-registro .period-toggle{ background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+#view-registro .period-btn{ font: 600 13px 'Barlow', sans-serif; text-transform: none; letter-spacing: .01em; border-radius: 7px; border: 0; background: none; color: var(--text-dim); }
+#view-registro .period-btn.active, #view-registro .period-btn[aria-pressed="true"]{ background: var(--panel-2); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+#view-registro .btn-export{ font: 600 14px 'Barlow', sans-serif; text-transform: none; letter-spacing: .01em; border-radius: 10px; }
+#view-registro .empty{ font-size: 15px; }
+#view-registro .history-list .job-card{ margin-bottom: 8px; }
+#view-registro .form-box{ background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-md); }
+#view-registro .field-label{ margin-top: 14px; }
+#view-registro .btn-primary, #view-registro .btn-secondary{ font: 600 15px 'Barlow', sans-serif; text-transform: none; letter-spacing: .01em; border-radius: 10px; }
+#view-registro .hist-head{ margin-top: 20px; }

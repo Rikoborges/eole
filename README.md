@@ -294,6 +294,7 @@ supabase/
   printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)
   machine-models.sql        ⭐ rodar depois do 2º (248 modelos da oficina + código famille)
   atelier-schema.sql        ⭐ base da declaração de atividade (cahier des charges)
+  import-jobs.sql           copia o histórico do Suivi antigo (jobs) para as telas novas, sem apagar nada
   harden-admin-check.sql    ⭐ rodar 3º (tranca quem pode chamar is_admin())
   presence.sql              ⭐ tempo de conexão por técnico (botão ⏱ + Admin)
   rls-admin-vs-own.sql      histórico, não precisa rodar

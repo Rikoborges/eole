@@ -225,7 +225,7 @@
       if(d < P.today && tot < obj - 0.01) out.push({ k: 'mid', t: 'Temps incomplet', m: `${h2(tot)} h déclarées sur ${h2(obj)} h`, d, u });
       if(tot > obj + 0.01) out.push({ k: 'bad', t: 'Temps supérieur à l\'objectif', m: `${h2(tot)} h pour ${h2(obj)} h`, d, u });
     }});
-    P.ops.filter(o => o.user_id === u.user_id && o.status !== 'annulee' && inW(o.started_on, W) && (!o.serial || !o.model_id))
+    P.ops.filter(o => o.user_id === u.user_id && o.status !== 'annulee' && !o.imported && inW(o.started_on, W) && (!o.serial || !o.model_id))
       .forEach(o => out.push({ k: 'bad', t: !o.serial ? 'Matricule non renseigné' : 'Modèle non renseigné', m: aname(o.activite_id), d: o.started_on, u }));
     if(W.includes(mondayOf(P.today))) P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status)).forEach(o => {
       const last = o.last_work_date || o.started_on, n = workdaysBetween(last, P.today);
@@ -311,7 +311,7 @@
       ${list.map(o => {
         const last = o.last_work_date || o.started_on, n = OPEN.includes(o.status) ? workdaysBetween(last, P.today) : 0;
         const motif = (P.motifs.find(m => m.id === o.motif_id) || {}).label;
-        const row = `<tr class="${o.status === 'annulee' ? 'pl-struck' : ''}"><td class="sx-mono">${o.serial ? esc(o.serial) : '<span class="sx-bad">à compléter</span>'}</td><td class="sx-small">${esc((modelById(o.model_id) || {}).model || '—')}</td>
+        const row = `<tr class="${o.status === 'annulee' ? 'pl-struck' : ''}"><td class="sx-mono">${o.serial ? esc(o.serial) : o.imported ? '<span class="sx-small">ancien Suivi</span>' : '<span class="sx-bad">à compléter</span>'}</td><td class="sx-small">${esc((modelById(o.model_id) || {}).model || '—')}</td>
           <td>${esc(aname(o.activite_id))}</td><td>${esc(uname(o.user_id))}</td><td>${esc(shortDate(o.started_on))}</td><td>${esc(shortDate(last))}${n >= 2 ? ` <span class="sx-pill sx-mid">${n} j</span>` : ''}</td>
           <td class="n">${h2(o.total_hours)} h</td><td class="n">${h2(o.std_value)} h</td>
           <td>${pill(o.status)}${(motif || o.close_comment) ? `<br><span class="sx-small">${esc(motif || '')}${o.close_comment ? ' · ' + esc(o.close_comment) : ''}${o.closed_at ? ' · ' + esc(new Date(o.closed_at).toLocaleString('fr-FR', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' })) : ''}${o.closed_by ? ' · par ' + esc(uname(o.closed_by)) : ''}</span>` : ''}</td>

@@ -466,7 +466,9 @@ create policy printer_models_delete_resp on printer_models for delete using (is_
 -- ############################################################################
 -- ##  6. VUE : temps cumulé par opération (respecte les droits de chacun)
 -- ############################################################################
-create or replace view operations_avec_temps
+alter table operations add column if not exists imported boolean not null default false;  -- historique de l'ancien Suivi
+drop view if exists operations_avec_temps;
+create view operations_avec_temps
 with (security_invoker = true) as
 select o.*,
        coalesce(sum(d.hours) filter (where not d.cancelled), 0)::numeric(6,2) as total_hours,
@@ -474,6 +476,7 @@ select o.*,
 from operations o
 left join declarations d on d.operation_id = o.id
 group by o.id;
+grant select on operations_avec_temps to authenticated;
 
 
 -- ############################################################################
