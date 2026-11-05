@@ -982,7 +982,7 @@ async function tryOCR(base64){
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: mediaType, data: rawBase64 } },
-            { type: "text", text: "Ceci est la photo d'un bon de commande de reconditionnement d'imprimante. Réponds UNIQUEMENT avec un JSON au format {\"brand\":\"...\",\"model\":\"...\"} avec la marque (Canon, Toshiba, Kyocera, Konica Minolta, Sharp, Ricoh, ou celle écrite sur le papier) et le modèle de l'imprimante identifiés. Si un champ est illisible, laisse une chaîne vide. N'écris rien d'autre que le JSON." }
+            { type: "text", text: "Ceci est la photo d'un bon de commande de reconditionnement d'imprimante. Réponds UNIQUEMENT avec un JSON au format {\"brand\":\"...\",\"model\":\"...\"} avec la marque (Canon, Toshiba, Kyocera, Konica Minolta, Sharp, Ricoh, HP, ou celle écrite sur le papier) et le modèle de l'imprimante identifiés. Si un champ est illisible, laisse une chaîne vide. N'écris rien d'autre que le JSON." }
           ]
         }]
       })
