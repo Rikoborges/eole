@@ -55,7 +55,7 @@
   /* ---------- état ---------- */
   const P = {
     allowed: null, ready: false, loading: false, error: null, me: null,
-    view: 'atelier', period: 'w', week: null, today: null,
+    view: 'atelier', period: 'w', week: null, day: null, today: null,
     filt: { metier: '', format: '', marque: '' }, opsF: 'open', selUser: null, mq: '',
     users: [], acts: [], hp: [], formats: [], metiers: [], models: [], motifs: [],
     decls: [], ops: [], presence: [], firstDecl: {}, standards: [], rules: {}, pTab: 'collab', pmq: '', confirmDel: null, feed: [], closing: null, channel: null, reloadTimer: null
@@ -118,7 +118,7 @@
     const from = addDays(mondayOf(P.today), -7 * 7);
     await loadRefs();
     const [decls, opsRecent, opsOpen] = await Promise.all([
-      fetchAll(() => sb.from('declarations').select('id, user_id, work_date, activite_id, hors_production_id, operation_id, quantity, hours, std_value, note, cancelled, created_at')
+      fetchAll(() => sb.from('declarations').select('id, user_id, work_date, activite_id, hors_production_id, operation_id, quantity, hours, std_value, note, checklist, cancelled, created_at')
         .gte('work_date', from).order('work_date')),
       fetchAll(() => sb.from('operations_avec_temps').select('*').gte('started_on', addDays(from, -60)).order('started_on')),
       fetchAll(() => sb.from('operations_avec_temps').select('*').in('status', OPEN))
@@ -176,13 +176,16 @@
   }
 
   /* ---------- calculs ---------- */
+  // Période choisie : W = liste des lundis concernés ; en mode « Jour », W.day
+  // restreint tous les calculs à ce seul jour.
   const periodMondays = () => {
+    if(P.period === 'd'){ const W = [mondayOf(P.day)]; W.day = P.day; return W; }
     const n = P.period === 'w' ? 1 : P.period === '4w' ? 4 : 8;
     const last = P.period === 'w' ? P.week : mondayOf(P.today);
     return Array.from({ length: n }, (_, i) => addDays(last, -7 * (n - 1 - i)));
   };
   const last8 = () => Array.from({ length: 8 }, (_, i) => addDays(mondayOf(P.today), -7 * (7 - i)));
-  const inW = (d, W) => d && W.includes(mondayOf(d));
+  const inW = (d, W) => !!d && W.includes(mondayOf(d)) && (!W.day || d === W.day);
   const live = d => !d.cancelled;
   function teamUsers(){
     return P.users.filter(u => u.active && u.metier_id && u.format_id &&
@@ -213,21 +216,21 @@
   // arrivée d'un intérimaire) : sinon les semaines d'avant compteraient comme « manquantes ».
   function expected(u, W){
     const first = P.firstDecl[u.user_id]; if(!first) return 0;
-    let s = 0; W.forEach(m => { for(let i = 0; i < 5; i++){ const d = addDays(m, i); if(d <= P.today && d >= first) s += objDay(u, d); } }); return s;
+    let s = 0; W.forEach(m => { for(let i = 0; i < 5; i++){ const d = addDays(m, i); if(d <= P.today && d >= first && (!W.day || d === W.day)) s += objDay(u, d); } }); return s;
   }
   function alertsFor(u, W){
     const out = [], mine = P.decls.filter(d => d.user_id === u.user_id && live(d));
     const first = mine.length ? mine.reduce((a, d) => d.work_date < a ? d.work_date : a, mine[0].work_date) : null;
     if(!first) out.push({ k: 'mid', t: 'Aucune déclaration', m: 'depuis 8 semaines', d: null, u });
     W.forEach(m => { for(let i = 0; i < 5; i++){
-      const d = addDays(m, i); if(d > P.today || !first || d < first) continue;
+      const d = addDays(m, i); if(d > P.today || !first || d < first || (W.day && d !== W.day)) continue;
       const tot = r2(mine.filter(x => x.work_date === d).reduce((a, x) => a + Number(x.hours), 0)), obj = objDay(u, d);
       if(d < P.today && tot < obj - 0.01) out.push({ k: 'mid', t: 'Temps incomplet', m: `${h2(tot)} h déclarées sur ${h2(obj)} h`, d, u });
       if(tot > obj + 0.01) out.push({ k: 'bad', t: 'Temps supérieur à l\'objectif', m: `${h2(tot)} h pour ${h2(obj)} h`, d, u });
     }});
     P.ops.filter(o => o.user_id === u.user_id && o.status !== 'annulee' && !o.imported && inW(o.started_on, W) && (!o.serial || !o.model_id))
       .forEach(o => out.push({ k: 'bad', t: !o.serial ? 'Matricule non renseigné' : 'Modèle non renseigné', m: aname(o.activite_id), d: o.started_on, u }));
-    if(W.includes(mondayOf(P.today))) P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status)).forEach(o => {
+    if(W.day ? W.day === P.today : W.includes(mondayOf(P.today))) P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status)).forEach(o => {
       const last = o.last_work_date || o.started_on, n = workdaysBetween(last, P.today);
       if(n >= 2) out.push({ k: 'mid', t: `À poursuivre depuis ${n} jours`, m: `${aname(o.activite_id)} · ${o.serial || 'sans matricule'}`, d: last, u });
     });
@@ -239,8 +242,12 @@
   function periodCtl(){
     const W = periodMondays();
     return `<div class="sx-row">
-      <div class="sx-seg" role="group" aria-label="Période">${[['w', 'Semaine'], ['4w', '4 sem.'], ['8w', '8 sem.']].map(([k, l]) => `<button type="button" data-period="${k}" aria-pressed="${P.period === k}">${l}</button>`).join('')}</div>
-      ${P.period === 'w' ? `<span class="week-nav sx-daynav"><button type="button" data-week="-1" aria-label="Semaine précédente" ${P.week <= last8()[0] ? 'disabled' : ''}>‹</button><span class="week-nav-label">${weekLabel(P.week)}</span><button type="button" data-week="1" aria-label="Semaine suivante" ${P.week >= mondayOf(P.today) ? 'disabled' : ''}>›</button></span>`
+      <div class="sx-seg" role="group" aria-label="Période">${[['d', 'Jour'], ['w', 'Semaine'], ['4w', '4 sem.'], ['8w', '8 sem.']].map(([k, l]) => `<button type="button" data-period="${k}" aria-pressed="${P.period === k}">${l}</button>`).join('')}</div>
+      ${P.period === 'd' ? `<span class="week-nav sx-daynav pl-daypick"><button type="button" data-dayp="-1" aria-label="Jour précédent" ${P.day <= last8()[0] ? 'disabled' : ''}>‹</button>
+          <input type="date" id="plDay" value="${P.day}" min="${last8()[0]}" max="${P.today}" aria-label="Choisir un jour">
+          <button type="button" data-dayp="1" aria-label="Jour suivant" ${P.day >= P.today ? 'disabled' : ''}>›</button></span>
+          <span class="sx-small">${esc(fmtDate(P.day, { weekday: 'long', day: 'numeric', month: 'long' }))}</span>${P.day !== P.today ? ' <button type="button" class="sx-btn sx-sm" data-dayp="0">Aujourd\'hui</button>' : ''}`
+      : P.period === 'w' ? `<span class="week-nav sx-daynav"><button type="button" data-week="-1" aria-label="Semaine précédente" ${P.week <= last8()[0] ? 'disabled' : ''}>‹</button><span class="week-nav-label">${weekLabel(P.week)}</span><button type="button" data-week="1" aria-label="Semaine suivante" ${P.week >= mondayOf(P.today) ? 'disabled' : ''}>›</button></span>`
         : `<span class="sx-small sx-mono">S${isoWeek(W[0])} → S${isoWeek(W[W.length - 1])}</span>`}</div>`;
   }
   function filtersHTML(withMarque){
@@ -287,6 +294,7 @@
           <td class="n sx-${effCls(x.eff)}">${pct(x.eff)}</td><td class="n">${no || ''}</td><td class="n">${na ? `<span class="sx-pill sx-mid">${na}</span>` : '<span class="sx-ok">✓</span>'}</td></tr>`; }).join('')}</tbody></table>
         <p class="sx-small sx-mt">Touchez une ligne pour le détail du collaborateur.</p>` : '<p class="sx-small">Aucun collaborateur avec métier et format renseignés.</p>'}
       </div>
+      ${W.day ? dayDetailCard(team, W.day) : ''}
       <div class="pl-grid">
         <div class="sx-card"><h2 class="sx-h2 sx-mb">Où passe le temps</h2>
           ${list.length ? `<div class="pl-bars">${list.map(([k, v]) => `<div class="pl-bar"><span>${esc(k)}</span><span class="sx-mono sx-small">${h2(v)} h · ${pct(v / tot)}</span><div class="pl-track"><span class="${k === 'Hors production' ? 'hp' : ''}" style="width:${v / list[0][1] * 100}%"></span></div></div>`).join('')}</div>` : '<p class="sx-small">Aucune déclaration sur la période.</p>'}
@@ -299,6 +307,21 @@
             <p class="sx-small sx-mt">Période et filtres affichés ci-dessus.</p></div>
         </div>
       </div>`;
+  }
+
+  function dayDetailCard(team, day){
+    const blocks = team.map(u => {
+      const list = P.decls.filter(d => d.user_id === u.user_id && d.work_date === day).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+      const tot = r2(list.filter(live).reduce((a, d) => a + Number(d.hours), 0)), obj = objDay(u, day);
+      const cls = !obj && !tot ? 'dim' : Math.abs(tot - obj) < 0.01 ? 'ok' : tot > obj ? 'bad' : 'mid';
+      return `<div class="pl-dayblock"><div class="sx-row sx-between"><b>${esc(u.display_name || 'Sans nom')}</b><span class="sx-${cls}">${hm(tot)}${obj ? ' / ' + hm(obj) : ''}</span></div>
+        ${list.length ? `<ul class="pl-daylist">${list.map(d => {
+          const o = d.operation_id && P.ops.find(x => x.id === d.operation_id);
+          const name = d.activite_id ? aname(d.activite_id) : ((P.hp.find(h => h.id === d.hors_production_id) || {}).label || '');
+          return `<li class="${d.cancelled ? 'pl-struck' : ''}"><span class="sx-mono">${hm(Number(d.hours))}</span><span>${esc(name)}${d.quantity ? ` <small>× ${d.quantity}</small>` : ''}${o ? ` <small class="sx-mono">${esc(o.serial || '')}</small> ${pill(o.status)}` : ''}${Array.isArray(d.checklist) && d.checklist.length ? ` <small>✓ ${d.checklist.length}</small>` : ''}${d.note ? ` <small>« ${esc(d.note)} »</small>` : ''}${d.cancelled ? ' <small>(annulée)</small>' : ''}</span></li>`; }).join('')}</ul>`
+          : `<p class="sx-small">${obj ? 'Aucune déclaration.' : 'Jour non travaillé dans son format.'}</p>`}</div>`;
+    }).join('');
+    return `<div class="sx-card"><h2 class="sx-h2 sx-mb">Déclarations du ${esc(fmtDate(day, { weekday: 'long', day: 'numeric', month: 'long' }))}</h2><div class="pl-daygrid">${blocks}</div></div>`;
   }
 
   function vOperations(){
@@ -333,7 +356,7 @@
     if(!team.length) return '<div class="sx-card"><p class="sx-small">Aucun collaborateur avec métier et format renseignés.</p></div>';
     if(!P.selUser || !team.some(u => u.user_id === P.selUser)) P.selUser = team[0].user_id;
     const u = userById(P.selUser), W = periodMondays(), s = stats([u.user_id], W), exp = expected(u, W);
-    const all8 = last8(), mW = P.period === 'w' ? all8 : W, half = Math.ceil(mW.length / 2), early = mW.slice(0, half), late = mW.slice(half);
+    const all8 = last8(), mW = (P.period === 'w' || P.period === 'd') ? all8 : W, half = Math.ceil(mW.length / 2), early = mW.slice(0, half), late = mW.slice(half);
     const rows = P.acts.filter(a => a.metier_id === u.metier_id).map(a => {
       const A = id => id === a.id, x = stats([u.user_id], mW, A), e1 = stats([u.user_id], early, A), e2 = stats([u.user_id], late, A);
       let trend = '→'; if(mW.length > 1 && e1.ops >= 3 && e2.ops >= 3 && e1.eff && e2.eff){ const d = e2.eff - e1.eff; trend = d > 0.03 ? '↗' : d < -0.03 ? '↘' : '→'; }
@@ -357,7 +380,7 @@
       <div class="sx-card sx-tscroll"><h2 class="sx-h2 sx-mb">Points de maîtrise et axes de progression</h2>
         ${rows.length ? `<table class="sx-table"><thead><tr><th>Activité</th><th class="n">Opér.</th><th class="n">Qté</th><th class="n">Théorique</th><th class="n">Réalisé</th><th class="n">Efficience</th><th class="n">Tendance</th><th>Statut</th></tr></thead>
         <tbody>${rows.map(r => `<tr><td>${esc(r.a.name)}${r.open ? ` <span class="sx-pill sx-mid">${r.open} en cours</span>` : ''}</td><td class="n">${r.x.ops}</td><td class="n">${r.x.qte}</td><td class="n">${r.x.real ? h2(r.x.theo) : '—'}</td><td class="n">${h2(r.x.real || r.x.decl)}</td><td class="n sx-${effCls(r.x.eff)}">${pct(r.x.eff)}</td><td class="n sw-trend">${r.trend}</td><td><span class="sx-pill sx-${r.status[0]}">${r.status[1]}</span></td></tr>`).join('')}</tbody></table>` : '<p class="sx-small">Pas encore de déclaration.</p>'}
-        <p class="sx-small sx-mt">Au moins 5 opérations pour classer une activité. Calculé sur ${P.period === 'w' ? 'les 8 dernières semaines' : 'la période'}.</p></div>
+        <p class="sx-small sx-mt">Au moins 5 opérations pour classer une activité. Calculé sur ${(P.period === 'w' || P.period === 'd') ? 'les 8 dernières semaines' : 'la période'}.</p></div>
       <div class="pl-grid">
         <div class="sx-card"><h2 class="sx-h2 sx-mb">Efficience par semaine</h2>${trendSVG(all8.map(m => stats([u.user_id], [m]).eff), all8)}</div>
         <div class="pl-side">
@@ -638,7 +661,7 @@
   const num = v => (v === null || v === undefined || isNaN(v)) ? '' : String(r2(Number(v))).replace('.', ',');
   function exportCsv(kind){
     const W = periodMondays(), team = teamUsers(), ids = team.map(u => u.user_id);
-    const tag = P.period === 'w' ? 'S' + isoWeek(P.week) : `S${isoWeek(W[0])}-S${isoWeek(W[W.length - 1])}`;
+    const tag = P.period === 'd' ? P.day : P.period === 'w' ? 'S' + isoWeek(P.week) : `S${isoWeek(W[0])}-S${isoWeek(W[W.length - 1])}`;
     let rows;
     if(kind === 'detail'){
       rows = [['Date', 'Collaborateur', 'Métier', 'Format', 'Activité / motif', 'Quantité', 'Temps déclaré (h)', 'Standard appliqué (h/qté)', 'Temps théorique (h)', 'N° de série', 'Modèle', 'Statut étape', 'Commentaire', 'Annulée']];
@@ -692,7 +715,8 @@
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset;
     if(d.view){ P.view = d.view; P.closing = null; render(); }
-    else if(d.period){ P.period = d.period; render(); }
+    else if(d.period){ P.period = d.period; if(d.period === 'd' && !P.day) P.day = P.today; render(); }
+    else if(d.dayp !== undefined){ const n = +d.dayp; P.day = n === 0 ? P.today : addDays(P.day, n); if(P.day > P.today) P.day = P.today; if(P.day < last8()[0]) P.day = last8()[0]; render(); }
     else if(d.week !== undefined){ P.week = addDays(P.week, 7 * +d.week); if(P.week > mondayOf(P.today)) P.week = mondayOf(P.today); render(); }
     else if(d.opsf){ P.opsF = d.opsf; P.closing = null; render(); }
     else if(d.close){ P.closing = { id: d.close, mode: d.mode, motif: d.mode === 'annulee' ? ((P.motifs.find(m => /erreur/i.test(m.label)) || {}).id || '') : '', comment: '', err: '', busy: false }; render(); }
@@ -719,6 +743,7 @@
   root.addEventListener('change', e => {
     const t = e.target;
     if(t.dataset.filt !== undefined){ P.filt[t.dataset.filt] = t.value; render(); }
+    else if(t.id === 'plDay'){ if(t.value && t.value >= last8()[0] && t.value <= P.today){ P.day = t.value; render(); } }
     else if(t.id === 'plUser'){ P.selUser = t.value; render(); }
     else if(t.id === 'plMotif' && P.closing){ P.closing.motif = t.value; P.closing.err = ''; render(); }
     else if(t.closest('.pl-ptable') || t.dataset.rule !== undefined) onParamChange(t);

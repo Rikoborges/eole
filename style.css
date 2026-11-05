@@ -1514,3 +1514,10 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 .sx-checklist{ margin-top: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 2px; }
 .sx-checklist .sx-check{ margin-top: 6px; color: var(--text); font-size: 14px; }
 .sx-chrono-t{ font-size: 20px; font-weight: 600; color: var(--text); }
+/* Admin : choix d'un jour précis (calendrier) */
+.pl-daypick input[type="date"]{ width: auto; min-height: 36px; padding: 4px 8px; border: 0; background: transparent; color: var(--text); font: 600 14px 'Barlow', sans-serif; }
+.pl-daygrid{ display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.pl-dayblock{ border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; background: var(--panel-2); }
+.pl-daylist{ list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.pl-daylist li{ display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 8px; }
+.pl-daylist small{ color: var(--text-dim); }
