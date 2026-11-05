@@ -3,9 +3,9 @@
    « auto » suit le réglage de l'appareil. Le choix est gardé sur ce
    navigateur (préférence personnelle, rien en base). */
 (function(){
-  var KEY = 'rb-theme', ORDER = ['dark', 'light', 'auto'];
+  var KEY = 'rb-theme', ORDER = ['auto', 'light', 'dark'];
   var LABEL = { dark: 'sombre', light: 'clair', auto: 'automatique (comme l’appareil)' };
-  function get(){ try{ return localStorage.getItem(KEY) || 'dark'; }catch(e){ return 'dark'; } }
+  function get(){ try{ return localStorage.getItem(KEY) || 'auto'; }catch(e){ return 'auto'; } }
   function effective(t){ return t === 'auto' ? (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : t; }
   function apply(t){
     document.documentElement.setAttribute('data-theme', effective(t));

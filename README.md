@@ -16,8 +16,8 @@ peças. Roda direto no navegador, sem instalação — é um site estático
 Cabeçalho compacto com o nome do app e, **só para quem é responsable**, o
 botão **Collaborateur / Responsable**. Abas do collaborateur: Saisir ·
 Ma semaine · Suivi · Pièces. Abas do responsable: Atelier · Opérations ·
-Collaborateurs · Activités · Machines · Paramètres · Analyse Suivi ·
-Comptes (criação de contas, só admins). O modo escolhido fica guardado no
+Collaborateurs · Activités · Machines · Paramètres. A criação de contas fica
+em Paramètres › Collaborateurs (só admins). O modo escolhido fica guardado no
 navegador; um responsable abre em modo Responsable.
 
 ### ✍️ Saisir (Declarar) — nova aba principal
@@ -74,8 +74,8 @@ o início do uso (ou a chegada de um intérim) não aparecer como horas
 faltando. Código em `pilotage.js`.
 
 ### 🌗 Tema claro / escuro
-Botão ☾ / ☀ / ◐ no topo: escuro (padrão), claro ou automático (segue o
-aparelho). A escolha fica guardada no navegador (`theme.js`).
+Botão ◐ / ☀ / ☾ no topo: automático (padrão, segue o aparelho), claro ou
+escuro. Contraste reforçado e rótulos em letra normal para leitura o dia todo. A escolha fica guardada no navegador (`theme.js`).
 
 ### 🔧 Pièces (Peças)
 Catálogo de referência de componentes de impressora/copiadora, com nome em

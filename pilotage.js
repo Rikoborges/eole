@@ -445,7 +445,13 @@
         <td>${cb(`data-cu="${u.user_id}" data-cf="interim"`, u.interim, 'Intérim')}</td>
         <td><select data-cu="${u.user_id}" data-cf="role" aria-label="Droits"><option value="collaborateur" ${u.role === 'collaborateur' ? 'selected' : ''}>Collaborateur</option><option value="responsable" ${u.role === 'responsable' ? 'selected' : ''}>Responsable</option></select></td>
         <td>${cb(`data-cu="${u.user_id}" data-cf="active"`, u.active, 'Actif')}</td></tr>`).join('')}</tbody></table></div>
-      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Responsable » donne accès au Pilotage et aux Paramètres. Pour créer un compte (e-mail + mot de passe) : onglet Admin › Ajouter un technicien ; sa fiche apparaît ici aussitôt.</p>`;
+      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Responsable » donne accès au Pilotage et aux Paramètres.</p>
+      <h3 class="pl-h3">Créer un compte</h3>
+      <div class="sx-row pl-addrow"><input type="text" id="ncName" placeholder="Nom (ex : Paul D.)" aria-label="Nom" autocomplete="off">
+        <input type="text" id="ncEmail" inputmode="email" placeholder="E-mail" aria-label="E-mail" autocomplete="off">
+        <input type="text" id="ncPass" placeholder="Mot de passe provisoire (8 caractères min.)" aria-label="Mot de passe provisoire" autocomplete="off">
+        <button type="button" class="sx-btn sx-primary" data-a="addAccount">+ Créer le compte</button></div>
+      <p class="sx-small sx-mt">Communiquez le mot de passe à la personne. Sa fiche apparaît aussitôt dans le tableau : choisissez ensuite son métier et son format.</p>`;
   }
   function pActs(){
     return P.metiers.map(m => `<h3 class="pl-h3">${esc(m.label)}${m.active ? '' : ' <span class="sx-pill sx-dim">désactivé</span>'}</h3>
@@ -570,6 +576,23 @@
       const { data, error } = await sb.from('activites').insert({ metier_id: metier, name, requires_machine: machine, sort }).select().single();
       if(error){ toastPl('Erreur : ' + (error.code === '23505' ? 'cette activité existe déjà pour ce métier.' : dbError(error))); return true; }
       await saveParam(sb.from('standards').insert({ activite_id: data.id, hours_per_unit: std, valid_from: P.today }), `Activité « ${name} » ajoutée.`);
+      return true;
+    }
+    if(d.a === 'addAccount'){
+      const name = document.getElementById('ncName').value.trim(), email = document.getElementById('ncEmail').value.trim(), password = document.getElementById('ncPass').value;
+      if(!email.includes('@')){ toastPl('E-mail invalide.'); return true; }
+      if(password.length < 8){ toastPl('Le mot de passe doit avoir au moins 8 caractères.'); return true; }
+      const { data: { session } } = await sb.auth.getSession();
+      if(!session){ toastPl('Session expirée : reconnectez-vous.'); return true; }
+      try{
+        const res = await fetch('/api/create-technician', { method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ name, email, password }) });
+        const body = await res.json().catch(() => ({}));
+        if(!res.ok){ toastPl(body.error || 'Erreur lors de la création du compte.'); return true; }
+        await loadRefs(); render();
+        toastPl(`Compte créé pour ${body.email || email}. Choisissez maintenant son métier et son format.`);
+      }catch(err){ console.error(err); toastPl('Erreur réseau : réessayez.'); }
       return true;
     }
     if(d.a === 'addMetier'){

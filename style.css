@@ -1346,3 +1346,54 @@ html[data-theme="light"] .sx-toast{ box-shadow: 0 12px 40px #16242640; }
   .topbar .brand{ font-size: 19px; }
   .role-switch button{ padding: 6px 10px; }
 }
+
+/* =========================================================
+   LISIBILITÉ — contraste renforcé et libellés en lettres normales
+   (journée entière devant l'écran : textes plus nets, moins de gris)
+   ========================================================= */
+:root{
+  --bg:        oklch(17% 0.016 200);
+  --panel:     oklch(22.5% 0.018 200);
+  --panel-2:   oklch(27% 0.02 200);
+  --line:      oklch(37% 0.022 200);
+  --text:      oklch(96% 0.008 90);
+  --text-dim:  oklch(80% 0.018 210);
+  --copper-text: oklch(84% 0.13 88);
+  --clean:     oklch(78% 0.09 170);
+  --elec:      oklch(77% 0.12 32);
+}
+:root[data-theme="light"]{
+  --bg:          oklch(97% 0.006 200);
+  --panel:       oklch(100% 0 0);
+  --panel-2:     oklch(94.5% 0.01 200);
+  --line:        oklch(84% 0.015 200);
+  --text:        oklch(19% 0.02 210);
+  --text-dim:    oklch(38% 0.025 210);
+  --copper:      oklch(76% 0.15 82);
+  --copper-dim:  oklch(68% 0.11 82);
+  --copper-text: oklch(44% 0.11 68);
+  --clean:       oklch(42% 0.09 170);
+  --elec:        oklch(46% 0.15 30);
+  --warn:        oklch(50% 0.17 25);
+}
+html[data-theme="light"] .plate{ background: var(--panel); box-shadow: 0 1px 3px oklch(20% 0.02 210 / 8%); }
+html[data-theme="light"] .sx-card, html[data-theme="light"] .sw-kpi, html[data-theme="light"] .sx-prog{ box-shadow: 0 1px 3px oklch(20% 0.02 210 / 6%); }
+
+body{ -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+/* Libellés : Barlow lisible au lieu de petites capitales en police machine */
+.sx-h2, .sw-lbl, .sx-table th, .hist-label, .field-label, .pl-filters label, .pl-h3{
+  font-family: 'Barlow', sans-serif; letter-spacing: .01em; text-transform: none;
+  font-size: 14px; font-weight: 600; color: var(--text-dim);
+}
+.sx-h2, .pl-h3{ font-size: 15px; color: var(--text); }
+.sw-lbl{ font-size: 13.5px; }
+.sx-table th{ font-size: 13px; }
+.sx-table td{ font-size: 15px; }
+.sx-small, .sx-meta, .sx-card small{ font-size: 14px; }
+.sx-pill{ font: 600 12px 'Barlow', sans-serif; letter-spacing: .01em; padding: 3px 8px; }
+.sw-val{ font-size: clamp(22px, 3.2cqi, 28px); }
+.tab{ font-size: 15px; letter-spacing: .03em; color: var(--text-dim); }
+.tab.active{ color: var(--copper-text); }
+.sx-table .n, .sx-mono, .sx-time-v{ font-feature-settings: "tnum"; }
+.sx-table th.n{ font-family: 'Barlow', sans-serif; }
