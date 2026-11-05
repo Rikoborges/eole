@@ -120,6 +120,13 @@ tudo o que eles faziam.
 gerenciável pelo Admin) e já vem populada com os modelos que estavam fixos
 no código antes. Depende da função `is_admin()` criada pelo script anterior.
 
+Em seguida rode `supabase/machine-models.sql` — ele acrescenta a coluna
+`famille` (código CA0…) na `printer_models` e carrega os **248 modelos da
+base da oficina** (Désignation + Famille + Marque, incluindo HP). Os modelos
+antigos continuam lá; nada é apagado. Pode rodar de novo sem duplicar. O
+cabeçalho do arquivo lista o que foi limpo (5 linhas duplicadas, 4 modelos
+Sharp marcados como Canon) e o que ainda falta confirmar com a oficina.
+
 Rode também `supabase/presence.sql` — cria a tabela `presence` (primeira e
 última atividade de cada técnico por dia, com a hora do **servidor**, não
 do navegador). O técnico vê o próprio tempo no botão ⏱ do topo; o admin vê
@@ -209,6 +216,7 @@ api/
 supabase/
   setup-complete.sql        ⭐ rodar 1º (colunas + segurança)
   printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)
+  machine-models.sql        ⭐ rodar depois do 2º (248 modelos da oficina + código famille)
   harden-admin-check.sql    ⭐ rodar 3º (tranca quem pode chamar is_admin())
   presence.sql              ⭐ tempo de conexão por técnico (botão ⏱ + Admin)
   rls-admin-vs-own.sql      histórico, não precisa rodar
