@@ -148,9 +148,10 @@ async function handleLogin(){
 
   try{
     // Identifiant atelier (ex. « paul.durand ») : le compte a été créé avec
-    // l'adresse technique paul.durand@eole-atelier.local, jamais utilisée pour écrire.
+    // l'adresse technique paul.durand@eole-reco.vercel.app (domaine du site, accepté par
+    // Supabase qui refuse les « .local »), jamais utilisée pour envoyer un e-mail.
     let email = document.getElementById('authEmail').value.trim().toLowerCase();
-    if(email && !email.includes('@')) email += '@eole-atelier.local';
+    if(email && !email.includes('@')) email += '@eole-reco.vercel.app';
     const password = document.getElementById('authPassword').value;
 
     if(!email || !password){

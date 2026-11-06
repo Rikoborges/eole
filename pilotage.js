@@ -609,7 +609,7 @@
       if(!login) login = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '');
       if(!login){ toastPl('Indiquez un nom ou un identifiant.'); return true; }
       if(!/^[a-z0-9._@-]+$/.test(login)){ toastPl('Identifiant : lettres, chiffres, point ou tiret seulement.'); return true; }
-      const email = login.includes('@') ? login : login + '@eole-atelier.local';
+      const email = login.includes('@') ? login : login + '@eole-reco.vercel.app';
       if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toastPl('E-mail invalide.'); return true; }
       if(password.length < 8){ toastPl('Le mot de passe doit avoir au moins 8 caractères.'); return true; }
       const { data: { session } } = await sb.auth.getSession();
@@ -621,7 +621,7 @@
         const body = await res.json().catch(() => ({}));
         if(!res.ok){ toastPl(body.error || 'Erreur lors de la création du compte.'); return true; }
         await loadRefs(); render();
-        toastPl(email.endsWith('@eole-atelier.local') ? `Compte créé. Identifiant de connexion : ${email.replace('@eole-atelier.local', '')}` : `Compte créé pour ${body.email || email}. Choisissez maintenant son métier et son format.`);
+        toastPl(email.endsWith('@eole-reco.vercel.app') ? `Compte créé. Identifiant de connexion : ${email.replace('@eole-reco.vercel.app', '')}` : `Compte créé pour ${body.email || email}. Choisissez maintenant son métier et son format.`);
       }catch(err){ console.error(err); toastPl('Erreur réseau : réessayez.'); }
       return true;
     }
