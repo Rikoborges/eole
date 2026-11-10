@@ -156,14 +156,32 @@ async function handleLogin(){
 
     if(!email || !password){
       errEl.style.color = 'var(--warn)';
-      errEl.textContent = 'Remplissez email et mot de passe.';
+      errEl.textContent = 'Remplissez identifiant et mot de passe.';
       return;
     }
 
+    // Connexion par le serveur (api/login.js) : 5 essais faux → blocage temporaire.
+    // Si ce serveur n'est pas configuré, connexion directe comme avant.
+    let res = null, body = {};
+    try{
+      res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: email, password }) });
+      body = await res.json().catch(() => ({}));
+    }catch(_){ res = null; }
+    if(res && res.ok && body.access_token){
+      const { error } = await sb.auth.setSession({ access_token: body.access_token, refresh_token: body.refresh_token });
+      if(error){ errEl.style.color = 'var(--warn)'; errEl.textContent = 'Erreur : ' + error.message; }
+      else errEl.hidden = true;
+      return;
+    }
+    if(res && !body.fallback && res.status !== 404 && res.status !== 405 && res.status < 500){
+      errEl.style.color = 'var(--warn)';
+      errEl.textContent = body.error || 'Connexion impossible.';
+      return;
+    }
     const { error } = await sb.auth.signInWithPassword({ email, password });
     if(error){
       errEl.style.color = 'var(--warn)';
-      errEl.textContent = 'Erreur : ' + error.message;
+      errEl.textContent = /invalid login credentials/i.test(error.message) ? 'Identifiant ou mot de passe incorrect.' : 'Erreur : ' + error.message;
     } else {
       errEl.hidden = true;
     }

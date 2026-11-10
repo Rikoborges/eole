@@ -293,18 +293,22 @@ vendido para terceiros.
 ```
 index.html              estrutura da página (todas as telas)
 style.css               visual (paleta petróleo + cobre, mobile-first)
+motdepasse.js           botão 🔑 (trocar a própria senha) + troca obrigatória da senha provisória
 script.js               toda a lógica (dados, telas, gráficos, Supabase)
 favicon.svg             ícone do site
 vercel.json             cabeçalhos de segurança HTTP (deploy na Vercel)
 package.json            dependência da função serverless (api/)
 api/
   create-technician.js      ⚠️ roda só no servidor — cria login de técnico
+  login.js                  ⚠️ roda só no servidor — conexão com limite (5 erros → bloqueio 15 min, depois 30, 60… máx. 24 h)
+  reset-password.js         ⚠️ roda só no servidor — Admin gera senha provisória (troca obrigatória no 1º login)
 supabase/
   setup-complete.sql        ⭐ rodar 1º (colunas + segurança)
   printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)
   machine-models.sql        ⭐ rodar depois do 2º (248 modelos da oficina + código famille)
   atelier-schema.sql        ⭐ base da declaração de atividade (cahier des charges)
   import-jobs.sql           copia o histórico do Suivi antigo (jobs) para as telas novas, sem apagar nada
+  securite-connexion.sql    ⭐ bloqueio após 5 senhas erradas + senha provisória (rodar depois do atelier-schema)
   cleanup-old-models.sql    retira a lista antiga de modelos (sem código famille), mantém a base da oficina
   harden-admin-check.sql    ⭐ rodar 3º (tranca quem pode chamar is_admin())
   presence.sql              ⭐ tempo de conexão por técnico (botão ⏱ + Admin)

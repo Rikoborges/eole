@@ -114,9 +114,15 @@
                        rules: Object.fromEntries(rules.data.map(r => [r.key, r.value])) });
   }
 
+  async function loadGuards(){
+    const { data, error } = await sb.rpc('login_guard_status');
+    P.guards = error ? [] : (data || []);
+  }
+
   async function loadAll(){
     const from = addDays(mondayOf(P.today), -7 * 7);
     await loadRefs();
+    await loadGuards();
     const [decls, opsRecent, opsOpen] = await Promise.all([
       fetchAll(() => sb.from('declarations').select('id, user_id, work_date, activite_id, hors_production_id, operation_id, quantity, hours, std_value, note, checklist, cancelled, created_at')
         .gte('work_date', from).order('work_date')),
@@ -461,13 +467,15 @@
       <div class="sx-card">${({ collab: pCollab, acts: pActs, metiers: pMetiers, horaires: pHoraires, hp: pHp, motifs: pMotifs, models: pModels, rules: pRules })[P.pTab]()}</div>`;
   }
   function pCollab(){
-    return `<div class="sx-tscroll"><table class="sx-table pl-ptable"><thead><tr><th>Nom affiché</th><th>Métier</th><th>Format</th><th>Intérim</th><th>Droits</th><th>Actif</th></tr></thead><tbody>
+    return `<div class="sx-tscroll"><table class="sx-table pl-ptable pl-collab"><thead><tr><th>Nom affiché</th><th>Métier</th><th>Format</th><th>Intérim</th><th>Droits</th><th>Actif</th><th>Accès</th></tr></thead><tbody>
       ${P.users.map(u => `<tr><td><input type="text" data-cu="${u.user_id}" data-cf="display_name" value="${esc(u.display_name || '')}" aria-label="Nom affiché"></td>
         <td><select data-cu="${u.user_id}" data-cf="metier_id" aria-label="Métier de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.metiers.filter(m => m.active || m.id === u.metier_id).map(m => `<option value="${m.id}" ${u.metier_id === m.id ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></td>
         <td><select data-cu="${u.user_id}" data-cf="format_id" aria-label="Format de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.formats.map(f => `<option value="${f.id}" ${u.format_id === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></td>
         <td>${cb(`data-cu="${u.user_id}" data-cf="interim"`, u.interim, 'Intérim')}</td>
         <td><select data-cu="${u.user_id}" data-cf="role" aria-label="Droits"><option value="collaborateur" ${u.role === 'collaborateur' ? 'selected' : ''}>Collaborateur</option><option value="responsable" ${u.role === 'responsable' ? 'selected' : ''}>Admin</option></select></td>
-        <td>${cb(`data-cu="${u.user_id}" data-cf="active"`, u.active, 'Actif')}</td></tr>`).join('')}</tbody></table></div>
+        <td>${cb(`data-cu="${u.user_id}" data-cf="active"`, u.active, 'Actif')}</td>
+        <td class="pl-access">${accessCell(u)}</td></tr>`).join('')}</tbody></table></div>
+      ${P.tempPw ? `<div class="sx-alert sx-alert-mid pl-temppw"><b>Mot de passe provisoire de ${esc(uname(P.tempPw.user))}</b><span class="sx-mono">${esc(P.tempPw.password)}</span><span>Notez-le et donnez-le à la personne : il ne sera plus affiché. Elle devra choisir le sien à la connexion.</span><button type="button" class="sx-btn sx-sm" data-a="hideTempPw">J'ai noté</button></div>` : ''}
       <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Admin » donne accès au mode Admin (Atelier, Opérations… Paramètres).</p>
       <h3 class="pl-h3">Créer un compte</h3>
       <div class="sx-row pl-addrow"><input type="text" id="ncName" placeholder="Nom (ex : Paul D.)" aria-label="Nom" autocomplete="off">
@@ -475,6 +483,14 @@
         <input type="text" id="ncPass" placeholder="Mot de passe provisoire (8 caractères min.)" aria-label="Mot de passe provisoire" autocomplete="off">
         <button type="button" class="sx-btn sx-primary" data-a="addAccount">+ Créer le compte</button></div>
       <p class="sx-small sx-mt">Pas d'e-mail EOLE (intérim…) ? Laissez l'identifiant vide : il est créé à partir du nom (ex. « paul.durand »), et la personne se connecte avec cet identifiant, sans e-mail personnel. Communiquez-lui l'identifiant et le mot de passe. Sa fiche apparaît aussitôt : choisissez ensuite son métier et son format.</p>`;
+  }
+  function accessCell(u){
+    const g = (P.guards || []).find(x => x.user_id === u.user_id);
+    const locked = g && g.locked_until && new Date(g.locked_until) > new Date();
+    const status = locked ? `<span class="sx-pill sx-bad">Bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))}</span>`
+      : u.must_change_password ? '<span class="sx-pill sx-mid">Mot de passe provisoire</span>'
+      : g && g.failures ? `<span class="sx-pill sx-mid">${g.failures} essai${g.failures > 1 ? 's' : ''} faux</span>` : '<span class="sx-pill sx-ok">OK</span>';
+    return `${status}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button></div>`;
   }
   function pActs(){
     return P.metiers.map(m => `<h3 class="pl-h3">${esc(m.label)}${m.active ? '' : ' <span class="sx-pill sx-dim">désactivé</span>'}</h3>
@@ -592,6 +608,25 @@
   }
   async function onParamClick(d){
     if(d.ptab){ P.pTab = d.ptab; P.confirmDel = null; render(); return true; }
+    if(d.a === 'hideTempPw'){ P.tempPw = null; render(); return true; }
+    if(d.unlock){
+      const { error } = await sb.rpc('unlock_login', { p_user: d.unlock });
+      toastPl(error ? 'Erreur : ' + dbError(error) : 'Compte débloqué.');
+      await loadGuards(); render(); return true;
+    }
+    if(d.resetpw){
+      if(P.confirmReset !== d.resetpw){ P.confirmReset = d.resetpw; render(); return true; }
+      P.confirmReset = null;
+      const { data: { session } } = await sb.auth.getSession();
+      try{
+        const res = await fetch('/api/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }, body: JSON.stringify({ userId: d.resetpw }) });
+        const body = await res.json().catch(() => ({}));
+        if(!res.ok){ toastPl(body.error || 'Erreur lors de la réinitialisation.'); render(); return true; }
+        P.tempPw = { user: d.resetpw, password: body.password };
+        await loadRefs(); await loadGuards(); render();
+      }catch(e){ toastPl('Erreur réseau : réessayez.'); render(); }
+      return true;
+    }
     if(d.a === 'addAct'){
       const name = document.getElementById('npName').value.trim(), metier = document.getElementById('npMetier').value;
       const std = parseNum(document.getElementById('npStd').value), machine = document.getElementById('npMachine').checked;

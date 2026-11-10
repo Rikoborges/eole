@@ -70,5 +70,9 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: error.message });
   }
 
+  // Mot de passe provisoire : la personne choisira le sien à la première connexion
+  // (sans effet si supabase/securite-connexion.sql n'est pas encore installé).
+  await adminClient.from('collaborateurs').update({ must_change_password: true }).eq('user_id', data.user.id);
+
   return res.status(200).json({ ok: true, userId: data.user.id, email: data.user.email });
 };

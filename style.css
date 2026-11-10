@@ -1534,3 +1534,18 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 @container app (min-width: 820px){
   .sx-side{ position: sticky; top: 170px; max-height: calc(100vh - 190px); overflow-y: auto; overscroll-behavior: contain; }
 }
+/* Mot de passe : fenêtre (changement, provisoire obligatoire) et accès dans Paramètres */
+.pw-overlay{ position: fixed; inset: 0; z-index: 60; background: rgba(8, 12, 18, .72); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px; }
+.pw-box{ width: min(420px, 100%); display: grid; gap: 4px; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+.pw-box .field-label{ margin-top: 10px; }
+.pw-box .sx-row .btn-primary, .pw-box .sx-row .btn-secondary{ flex: 1; }
+.btn-key{ font-size: 15px; line-height: 1; }
+.pl-access{ min-width: 120px; }
+.pl-access .sx-row{ margin-top: 6px; gap: 6px; flex-wrap: wrap; }
+.pl-access .sx-btn{ padding: 4px 8px; font-size: 12px; white-space: nowrap; }
+/* Collaborateurs : colonnes plus serrées pour que « Accès » tienne à l'écran */
+.pl-collab input[type="text"]{ min-width: 100px; width: 120px; }
+.pl-collab select{ min-width: 0; max-width: 150px; }
+.pl-collab th, .pl-collab td{ padding-left: 6px; padding-right: 6px; }
+.pl-temppw{ margin-top: 12px; align-items: center; }
+.pl-temppw .sx-mono{ font-size: 18px; font-weight: 600; color: var(--text); }
