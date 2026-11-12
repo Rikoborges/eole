@@ -3,11 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#12181a">
+  <meta name="theme-color" content="#0F1720">
   <title>ReproBench</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="theme.js"></script>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <meta http-equiv="Content-Security-Policy" content="
@@ -32,8 +33,8 @@
       <h1>ReproBench</h1>
       <p class="sub">Connectez-vous pour accéder à vos données</p>
 
-      <label class="field-label" for="authEmail">Email</label>
-      <input type="email" id="authEmail" placeholder="vous@exemple.com" autocomplete="email">
+      <label class="field-label" for="authEmail">Identifiant ou e-mail</label>
+      <input type="text" id="authEmail" placeholder="identifiant ou e-mail" autocomplete="username" autocapitalize="none" spellcheck="false">
 
       <label class="field-label" for="authPassword">Mot de passe</label>
       <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password">
@@ -55,6 +56,12 @@
 
   <header class="app-header">
     <div class="plate">
+      <div class="topbar">
+      <h1 class="brand">Repro<b>Bench</b></h1>
+      <div class="role-switch" id="roleSwitch" role="group" aria-label="Voir l'application comme" hidden>
+        <button type="button" data-role-set="col" aria-pressed="true">Collaborateur</button>
+        <button type="button" data-role-set="resp" aria-pressed="false">Admin</button>
+      </div>
       <div class="account-row">
         <button type="button" class="avatar-btn" id="avatarBtn" title="Changer ma photo de profil" aria-label="Changer ma photo de profil">
           <img class="avatar-img" id="avatarImg" alt="" hidden>
@@ -63,6 +70,10 @@
         <input type="file" id="avatarInput" accept="image/*" class="visually-hidden">
 
         <span class="account-name" id="accountName">…</span>
+
+        <button class="btn-logout-icon btn-theme" id="btnTheme" type="button" title="Thème : sombre" aria-label="Changer le thème (sombre)">◐</button>
+
+        <button class="btn-logout-icon btn-key" id="btnPassword" type="button" title="Changer mon mot de passe" aria-label="Changer mon mot de passe">🔑</button>
 
         <button class="btn-logout-icon btn-presence" id="btnPresence" type="button" title="Mon temps de connexion" aria-label="Voir mon temps de connexion" aria-expanded="false" aria-controls="presencePanel" hidden>⏱</button>
 
@@ -73,17 +84,22 @@
           </svg>
         </button>
       </div>
+      </div>
       <p class="presence-panel" id="presencePanel" hidden></p>
-      <p class="eyebrow">Reconditionnement · Suivi</p>
-      <h1>ReproBench</h1>
-      <p class="sub">Pièces de référence + suivi de service</p>
     </div>
 
     <nav class="tabs" aria-label="Navigation principale">
-      <button class="tab active" data-view="pecas" aria-selected="true">Pièces</button>
-      <button class="tab" data-view="registro" aria-selected="false">Suivi</button>
-      <button class="tab" data-view="analyse" aria-selected="false">Analyse</button>
-      <button class="tab" data-view="admin" id="tab-admin-btn" aria-selected="false" hidden>Admin</button>
+      <!-- Collaborateur -->
+      <button class="tab active" data-role="col" data-view="saisie" id="tab-saisie" aria-selected="true">Saisir</button>
+      <button class="tab" data-role="col" data-view="semaine" id="tab-semaine" aria-selected="false">Ma semaine</button>
+      <button class="tab" data-role="col" data-view="pecas" aria-selected="false">Pièces</button>
+      <!-- Responsable (visibles seulement pour un responsable, en mode Responsable) -->
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="atelier" id="tab-pilotage-btn" aria-selected="false" hidden>Atelier</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="operations" aria-selected="false" hidden>Opérations</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="collab" aria-selected="false" hidden>Collaborateurs</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="activites" aria-selected="false" hidden>Activités</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="machines" aria-selected="false" hidden>Machines</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="params" aria-selected="false" hidden>Paramètres</button>
     </nav>
     <div class="stripe" aria-hidden="true"></div>
   </header>
@@ -91,7 +107,22 @@
   <main>
 
     <!-- ===================== SECTION : PIÈCES ===================== -->
-    <section class="view active" id="view-pecas" aria-labelledby="tab-pecas">
+    <!-- ===================== SECTION : SAISIR (déclaration d'activité) ===================== -->
+    <section class="view active" id="view-saisie" aria-labelledby="tab-saisie">
+      <div id="saisie-root"></div>
+    </section>
+
+    <!-- ===================== SECTION : SEMAINE (ma fiche + mes résultats) ===================== -->
+    <section class="view" id="view-semaine" aria-labelledby="tab-semaine">
+      <div id="semaine-root"></div>
+    </section>
+
+    <!-- ===================== SECTION : PILOTAGE (responsable des ateliers) ===================== -->
+    <section class="view" id="view-pilotage" aria-labelledby="tab-pilotage-btn">
+      <div id="pilotage-root"></div>
+    </section>
+
+    <section class="view" id="view-pecas" aria-labelledby="tab-pecas">
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -589,5 +620,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js" integrity="sha384-qafw21c/iciq0VXsi9FzkfoQv5I/V0iqE4lSNcKXPnW9/UTJLnv5CcN4FHxVLnKg" crossorigin="anonymous"></script>
   <script src="script.js"></script>
+  <script src="saisie.js"></script>
+  <script src="semaine.js"></script>
+  <script src="pilotage.js"></script>
+  <script src="motdepasse.js"></script>
 </body>
 </html>

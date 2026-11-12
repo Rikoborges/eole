@@ -12,6 +12,81 @@ peças. Roda direto no navegador, sem instalação — é um site estático
 
 ## Funcionalidades
 
+### 🧑‍🔧 / 🧭 Modo Collaborateur e modo Responsable
+Cabeçalho compacto com o nome do app e, **só para quem é responsable**, o
+botão **Collaborateur / Responsable**. Abas do collaborateur: Saisir ·
+Ma semaine · Suivi · Pièces. Abas do responsable: Atelier · Opérations ·
+Collaborateurs · Activités · Machines · Paramètres. A criação de contas fica
+em Paramètres › Collaborateurs (só admins). O modo escolhido fica guardado no
+navegador; um responsable abre em modo Responsable.
+
+### 🔀 Suivi dentro da Saisir
+A aba Suivi saiu: tudo o que ela fazia está na Saisir. Tempo attendu
+mostrado ao escolher a étape (e o théorique para a quantidade), cronômetro
+com pausa (se o admin ligar em Paramètres › Règles), checklist oficial ao
+finalizar (reconditionnement nas Parties techniques, installation em
+Installation / Mise en route — configurável por étape), étapes sem
+quantidade (ex.: Déballage, só tempo). Exports da semana (Excel) e "mes
+données" (RGPD) ficam em Ma semaine. Contas sem e-mail pessoal: o admin cria
+um identificador (ex.: paul.durand) e a pessoa entra com ele.
+
+### ✍️ Saisir (Declarar) — nova aba principal
+Tela de declaração de atividade do cahier des charges (precisa do
+`supabase/atelier-schema.sql`). Em 5 passos: atividade → quantidade (ou
+N° de série + modelo, com busca 🔍) → tempo (botões rápidos ou "1h30",
+"45 min") → status → validar. Mostra o objetivo do dia segundo o formato
+37 h / 39 h e o "reste à déclarer". Etapas com matricule: 1 matricule = 1
+quantidade, contada só na finalização; podem ficar "à poursuivre" e ser
+retomadas em outro dia ("Mes étapes en cours"). O mesmo N° de série não
+pode ser lançado duas vezes na mesma etapa. Dias anteriores consultáveis
+(‹ ›); correção só dentro do prazo definido pelo responsável; uma
+declaração nunca é apagada, só anulada (fica riscada). Código em `saisie.js`.
+
+### 📅 Semaine — Ma fiche + Mes résultats
+**Ma fiche**: a ficha do Excel da semana, preenchida sozinha a partir das
+declarações (atividade × dia, horas e quantidades, objetivo, "reste à
+déclarer"), com ‹ › para as semanas anteriores. **Mes résultats**: attendu,
+déclaré, hors production, théorique, écart e efficience (semana, 4 ou 8
+semanas), pontos de maîtrise por atividade (mínimo 5 operações, tendência
+↗ → ↘) e gráfico de efficience das 8 últimas semanas. Etapas com
+matricule contam só quando finalizadas, com o tempo somado de todos os
+dias. Se o responsável desligar "resultats_visibles", o collaborateur vê
+só a ficha. Código em `semaine.js`.
+
+### 🧭 Pilotage (só para o Responsable des Ateliers)
+Aba que só aparece para quem é responsable (`is_responsable()`: os admins +
+quem tiver o direito "responsable" na ficha). Cinco visões:
+- **Atelier**: período (semana com ‹ ›, 4 ou 8 semanas), filtros métier e
+  37 h / 39 h, os números do cahier des charges, tabela da equipe
+  (clicável), "Où passe le temps", alertas (tempo incompleto ou acima,
+  matricule/modelo faltando, étape parada há 2 dias úteis ou mais, fichas
+  sem métier/formato), atividade ao vivo (Realtime) e exports Excel
+  (détail, par collaborateur, par activité, opérations).
+- **Opérations**: étapes com matricule em curso / finalizadas / encerradas;
+  "Clôturer : abandonnée" ou "Supprimer" (= anular e arquivar) com motivo
+  obrigatório ("Autre" exige comentário). Nada é apagado.
+- **Collaborateurs**: resultados de uma pessoa, pontos de maîtrise,
+  tendência, étapes em curso, alertas e horário de conexão (escondido).
+- **Activités**: melhores resultados e maiores écarts por étape, filtro
+  por marca de máquina, em curso e abandonos.
+- **Machines**: rastreabilidade por N° de série, tempo dia a dia e total.
+
+- **Paramètres**: tudo o que o cahier des charges pede sem programador —
+  fichas dos collaborateurs (nome, métier, formato, intérim, direitos,
+  ativo), atividades e **standards com histórico** (o novo valor vale a
+  partir de hoje; o passado não muda), métiers, formatos horários, motivos
+  hors production e de abandono, modelos de máquina (busca, inclusão,
+  exclusão se nunca usado) e regras de saisie (prazo de correção,
+  "Mes résultats" visível, cronômetro opcional, fotos do Suivi).
+
+O "attendu" de cada pessoa começa no primeiro dia em que ela declarou, para
+o início do uso (ou a chegada de um intérim) não aparecer como horas
+faltando. Código em `pilotage.js`.
+
+### 🌗 Tema claro / escuro
+Botão ◐ / ☀ / ☾ no topo: automático (padrão, segue o aparelho), claro ou
+escuro. Contraste reforçado e rótulos em letra normal para leitura o dia todo. A escolha fica guardada no navegador (`theme.js`).
+
 ### 🔧 Pièces (Peças)
 Catálogo de referência de componentes de impressora/copiadora, com nome em
 francês, português e inglês, categoria (Nettoyage / Montage / Électrique),
@@ -127,6 +202,17 @@ antigos continuam lá; nada é apagado. Pode rodar de novo sem duplicar. O
 cabeçalho do arquivo lista o que foi limpo (5 linhas duplicadas, 4 modelos
 Sharp marcados como Canon) e o que ainda falta confirmar com a oficina.
 
+Depois rode `supabase/atelier-schema.sql` — a **base da nova ferramenta de
+declaração de atividade** (cahier des charges do Responsable des Ateliers):
+métiers, formatos 37 h / 39 h, atividades com **standards com histórico**,
+motivos hors production e de abandono, regras de correção, a ficha de cada
+collaborateur (métier, formato, intérim, direitos), **operações com
+matricule** (vários dias, status en cours / à poursuivre / finalisée /
+abandonnée / annulée) e as **declarações**, que nunca são apagadas (só
+anuladas). O próprio banco copia o standard em vigor em cada declaração e
+aplica as regras (matricule único por étape, prazo de correção, só o
+responsável abandona). Também liga o tempo real nessas duas tabelas.
+
 Rode também `supabase/presence.sql` — cria a tabela `presence` (primeira e
 última atividade de cada técnico por dia, com a hora do **servidor**, não
 do navegador). O técnico vê o próprio tempo no botão ⏱ do topo; o admin vê
@@ -207,16 +293,23 @@ vendido para terceiros.
 ```
 index.html              estrutura da página (todas as telas)
 style.css               visual (paleta petróleo + cobre, mobile-first)
+motdepasse.js           botão 🔑 (trocar a própria senha) + troca obrigatória da senha provisória
 script.js               toda a lógica (dados, telas, gráficos, Supabase)
 favicon.svg             ícone do site
 vercel.json             cabeçalhos de segurança HTTP (deploy na Vercel)
 package.json            dependência da função serverless (api/)
 api/
   create-technician.js      ⚠️ roda só no servidor — cria login de técnico
+  login.js                  ⚠️ roda só no servidor — conexão com limite (5 erros → bloqueio 15 min, depois 30, 60… máx. 24 h)
+  reset-password.js         ⚠️ roda só no servidor — Admin gera senha provisória (troca obrigatória no 1º login)
 supabase/
   setup-complete.sql        ⭐ rodar 1º (colunas + segurança)
   printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)
   machine-models.sql        ⭐ rodar depois do 2º (248 modelos da oficina + código famille)
+  atelier-schema.sql        ⭐ base da declaração de atividade (cahier des charges)
+  import-jobs.sql           copia o histórico do Suivi antigo (jobs) para as telas novas, sem apagar nada
+  securite-connexion.sql    ⭐ bloqueio após 5 senhas erradas + senha provisória (rodar depois do atelier-schema)
+  cleanup-old-models.sql    retira a lista antiga de modelos (sem código famille), mantém a base da oficina
   harden-admin-check.sql    ⭐ rodar 3º (tranca quem pode chamar is_admin())
   presence.sql              ⭐ tempo de conexão por técnico (botão ⏱ + Admin)
   rls-admin-vs-own.sql      histórico, não precisa rodar
