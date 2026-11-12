@@ -379,6 +379,80 @@
       </tbody></table></div>`;
   }
 
+
+  /* ---------- graphiques du détail collaborateur ---------- */
+  const PALETTE = ['var(--copper)', '#4F9DDE', '#22C55E', '#A78BFA', '#F97316', '#2DD4BF', '#F472B6', '#94A3B8'];
+
+  // Machines finalisées par marque (clic sur une marque → ses modèles)
+  function brandChart(u, W){
+    const done = P.ops.filter(o => o.user_id === u.user_id && o.status === 'final' && inW(o.finished_on, W));
+    if(!done.length) return '<p class="sx-small">Aucune machine finalisée sur la période.</p>';
+    const by = {}; done.forEach(o => { const m = modelById(o.model_id); const b = m ? m.brand : 'Modèle non renseigné'; (by[b] = by[b] || []).push(m ? m.model : '—'); });
+    const list = Object.entries(by).sort((a, b) => b[1].length - a[1].length), max = list[0][1].length;
+    const sel = P.brandSel && by[P.brandSel] ? P.brandSel : null;
+    const bars = list.map(([b, arr]) => `<button type="button" class="pl-hbar${sel === b ? ' on' : ''}" data-brand="${esc(b)}" aria-pressed="${sel === b}">
+        <span class="pl-hbar-l">${esc(b)}</span><span class="pl-hbar-t"><span style="width:${arr.length / max * 100}%"></span></span><b class="sx-mono">${arr.length}</b></button>`).join('');
+    let models = '';
+    if(sel){
+      const c = {}; by[sel].forEach(m => { c[m] = (c[m] || 0) + 1; });
+      const top = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      models = `<div class="pl-models"><p class="sx-small"><b>${esc(sel)}</b> · modèles les plus traités</p>${top.map(([m, n]) => `<div class="pl-mrow"><span>${esc(m)}</span><b class="sx-mono">${n}</b></div>`).join('')}</div>`;
+    }
+    return `<p class="sx-small">${done.length} machine${done.length > 1 ? 's' : ''} finalisée${done.length > 1 ? 's' : ''} · touchez une marque pour voir ses modèles</p><div class="pl-hbars">${bars}</div>${models}`;
+  }
+
+  // Heures par jour (ou par semaine sur une longue période) : production + hors production, repère de l'attendu
+  function hoursChart(u, W){
+    const from = W.from, to = W.to < P.today ? W.to : P.today;
+    const days = []; for(let d = from; d <= to; d = addDays(d, 1)) days.push(d);
+    const byWeek = days.length > 31;
+    const buckets = [];
+    if(byWeek){ W.forEach(m => buckets.push({ k: m, label: 'S' + isoWeek(m), days: days.filter(d => mondayOf(d) === m) })); }
+    const first = P.firstDecl[u.user_id];
+    if(!byWeek) days.filter(d => (first && d >= first && objDay(u, d) > 0) || P.decls.some(x => x.user_id === u.user_id && x.work_date === d && live(x))).forEach(d => buckets.push({ k: d, label: fmtDate(d, { weekday: 'short', day: 'numeric' }), days: [d] }));
+    buckets.forEach(b => {
+      b.prod = 0; b.hp = 0; b.obj = 0;
+      P.decls.forEach(x => { if(x.user_id === u.user_id && live(x) && b.days.includes(x.work_date)){ if(x.hors_production_id) b.hp += Number(x.hours); else b.prod += Number(x.hours); } });
+      b.days.forEach(d => { if(first && d >= first) b.obj += objDay(u, d); });
+    });
+    const shown = buckets.filter(b => b.days.length);
+    if(!shown.length || !shown.some(b => b.prod + b.hp + b.obj)) return '<p class="sx-small">Aucune donnée sur la période.</p>';
+    const Wd = 760, H = 210, L = 38, R = 8, T = 12, B = 30, n = shown.length;
+    const max = Math.max(...shown.map(b => Math.max(b.prod + b.hp, b.obj)), 1) * 1.1;
+    const slot = (Wd - L - R) / n, bw = Math.max(4, Math.min(34, slot * 0.62));
+    const Y = v => T + (1 - v / max) * (H - T - B);
+    const step = Math.max(1, Math.ceil(n / 14));
+    const grid = [0, 0.25, 0.5, 0.75, 1].map(f => { const v = max / 1.1 * f; return `<line class="gl" x1="${L}" x2="${Wd - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${Math.round(v)}</text>`; }).join('');
+    const bars = shown.map((b, i) => {
+      const x = L + i * slot + (slot - bw) / 2, tot = b.prod + b.hp, miss = b.obj && tot < b.obj - 0.01;
+      const tip = `${b.label} : ${h2(b.prod)} h production + ${h2(b.hp)} h hors production${b.obj ? ' · attendu ' + h2(b.obj) + ' h' : ''}`;
+      return `<g><title>${esc(tip)}</title>
+        <rect class="bp" x="${x}" y="${Y(b.prod)}" width="${bw}" height="${Y(0) - Y(b.prod)}" rx="2"/>
+        <rect class="bh" x="${x}" y="${Y(tot)}" width="${bw}" height="${Y(b.prod) - Y(tot)}" rx="2"/>
+        ${b.obj ? `<line class="${miss ? 'ob miss' : 'ob'}" x1="${x - 3}" x2="${x + bw + 3}" y1="${Y(b.obj)}" y2="${Y(b.obj)}"/>` : ''}
+        ${(n - 1 - i) % step === 0 ? `<text x="${x + bw / 2}" y="${H - 10}" text-anchor="middle">${esc(b.label)}</text>` : ''}</g>`;
+    }).join('');
+    const missing = shown.filter(b => b.obj && b.prod + b.hp < b.obj - 0.01).length;
+    return `<div class="pl-legend"><span><i class="bp"></i>Production</span><span><i class="bh"></i>Hors production</span><span><i class="ob"></i>Attendu</span>${missing ? `<span class="sx-mid">${missing} ${byWeek ? 'semaine' : 'jour'}${missing > 1 ? 's' : ''} incomplet${missing > 1 ? 's' : ''}</span>` : ''}</div>
+      <div class="sx-tscroll"><svg class="pl-svg" viewBox="0 0 ${Wd} ${H}" role="img" aria-label="Heures déclarées par ${byWeek ? 'semaine' : 'jour'}">${grid}${bars}</svg></div>`;
+  }
+
+  // Répartition du temps par activité (rosca)
+  function activityDonut(u, W){
+    const by = {};
+    P.decls.forEach(d => { if(d.user_id !== u.user_id || !live(d) || !inW(d.work_date, W)) return; const k = d.activite_id ? aname(d.activite_id) : 'Hors production'; by[k] = (by[k] || 0) + Number(d.hours); });
+    let list = Object.entries(by).sort((a, b) => b[1] - a[1]);
+    if(!list.length) return '<p class="sx-small">Aucune déclaration sur la période.</p>';
+    if(list.length > 7){ const rest = list.slice(6).reduce((a, x) => a + x[1], 0); list = [...list.slice(0, 6), ['Autres', rest]]; }
+    const tot = list.reduce((a, x) => a + x[1], 0), R = 70, C = 2 * Math.PI * R;
+    let off = 0;
+    const segs = list.map(([k, v], i) => { const len = v / tot * C, col = k === 'Hors production' ? '#94A3B8' : PALETTE[i % PALETTE.length];
+      const s = `<circle r="${R}" cx="90" cy="90" fill="none" stroke="${col}" stroke-width="26" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}"><title>${esc(k)} : ${h2(v)} h</title></circle>`; off += len; return [s, col]; });
+    return `<div class="pl-donut"><svg viewBox="0 0 180 180" role="img" aria-label="Temps par activité"><g transform="rotate(-90 90 90)">${segs.map(x => x[0]).join('')}</g>
+        <text x="90" y="86" text-anchor="middle" class="pl-dn">${hm(tot)}</text><text x="90" y="106" text-anchor="middle" class="pl-dl">au total</text></svg>
+      <ul>${list.map(([k, v], i) => `<li><i style="background:${segs[i][1]}"></i><span>${esc(k)}</span><b class="sx-mono">${h2(v)} h</b><small>${pct(v / tot)}</small></li>`).join('')}</ul></div>`;
+  }
+
   // Sanfona : l'état ouvert/fermé survit aux rafraîchissements en temps réel
   const acc = (key, title, count, body, openDefault) => {
     const open = P.acc[key] !== undefined ? P.acc[key] : !!openDefault;
@@ -469,6 +543,11 @@
         ${kpi('Efficience', pct(s.eff), effCls(s.eff), `écart ${sgn(s.ecart)} h`)}
         ${kpi('Unités finalisées', s.qte, '', `${h2(s.theo)} h théoriques`)}
         ${kpi('Hors production', hm(s.hp), '', 'réunions, formation, congés…')}
+      </div>
+      <div class="pl-charts">
+        <div class="sx-card pl-chart-wide"><h2 class="sx-h2 sx-mb">Heures par ${W.from === W.to || (W.to < P.today ? W.to : P.today) <= addDays(W.from, 30) ? 'jour' : 'semaine'}</h2>${hoursChart(u, W)}</div>
+        <div class="sx-card"><h2 class="sx-h2 sx-mb">Machines par marque</h2>${brandChart(u, W)}</div>
+        <div class="sx-card"><h2 class="sx-h2 sx-mb">Temps par activité</h2>${activityDonut(u, W)}</div>
       </div>
       <div class="pl-accs">
         ${acc('alerts', 'Alertes', al.length, groupAlerts(al) || '<p class="sx-small">Aucune.</p>', al.length > 0)}
@@ -847,7 +926,8 @@
     if(row){ P.selUser = row.dataset.open; P.view = 'collab'; render(); return; }
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset;
-    if(d.a === 'collabBack'){ P.selUser = null; render(); return; }
+    if(d.a === 'collabBack'){ P.selUser = null; P.brandSel = null; render(); return; }
+    if(d.brand !== undefined){ P.brandSel = P.brandSel === d.brand ? null : d.brand; render(); return; }
     if(d.view){ P.view = d.view; P.closing = null; render(); }
     else if(d.period) setPeriod(() => { P.period = d.period; if(d.period === 'd' && !P.day) P.day = P.today;
       if(d.period === 'custom' && !P.from){ P.to = P.today; P.from = addDays(P.today, -90); } });
