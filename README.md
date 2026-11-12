@@ -302,6 +302,8 @@ api/
   create-technician.js      ⚠️ roda só no servidor — cria login de técnico
   login.js                  ⚠️ roda só no servidor — conexão com limite (5 erros → bloqueio 15 min, depois 30, 60… máx. 24 h)
   reset-password.js         ⚠️ roda só no servidor — Admin gera senha provisória (troca obrigatória no 1º login)
+  delete-collaborator.js    ⚠️ roda só no servidor — exclui conta (sem histórico: apaga; com histórico: tira o acesso e arquiva)
+  _auth.js                  verificação comum: Admin = super admin ou ficha « Admin » (não vira rota)
 supabase/
   setup-complete.sql        ⭐ rodar 1º (colunas + segurança)
   printer-models.sql        ⭐ rodar 2º (tabela de modelos + admin)
