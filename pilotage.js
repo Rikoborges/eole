@@ -56,7 +56,7 @@
   const P = {
     allowed: null, ready: false, loading: false, error: null, me: null,
     view: 'atelier', period: 'w', week: null, day: null, today: null,
-    filt: { metier: '', format: '', marque: '' }, opsF: 'open', selUser: null, mq: '',
+    filt: { metier: '', format: '', marque: '' }, opsF: 'open', selUser: null, mq: '', acc: {},
     users: [], acts: [], hp: [], formats: [], metiers: [], models: [], motifs: [],
     decls: [], ops: [], presence: [], firstDecl: {}, standards: [], rules: {}, pTab: 'collab', pmq: '', confirmDel: null, feed: [], closing: null, channel: null, reloadTimer: null
   };
@@ -120,7 +120,8 @@
   }
 
   async function loadAll(){
-    const from = addDays(mondayOf(P.today), -7 * 7);
+    const from = [addDays(mondayOf(P.today), -7 * 7), P.today ? periodStart() : null].filter(Boolean).sort()[0];
+    P.loadedFrom = from;
     await loadRefs();
     await loadGuards();
     const [decls, opsRecent, opsOpen] = await Promise.all([
@@ -135,6 +136,16 @@
     const ops = new Map(); [...opsRecent, ...opsOpen].forEach(o => ops.set(o.id, o)); P.ops = [...ops.values()];
     const pr = await sb.from('presence').select('user_id, day, first_seen, last_seen').eq('day', P.today);
     P.presence = pr.error ? [] : pr.data;
+  }
+
+  // Période plus ancienne que les données chargées (1 an, Du… au…) : on recharge.
+  async function setPeriod(fn){
+    fn(); render();
+    if(periodStart() < P.loadedFrom){
+      P.rangeLoading = true; render();
+      try{ await loadAll(); }catch(e){ console.error(e); toastPl('Chargement impossible : ' + dbError(e)); }
+      P.rangeLoading = false; render();
+    }
   }
 
   async function initPilotage(force){
@@ -154,7 +165,7 @@
     render();
   }
   window.initPilotage = initPilotage;
-  window.setPilotageView = v => { P.view = v; P.closing = null; };
+  window.setPilotageView = v => { if(v === 'collab' && P.view !== 'collab') P.selUser = null; P.view = v; P.closing = null; };
 
   /* ---------- temps réel : chaque déclaration met le tableau à jour ---------- */
   function subscribe(){
@@ -185,13 +196,21 @@
   // Période choisie : W = liste des lundis concernés ; en mode « Jour », W.day
   // restreint tous les calculs à ce seul jour.
   const periodMondays = () => {
-    if(P.period === 'd'){ const W = [mondayOf(P.day)]; W.day = P.day; return W; }
-    const n = P.period === 'w' ? 1 : P.period === '4w' ? 4 : 8;
-    const last = P.period === 'w' ? P.week : mondayOf(P.today);
-    return Array.from({ length: n }, (_, i) => addDays(last, -7 * (n - 1 - i)));
+    let from, to;
+    if(P.period === 'd'){ from = to = P.day; }
+    else if(P.period === 'custom'){ from = P.from; to = P.to; }
+    else {
+      const n = P.period === 'w' ? 1 : P.period === '4w' ? 4 : P.period === 'y' ? 52 : 8;
+      const last = P.period === 'w' ? P.week : mondayOf(P.today);
+      from = addDays(last, -7 * (n - 1)); to = addDays(last, 6);
+    }
+    const W = []; for(let m = mondayOf(from); m <= to; m = addDays(m, 7)) W.push(m);
+    W.from = from; W.to = to; if(from === to) W.day = from;
+    return W;
   };
+  const periodStart = () => periodMondays().from;
   const last8 = () => Array.from({ length: 8 }, (_, i) => addDays(mondayOf(P.today), -7 * (7 - i)));
-  const inW = (d, W) => !!d && W.includes(mondayOf(d)) && (!W.day || d === W.day);
+  const inW = (d, W) => !!d && d >= (W.from || W[0]) && d <= (W.to || addDays(W[W.length - 1], 6));
   const live = d => !d.cancelled;
   function teamUsers(){
     return P.users.filter(u => u.active && u.metier_id && u.format_id &&
@@ -222,21 +241,21 @@
   // arrivée d'un intérimaire) : sinon les semaines d'avant compteraient comme « manquantes ».
   function expected(u, W){
     const first = P.firstDecl[u.user_id]; if(!first) return 0;
-    let s = 0; W.forEach(m => { for(let i = 0; i < 5; i++){ const d = addDays(m, i); if(d <= P.today && d >= first && (!W.day || d === W.day)) s += objDay(u, d); } }); return s;
+    let s = 0; W.forEach(m => { for(let i = 0; i < 5; i++){ const d = addDays(m, i); if(d <= P.today && d >= first && inW(d, W)) s += objDay(u, d); } }); return s;
   }
   function alertsFor(u, W){
     const out = [], mine = P.decls.filter(d => d.user_id === u.user_id && live(d));
     const first = mine.length ? mine.reduce((a, d) => d.work_date < a ? d.work_date : a, mine[0].work_date) : null;
     if(!first) out.push({ k: 'mid', t: 'Aucune déclaration', m: 'depuis 8 semaines', d: null, u });
     W.forEach(m => { for(let i = 0; i < 5; i++){
-      const d = addDays(m, i); if(d > P.today || !first || d < first || (W.day && d !== W.day)) continue;
+      const d = addDays(m, i); if(d > P.today || !first || d < first || !inW(d, W)) continue;
       const tot = r2(mine.filter(x => x.work_date === d).reduce((a, x) => a + Number(x.hours), 0)), obj = objDay(u, d);
       if(d < P.today && tot < obj - 0.01) out.push({ k: 'mid', t: 'Temps incomplet', m: `${h2(tot)} h déclarées sur ${h2(obj)} h`, d, u });
       if(tot > obj + 0.01) out.push({ k: 'bad', t: 'Temps supérieur à l\'objectif', m: `${h2(tot)} h pour ${h2(obj)} h`, d, u });
     }});
     P.ops.filter(o => o.user_id === u.user_id && o.status !== 'annulee' && !o.imported && inW(o.started_on, W) && (!o.serial || !o.model_id))
       .forEach(o => out.push({ k: 'bad', t: !o.serial ? 'Matricule non renseigné' : 'Modèle non renseigné', m: aname(o.activite_id), d: o.started_on, u }));
-    if(W.day ? W.day === P.today : W.includes(mondayOf(P.today))) P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status)).forEach(o => {
+    if(inW(P.today, W)) P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status)).forEach(o => {
       const last = o.last_work_date || o.started_on, n = workdaysBetween(last, P.today);
       if(n >= 2) out.push({ k: 'mid', t: `À poursuivre depuis ${n} jours`, m: `${aname(o.activite_id)} · ${o.serial || 'sans matricule'}`, d: last, u });
     });
@@ -248,13 +267,16 @@
   function periodCtl(){
     const W = periodMondays();
     return `<div class="sx-row">
-      <div class="sx-seg" role="group" aria-label="Période">${[['d', 'Jour'], ['w', 'Semaine'], ['4w', '4 sem.'], ['8w', '8 sem.']].map(([k, l]) => `<button type="button" data-period="${k}" aria-pressed="${P.period === k}">${l}</button>`).join('')}</div>
-      ${P.period === 'd' ? `<span class="week-nav sx-daynav pl-daypick"><button type="button" data-dayp="-1" aria-label="Jour précédent" ${P.day <= last8()[0] ? 'disabled' : ''}>‹</button>
-          <input type="date" id="plDay" value="${P.day}" min="${last8()[0]}" max="${P.today}" aria-label="Choisir un jour">
+      <div class="sx-seg" role="group" aria-label="Période">${[['d', 'Jour'], ['w', 'Semaine'], ['4w', '4 sem.'], ['8w', '8 sem.'], ['y', '1 an'], ['custom', 'Du… au…']].map(([k, l]) => `<button type="button" data-period="${k}" aria-pressed="${P.period === k}">${l}</button>`).join('')}</div>
+      ${P.period === 'd' ? `<span class="week-nav sx-daynav pl-daypick"><button type="button" data-dayp="-1" aria-label="Jour précédent" >‹</button>
+          <input type="date" id="plDay" value="${P.day}" max="${P.today}" aria-label="Choisir un jour">
           <button type="button" data-dayp="1" aria-label="Jour suivant" ${P.day >= P.today ? 'disabled' : ''}>›</button></span>
           <span class="sx-small">${esc(fmtDate(P.day, { weekday: 'long', day: 'numeric', month: 'long' }))}</span>${P.day !== P.today ? ' <button type="button" class="sx-btn sx-sm" data-dayp="0">Aujourd\'hui</button>' : ''}`
-      : P.period === 'w' ? `<span class="week-nav sx-daynav"><button type="button" data-week="-1" aria-label="Semaine précédente" ${P.week <= last8()[0] ? 'disabled' : ''}>‹</button><span class="week-nav-label">${weekLabel(P.week)}</span><button type="button" data-week="1" aria-label="Semaine suivante" ${P.week >= mondayOf(P.today) ? 'disabled' : ''}>›</button></span>`
-        : `<span class="sx-small sx-mono">S${isoWeek(W[0])} → S${isoWeek(W[W.length - 1])}</span>`}</div>`;
+      : P.period === 'w' ? `<span class="week-nav sx-daynav"><button type="button" data-week="-1" aria-label="Semaine précédente">‹</button><span class="week-nav-label">${weekLabel(P.week)}</span><button type="button" data-week="1" aria-label="Semaine suivante" ${P.week >= mondayOf(P.today) ? 'disabled' : ''}>›</button></span>`
+        : P.period === 'custom' ? `<span class="sx-row pl-range"><label>Du <input type="date" id="plFrom" value="${P.from}" max="${P.today}"></label><label>au <input type="date" id="plTo" value="${P.to}" max="${P.today}"></label></span>
+          <span class="sx-small">${esc(fmtDate(P.from, { day: 'numeric', month: 'short', year: 'numeric' }))} → ${esc(fmtDate(P.to, { day: 'numeric', month: 'short', year: 'numeric' }))}</span>`
+        : `<span class="sx-small sx-mono">S${isoWeek(W[0])} → S${isoWeek(W[W.length - 1])}${P.period === 'y' ? ` · ${esc(fmtDate(W.from, { month: 'short', year: 'numeric' }))} → ${esc(fmtDate(P.today, { month: 'short', year: 'numeric' }))}` : ''}</span>`}
+      ${P.rangeLoading ? '<span class="sx-small">Chargement de la période…</span>' : ''}</div>`;
   }
   function filtersHTML(withMarque){
     const brands = [...new Set(P.models.map(m => m.brand))].sort();
@@ -357,12 +379,129 @@
       </tbody></table></div>`;
   }
 
+
+  /* ---------- graphiques du détail collaborateur ---------- */
+  const PALETTE = ['var(--copper)', '#4F9DDE', '#22C55E', '#A78BFA', '#F97316', '#2DD4BF', '#F472B6', '#94A3B8'];
+
+  // Machines finalisées par marque (clic sur une marque → ses modèles)
+  function brandChart(u, W){
+    const done = P.ops.filter(o => o.user_id === u.user_id && o.status === 'final' && inW(o.finished_on, W));
+    if(!done.length) return '<p class="sx-small">Aucune machine finalisée sur la période.</p>';
+    const by = {}; done.forEach(o => { const m = modelById(o.model_id); const b = m ? m.brand : 'Modèle non renseigné'; (by[b] = by[b] || []).push(m ? m.model : '—'); });
+    const list = Object.entries(by).sort((a, b) => b[1].length - a[1].length), max = list[0][1].length;
+    const sel = P.brandSel && by[P.brandSel] ? P.brandSel : null;
+    const bars = list.map(([b, arr]) => `<button type="button" class="pl-hbar${sel === b ? ' on' : ''}" data-brand="${esc(b)}" aria-pressed="${sel === b}">
+        <span class="pl-hbar-l">${esc(b)}</span><span class="pl-hbar-t"><span style="width:${arr.length / max * 100}%"></span></span><b class="sx-mono">${arr.length}</b></button>`).join('');
+    let models = '';
+    if(sel){
+      const c = {}; by[sel].forEach(m => { c[m] = (c[m] || 0) + 1; });
+      const top = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 10);
+      models = `<div class="pl-models"><p class="sx-small"><b>${esc(sel)}</b> · modèles les plus traités</p>${top.map(([m, n]) => `<div class="pl-mrow"><span>${esc(m)}</span><b class="sx-mono">${n}</b></div>`).join('')}</div>`;
+    }
+    return `<p class="sx-small">${done.length} machine${done.length > 1 ? 's' : ''} finalisée${done.length > 1 ? 's' : ''} · touchez une marque pour voir ses modèles</p><div class="pl-hbars">${bars}</div>${models}`;
+  }
+
+  // Heures par jour (ou par semaine sur une longue période) : production + hors production, repère de l'attendu
+  function hoursChart(u, W){
+    const from = W.from, to = W.to < P.today ? W.to : P.today;
+    const days = []; for(let d = from; d <= to; d = addDays(d, 1)) days.push(d);
+    const byWeek = days.length > 31;
+    const buckets = [];
+    if(byWeek){ W.forEach(m => buckets.push({ k: m, label: 'S' + isoWeek(m), days: days.filter(d => mondayOf(d) === m) })); }
+    const first = P.firstDecl[u.user_id];
+    if(!byWeek) days.filter(d => (first && d >= first && objDay(u, d) > 0) || P.decls.some(x => x.user_id === u.user_id && x.work_date === d && live(x))).forEach(d => buckets.push({ k: d, label: fmtDate(d, { weekday: 'short', day: 'numeric' }), days: [d] }));
+    buckets.forEach(b => {
+      b.prod = 0; b.hp = 0; b.obj = 0;
+      P.decls.forEach(x => { if(x.user_id === u.user_id && live(x) && b.days.includes(x.work_date)){ if(x.hors_production_id) b.hp += Number(x.hours); else b.prod += Number(x.hours); } });
+      b.days.forEach(d => { if(first && d >= first) b.obj += objDay(u, d); });
+    });
+    const shown = buckets.filter(b => b.days.length);
+    if(!shown.length || !shown.some(b => b.prod + b.hp + b.obj)) return '<p class="sx-small">Aucune donnée sur la période.</p>';
+    const Wd = 760, H = 210, L = 38, R = 8, T = 12, B = 30, n = shown.length;
+    const max = Math.max(...shown.map(b => Math.max(b.prod + b.hp, b.obj)), 1) * 1.1;
+    const slot = (Wd - L - R) / n, bw = Math.max(4, Math.min(34, slot * 0.62));
+    const Y = v => T + (1 - v / max) * (H - T - B);
+    const step = Math.max(1, Math.ceil(n / 14));
+    const grid = [0, 0.25, 0.5, 0.75, 1].map(f => { const v = max / 1.1 * f; return `<line class="gl" x1="${L}" x2="${Wd - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${Math.round(v)}</text>`; }).join('');
+    const bars = shown.map((b, i) => {
+      const x = L + i * slot + (slot - bw) / 2, tot = b.prod + b.hp, miss = b.obj && tot < b.obj - 0.01;
+      const tip = `${b.label} : ${h2(b.prod)} h production + ${h2(b.hp)} h hors production${b.obj ? ' · attendu ' + h2(b.obj) + ' h' : ''}`;
+      return `<g><title>${esc(tip)}</title>
+        <rect class="bp" x="${x}" y="${Y(b.prod)}" width="${bw}" height="${Y(0) - Y(b.prod)}" rx="2"/>
+        <rect class="bh" x="${x}" y="${Y(tot)}" width="${bw}" height="${Y(b.prod) - Y(tot)}" rx="2"/>
+        ${b.obj ? `<line class="${miss ? 'ob miss' : 'ob'}" x1="${x - 3}" x2="${x + bw + 3}" y1="${Y(b.obj)}" y2="${Y(b.obj)}"/>` : ''}
+        ${(n - 1 - i) % step === 0 ? `<text x="${x + bw / 2}" y="${H - 10}" text-anchor="middle">${esc(b.label)}</text>` : ''}</g>`;
+    }).join('');
+    const missing = shown.filter(b => b.obj && b.prod + b.hp < b.obj - 0.01).length;
+    return `<div class="pl-legend"><span><i class="bp"></i>Production</span><span><i class="bh"></i>Hors production</span><span><i class="ob"></i>Attendu</span>${missing ? `<span class="sx-mid">${missing} ${byWeek ? 'semaine' : 'jour'}${missing > 1 ? 's' : ''} incomplet${missing > 1 ? 's' : ''}</span>` : ''}</div>
+      <div class="sx-tscroll"><svg class="pl-svg" viewBox="0 0 ${Wd} ${H}" role="img" aria-label="Heures déclarées par ${byWeek ? 'semaine' : 'jour'}">${grid}${bars}</svg></div>`;
+  }
+
+  // Répartition du temps par activité (rosca)
+  function activityDonut(u, W){
+    const by = {};
+    P.decls.forEach(d => { if(d.user_id !== u.user_id || !live(d) || !inW(d.work_date, W)) return; const k = d.activite_id ? aname(d.activite_id) : 'Hors production'; by[k] = (by[k] || 0) + Number(d.hours); });
+    let list = Object.entries(by).sort((a, b) => b[1] - a[1]);
+    if(!list.length) return '<p class="sx-small">Aucune déclaration sur la période.</p>';
+    if(list.length > 7){ const rest = list.slice(6).reduce((a, x) => a + x[1], 0); list = [...list.slice(0, 6), ['Autres', rest]]; }
+    const tot = list.reduce((a, x) => a + x[1], 0), R = 70, C = 2 * Math.PI * R;
+    let off = 0;
+    const segs = list.map(([k, v], i) => { const len = v / tot * C, col = k === 'Hors production' ? '#94A3B8' : PALETTE[i % PALETTE.length];
+      const s = `<circle r="${R}" cx="90" cy="90" fill="none" stroke="${col}" stroke-width="26" stroke-dasharray="${len} ${C - len}" stroke-dashoffset="${-off}"><title>${esc(k)} : ${h2(v)} h</title></circle>`; off += len; return [s, col]; });
+    return `<div class="pl-donut"><svg viewBox="0 0 180 180" role="img" aria-label="Temps par activité"><g transform="rotate(-90 90 90)">${segs.map(x => x[0]).join('')}</g>
+        <text x="90" y="86" text-anchor="middle" class="pl-dn">${hm(tot)}</text><text x="90" y="106" text-anchor="middle" class="pl-dl">au total</text></svg>
+      <ul>${list.map(([k, v], i) => `<li><i style="background:${segs[i][1]}"></i><span>${esc(k)}</span><b class="sx-mono">${h2(v)} h</b><small>${pct(v / tot)}</small></li>`).join('')}</ul></div>`;
+  }
+
+  // Sanfona : l'état ouvert/fermé survit aux rafraîchissements en temps réel
+  const acc = (key, title, count, body, openDefault) => {
+    const open = P.acc[key] !== undefined ? P.acc[key] : !!openDefault;
+    return `<details class="pl-acc" data-acc="${key}" ${open ? 'open' : ''}><summary><span>${title}</span>${count !== null && count !== undefined ? `<span class="pl-acc-n">${count}</span>` : ''}<span class="chev" aria-hidden="true">›</span></summary><div class="pl-acc-body">${body}</div></details>`;
+  };
+
+  // Même type d'alerte répété (ex. « Temps incomplet » sur 18 jours) : une seule ligne
+  function groupAlerts(al){
+    const groups = new Map();
+    al.forEach(x => { const g = groups.get(x.t) || { k: x.k, t: x.t, items: [] }; g.items.push(x); groups.set(x.t, g); });
+    return [...groups.values()].map(g => g.items.length === 1
+      ? `<div class="sx-alert sx-alert-${g.k}"><b>${esc(g.t)}</b><span>${g.items[0].d ? esc(shortDate(g.items[0].d)) + ' · ' : ''}${esc(g.items[0].m)}</span></div>`
+      : `<div class="sx-alert sx-alert-${g.k}"><b>${esc(g.t)} · ${g.items.length} fois</b><span>${g.items.slice(-6).reverse().map(x => (x.d ? esc(shortDate(x.d)) + ' : ' : '') + esc(x.m)).join(' · ')}${g.items.length > 6 ? ` · et ${g.items.length - 6} de plus` : ''}</span></div>`).join('');
+  }
+
   function vCollab(){
     const team = P.users.filter(u => u.metier_id && u.format_id);
     if(!team.length) return '<div class="sx-card"><p class="sx-small">Aucun collaborateur avec métier et format renseignés.</p></div>';
-    if(!P.selUser || !team.some(u => u.user_id === P.selUser)) P.selUser = team[0].user_id;
+    if(P.selUser && !team.some(u => u.user_id === P.selUser)) P.selUser = null;
+    return P.selUser ? collabDetail(team) : collabOverview(team);
+  }
+
+  // 1) Vue d'ensemble : une carte par personne, l'essentiel d'un coup d'œil
+  function collabOverview(team){
+    const W = periodMondays();
+    const list = team.filter(u => u.active).map(u => {
+      const s = stats([u.user_id], W), exp = expected(u, W), al = alertsFor(u, W), open = P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status)).length;
+      return { u, s, exp, al, open, fill: exp ? (s.decl + s.hp) / exp : null };
+    });
+    const inactive = team.filter(u => !u.active);
+    return `${periodCtl()}
+      <div class="pl-cgrid">${list.map(({ u, s, exp, al, open, fill }) => `
+        <button type="button" class="pl-ccard" data-open="${u.user_id}">
+          <span class="pl-ccard-h"><b>${esc(u.display_name || 'Sans nom')}</b>${u.interim ? '<span class="sx-pill sx-blue">intérim</span>' : ''}${al.length ? `<span class="sx-pill sx-mid">${al.length} alerte${al.length > 1 ? 's' : ''}</span>` : '<span class="sx-pill sx-ok">OK</span>'}</span>
+          <span class="sx-small">${esc(metierLabel(u.metier_id))} · ${esc((formatOf(u) || {}).label || '')}</span>
+          <span class="pl-ccard-row"><span>Déclaré</span><b class="sx-mono">${hm(s.decl + s.hp)} <small>/ ${hm(exp)}</small></b></span>
+          <span class="pl-track"><span style="width:${Math.min(100, (fill || 0) * 100)}%"></span></span>
+          <span class="pl-ccard-row"><span>Efficience</span><b class="sx-${effCls(s.eff)}">${pct(s.eff)}</b></span>
+          <span class="pl-ccard-row"><span>Unités finalisées</span><b class="sx-mono">${s.qte}</b></span>
+          <span class="pl-ccard-row"><span>Étapes en cours</span><b class="sx-mono">${open || '—'}</b></span>
+          <span class="pl-ccard-go">Voir le détail ›</span>
+        </button>`).join('')}</div>
+      ${inactive.length ? `<p class="sx-small sx-mt">Désactivés (non affichés) : ${inactive.map(u => esc(u.display_name || 'sans nom')).join(', ')}.</p>` : ''}`;
+  }
+
+  // 2) Détail : le résumé direct en haut, le reste en sanfona
+  function collabDetail(team){
     const u = userById(P.selUser), W = periodMondays(), s = stats([u.user_id], W), exp = expected(u, W);
-    const all8 = last8(), mW = (P.period === 'w' || P.period === 'd') ? all8 : W, half = Math.ceil(mW.length / 2), early = mW.slice(0, half), late = mW.slice(half);
+    const long = W.length > 8, all8 = last8(), mW = (P.period === 'w' || P.period === 'd') ? all8 : W, half = Math.ceil(mW.length / 2), early = mW.slice(0, half), late = mW.slice(half);
     const rows = P.acts.filter(a => a.metier_id === u.metier_id).map(a => {
       const A = id => id === a.id, x = stats([u.user_id], mW, A), e1 = stats([u.user_id], early, A), e2 = stats([u.user_id], late, A);
       let trend = '→'; if(mW.length > 1 && e1.ops >= 3 && e2.ops >= 3 && e1.eff && e2.eff){ const d = e2.eff - e1.eff; trend = d > 0.03 ? '↗' : d < -0.03 ? '↘' : '→'; }
@@ -371,35 +510,58 @@
       return { a, x, trend, status, open };
     }).filter(r => r.x.ops || r.open);
     const open = P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status));
-    const recent = P.decls.filter(d => d.user_id === u.user_id && inW(d.work_date, W)).slice(-15).reverse();
+    const al = alertsFor(u, W);
+    const decls = P.decls.filter(d => d.user_id === u.user_id && inW(d.work_date, W));
+    const recent = decls.slice(-30).reverse();
     const pres = P.presence.find(p => p.user_id === u.user_id);
     const t = v => new Date(v).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
-    return `<div class="sx-row sx-between"><label class="pl-filters">Collaborateur <select id="plUser">${team.map(x => `<option value="${x.user_id}" ${x.user_id === u.user_id ? 'selected' : ''}>${esc(x.display_name || 'Sans nom')} · ${esc(metierLabel(x.metier_id))} · ${esc((formatOf(x) || {}).label || '')}</option>`).join('')}</select></label>${periodCtl()}</div>
-      <div class="sw-kpis">
-        ${kpi('Productif attendu', hm(exp), '', esc((formatOf(u) || {}).label || ''))}
-        ${kpi('Productif déclaré', hm(s.decl), '', pct(exp ? s.decl / exp : null) + ' de l\'attendu')}
-        ${kpi('Hors production', hm(s.hp), '', 'non compté en contre-performance')}
-        ${kpi('Théorique', h2(s.theo) + ' h', '', `${s.qte} unités finalisées`)}
-        ${kpi('Écart', sgn(s.ecart) + ' h', s.ecart > 0.004 ? 'mid' : 'ok', 'réalisé − théorique')}
-        ${kpi('Efficience', pct(s.eff), effCls(s.eff), 'théorique ÷ réalisé')}
+    const fill = exp ? (s.decl + s.hp) / exp : null;
+    const best = rows.filter(r => r.status[0] === 'ok').map(r => r.a.name), weak = rows.filter(r => r.status[0] === 'bad').map(r => r.a.name);
+    const lastDay = decls.length ? decls[decls.length - 1].work_date : null;
+    const trendW = long ? W : all8;
+    const bullets = [
+      `A déclaré <b>${hm(s.decl + s.hp)}</b> sur <b>${hm(exp)}</b> attendues${fill !== null ? ` (${pct(fill)})` : ''}.`,
+      s.eff !== null ? `Efficience <b class="sx-${effCls(s.eff)}">${pct(s.eff)}</b> sur ${s.qte} unité${s.qte > 1 ? 's' : ''} finalisée${s.qte > 1 ? 's' : ''}.` : 'Pas encore assez de travail mesuré pour l\'efficience.',
+      best.length ? `Maîtrise : ${esc(best.slice(0, 3).join(', '))}.` : '',
+      weak.length ? `À accompagner : <b class="sx-bad">${esc(weak.slice(0, 3).join(', '))}</b>.` : '',
+      open.length ? `${open.length} étape${open.length > 1 ? 's' : ''} en cours.` : '',
+      lastDay ? `Dernière déclaration : ${esc(shortDate(lastDay).replace(/\.$/, ''))}.` : 'Aucune déclaration sur la période.'
+    ].filter(Boolean);
+    return `<div class="sx-row sx-between pl-dhead">
+        <button type="button" class="sx-btn sx-sm" data-a="collabBack">‹ Tous les collaborateurs</button>
+        <label class="pl-filters">Collaborateur <select id="plUser">${team.map(x => `<option value="${x.user_id}" ${x.user_id === u.user_id ? 'selected' : ''}>${esc(x.display_name || 'Sans nom')}</option>`).join('')}</select></label>
       </div>
-      <div class="sx-card sx-tscroll"><h2 class="sx-h2 sx-mb">Points de maîtrise et axes de progression</h2>
-        ${rows.length ? `<table class="sx-table"><thead><tr><th>Activité</th><th class="n">Opér.</th><th class="n">Qté</th><th class="n">Théorique</th><th class="n">Réalisé</th><th class="n">Efficience</th><th class="n">Tendance</th><th>Statut</th></tr></thead>
-        <tbody>${rows.map(r => `<tr><td>${esc(r.a.name)}${r.open ? ` <span class="sx-pill sx-mid">${r.open} en cours</span>` : ''}</td><td class="n">${r.x.ops}</td><td class="n">${r.x.qte}</td><td class="n">${r.x.real ? h2(r.x.theo) : '—'}</td><td class="n">${h2(r.x.real || r.x.decl)}</td><td class="n sx-${effCls(r.x.eff)}">${pct(r.x.eff)}</td><td class="n sw-trend">${r.trend}</td><td><span class="sx-pill sx-${r.status[0]}">${r.status[1]}</span></td></tr>`).join('')}</tbody></table>` : '<p class="sx-small">Pas encore de déclaration.</p>'}
-        <p class="sx-small sx-mt">Au moins 5 opérations pour classer une activité. Calculé sur ${(P.period === 'w' || P.period === 'd') ? 'les 8 dernières semaines' : 'la période'}.</p></div>
-      <div class="pl-grid">
-        <div class="sx-card"><h2 class="sx-h2 sx-mb">Efficience par semaine</h2>${trendSVG(all8.map(m => stats([u.user_id], [m]).eff), all8)}</div>
-        <div class="pl-side">
-          <div class="sx-card"><h2 class="sx-h2 sx-mb">Étapes en cours (${open.length})</h2>${open.map(o => `<div class="sx-opsum"><b>${esc(aname(o.activite_id))}</b><span class="sx-mono sx-small">${esc(o.serial || 'sans matricule')} · ${esc((modelById(o.model_id) || {}).model || '')}</span><span class="sx-small">${pill(o.status)} depuis le ${esc(shortDate(o.started_on))} · ${h2(o.total_hours)} h / ${h2(o.std_value)} h</span></div>`).join('') || '<p class="sx-small">Aucune.</p>'}</div>
-          <div class="sx-card"><h2 class="sx-h2">Alertes</h2>${alertsFor(u, W).map(x => `<div class="sx-alert sx-alert-${x.k}"><b>${esc(x.t)}</b><span>${x.d ? esc(shortDate(x.d)) + ' · ' : ''}${esc(x.m)}</span></div>`).join('') || '<p class="sx-small sx-mt">Aucune.</p>'}</div>
-          <details class="guide"><summary>Heures de connexion (masqué) <span class="chev">›</span></summary><p class="sx-small">Visible uniquement par le responsable, jamais par le collaborateur.</p>
-            <p class="sx-mono">${pres ? `Aujourd'hui : première activité ${t(pres.first_seen)} · dernière ${t(pres.last_seen)}` : 'Pas de connexion enregistrée aujourd\'hui.'}</p></details>
-        </div>
+      ${periodCtl()}
+      <div class="sx-card pl-who">
+        <div class="sx-row sx-between"><h2 class="pl-name">${esc(u.display_name || 'Sans nom')}${u.interim ? ' <span class="sx-pill sx-blue">intérim</span>' : ''}</h2>
+          ${al.length ? `<span class="sx-pill sx-mid">${al.length} alerte${al.length > 1 ? 's' : ''}</span>` : '<span class="sx-pill sx-ok">Aucune alerte</span>'}</div>
+        <p class="sx-small">${esc(metierLabel(u.metier_id))} · ${esc((formatOf(u) || {}).label || '')}</p>
+        <ul class="pl-bullets">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
       </div>
-      <div class="sx-card"><h2 class="sx-h2 sx-mb">Dernières déclarations de la période</h2><ul class="sx-entries">${recent.map(d => {
-        const o = d.operation_id && P.ops.find(x => x.id === d.operation_id);
-        const name = d.activite_id ? aname(d.activite_id) : ((P.hp.find(h => h.id === d.hors_production_id) || {}).label || '');
-        return `<li class="sx-entry${d.cancelled ? ' sx-cancel' : ''}"><span class="sx-small">${esc(shortDate(d.work_date))}</span><div class="sx-row sx-between"><span><b>${esc(name)}</b>${d.quantity ? ` <small>× ${d.quantity}</small>` : ''}</span><span class="sx-time-v">${hm(Number(d.hours))}</span></div>${o ? `<span class="sx-meta sx-mono">${esc(o.serial || 'sans matricule')} · ${pill(o.status)}</span>` : ''}${d.note ? `<span class="sx-meta">« ${esc(d.note)} »</span>` : ''}</li>`; }).join('') || '<li class="sx-small">Aucune.</li>'}</ul></div>`;
+      <div class="sw-kpis pl-kpis4">
+        ${kpi('Déclaré / attendu', hm(s.decl + s.hp), '', `sur ${hm(exp)} · ${pct(fill)}`)}
+        ${kpi('Efficience', pct(s.eff), effCls(s.eff), `écart ${sgn(s.ecart)} h`)}
+        ${kpi('Unités finalisées', s.qte, '', `${h2(s.theo)} h théoriques`)}
+        ${kpi('Hors production', hm(s.hp), '', 'réunions, formation, congés…')}
+      </div>
+      <div class="pl-charts">
+        <div class="sx-card pl-chart-wide"><h2 class="sx-h2 sx-mb">Heures par ${W.from === W.to || (W.to < P.today ? W.to : P.today) <= addDays(W.from, 30) ? 'jour' : 'semaine'}</h2>${hoursChart(u, W)}</div>
+        <div class="sx-card"><h2 class="sx-h2 sx-mb">Machines par marque</h2>${brandChart(u, W)}</div>
+        <div class="sx-card"><h2 class="sx-h2 sx-mb">Temps par activité</h2>${activityDonut(u, W)}</div>
+      </div>
+      <div class="pl-accs">
+        ${acc('alerts', 'Alertes', al.length, groupAlerts(al) || '<p class="sx-small">Aucune.</p>', al.length > 0)}
+        ${acc('open', 'Étapes en cours', open.length, open.map(o => `<div class="sx-opsum"><b>${esc(aname(o.activite_id))}</b><span class="sx-mono sx-small">${esc(o.serial || 'sans matricule')} · ${esc((modelById(o.model_id) || {}).model || '')}</span><span class="sx-small">${pill(o.status)} depuis le ${esc(shortDate(o.started_on))} · ${h2(o.total_hours)} h / ${h2(o.std_value)} h</span></div>`).join('') || '<p class="sx-small">Aucune.</p>')}
+        ${acc('mastery', 'Points de maîtrise et axes de progression', rows.length, `<div class="sx-tscroll">${rows.length ? `<table class="sx-table"><thead><tr><th>Activité</th><th class="n">Opér.</th><th class="n">Qté</th><th class="n">Théorique</th><th class="n">Réalisé</th><th class="n">Efficience</th><th class="n">Tendance</th><th>Statut</th></tr></thead>
+          <tbody>${rows.map(r => `<tr><td>${esc(r.a.name)}${r.open ? ` <span class="sx-pill sx-mid">${r.open} en cours</span>` : ''}</td><td class="n">${r.x.ops}</td><td class="n">${r.x.qte}</td><td class="n">${r.x.real ? h2(r.x.theo) : '—'}</td><td class="n">${h2(r.x.real || r.x.decl)}</td><td class="n sx-${effCls(r.x.eff)}">${pct(r.x.eff)}</td><td class="n sw-trend">${r.trend}</td><td><span class="sx-pill sx-${r.status[0]}">${r.status[1]}</span></td></tr>`).join('')}</tbody></table>` : '<p class="sx-small">Pas encore de déclaration.</p>'}</div>
+          <p class="sx-small sx-mt">Au moins 5 opérations pour classer une activité. Calculé sur ${(P.period === 'w' || P.period === 'd') ? 'les 8 dernières semaines' : 'la période'}.</p>`)}
+        ${acc('trend', 'Efficience par semaine', null, trendSVG(trendW.map(m => stats([u.user_id], [m]).eff), trendW))}
+        ${acc('decls', 'Déclarations de la période', decls.length, `<ul class="sx-entries">${recent.map(d => {
+          const o = d.operation_id && P.ops.find(x => x.id === d.operation_id);
+          const name = d.activite_id ? aname(d.activite_id) : ((P.hp.find(h => h.id === d.hors_production_id) || {}).label || '');
+          return `<li class="sx-entry${d.cancelled ? ' sx-cancel' : ''}"><span class="sx-small">${esc(shortDate(d.work_date))}</span><div class="sx-row sx-between"><span><b>${esc(name)}</b>${d.quantity ? ` <small>× ${d.quantity}</small>` : ''}</span><span class="sx-time-v">${hm(Number(d.hours))}</span></div>${o ? `<span class="sx-meta sx-mono">${esc(o.serial || 'sans matricule')} · ${pill(o.status)}</span>` : ''}${d.note ? `<span class="sx-meta">« ${esc(d.note)} »</span>` : ''}</li>`; }).join('') || '<li class="sx-small">Aucune.</li>'}</ul>${decls.length > 30 ? '<p class="sx-small sx-mt">Les 30 plus récentes. Export complet : Atelier › Exports Excel.</p>' : ''}`)}
+        ${acc('pres', 'Heures de connexion (masqué)', null, `<p class="sx-small">Visible uniquement par le responsable, jamais par le collaborateur.</p><p class="sx-mono">${pres ? `Aujourd'hui : première activité ${t(pres.first_seen)} · dernière ${t(pres.last_seen)}` : 'Pas de connexion enregistrée aujourd\'hui.'}</p>`)}
+      </div>`;
   }
 
   function vActivites(){
@@ -443,16 +605,16 @@
 
   function trendSVG(pts, mondays){
     const W = 380, H = 170, L = 40, B = 26, T = 16, lo = 0.75, hi = 1.15, n = pts.length;
-    const X = i => L + i * (W - L - 14) / (n - 1), Y = v => T + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - T - B);
+    const X = i => L + i * (W - L - 14) / Math.max(1, n - 1), Y = v => T + (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo) * (H - T - B);
     const Pp = pts.map((v, i) => v === null ? null : [X(i), Y(v), v]).filter(Boolean);
-    let s = `<svg class="sw-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Efficience des 8 dernières semaines">`;
+    let s = `<svg class="sw-svg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Efficience par semaine">`;
     [0.8, 0.9, 1, 1.1].forEach(v => { s += `<line class="${v === 1 ? 'tg' : 'gl'}" x1="${L}" x2="${W - 14}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${Math.round(v * 100)}%</text>`; });
     if(Pp.length){
       const path = Pp.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
       if(Pp.length > 1) s += `<path class="ar" d="${path} L ${Pp[Pp.length - 1][0]} ${H - B} L ${Pp[0][0]} ${H - B} Z"/><path class="ln" d="${path}"/>`;
       const l = Pp[Pp.length - 1]; s += `<circle class="pt" cx="${l[0]}" cy="${l[1]}" r="4.5"/><text class="lbl" x="${l[0] - 8}" y="${l[1] - 9}" text-anchor="end">${pct(l[2])}</text>`;
     } else s += `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">Pas encore de données</text>`;
-    mondays.forEach((m, i) => { if(i % 2 === 1 || i === n - 1) s += `<text x="${X(i)}" y="${H - 7}" text-anchor="middle">S${isoWeek(m)}</text>`; });
+    const step = Math.max(2, Math.ceil(n / 8)); mondays.forEach((m, i) => { if((n - 1 - i) % step === 0) s += `<text x="${X(i)}" y="${H - 7}" text-anchor="middle">S${isoWeek(m)}</text>`; });
     return s + '</svg>';
   }
 
@@ -476,7 +638,7 @@
         <td>${cb(`data-cu="${u.user_id}" data-cf="active"`, u.active, 'Actif')}</td>
         <td class="pl-access">${accessCell(u)}</td></tr>`).join('')}</tbody></table></div>
       ${P.tempPw ? `<div class="sx-alert sx-alert-mid pl-temppw"><b>Mot de passe provisoire de ${esc(uname(P.tempPw.user))}</b><span class="sx-mono">${esc(P.tempPw.password)}</span><span>Notez-le et donnez-le à la personne : il ne sera plus affiché. Elle devra choisir le sien à la connexion.</span><button type="button" class="sx-btn sx-sm" data-a="hideTempPw">J'ai noté</button></div>` : ''}
-      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Admin » donne accès au mode Admin (Atelier, Opérations… Paramètres).</p>
+      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Admin » donne accès au mode Admin (Atelier, Opérations… Paramètres). <b>Supprimer</b> : un compte créé par erreur disparaît ; pour quelqu'un qui a déjà déclaré, l'accès est supprimé mais ses heures restent dans l'historique.</p>
       <h3 class="pl-h3">Créer un compte</h3>
       <div class="sx-row pl-addrow"><input type="text" id="ncName" placeholder="Nom (ex : Paul D.)" aria-label="Nom" autocomplete="off">
         <input type="text" id="ncEmail" placeholder="Identifiant (ex : paul.durand) ou e-mail" aria-label="Identifiant ou e-mail" autocomplete="off" autocapitalize="none">
@@ -490,7 +652,7 @@
     const status = locked ? `<span class="sx-pill sx-bad">Bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))}</span>`
       : u.must_change_password ? '<span class="sx-pill sx-mid">Mot de passe provisoire</span>'
       : g && g.failures ? `<span class="sx-pill sx-mid">${g.failures} essai${g.failures > 1 ? 's' : ''} faux</span>` : '<span class="sx-pill sx-ok">OK</span>';
-    return `${status}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button></div>`;
+    return `${status}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button>${u.user_id === P.me ? '' : `<button type="button" class="sx-btn sx-sm sx-danger" data-delu="${u.user_id}" title="Supprimer ce compte">${P.confirmDel === u.user_id ? 'Confirmer la suppression ?' : 'Supprimer'}</button>`}</div>`;
   }
   function pActs(){
     return P.metiers.map(m => `<h3 class="pl-h3">${esc(m.label)}${m.active ? '' : ' <span class="sx-pill sx-dim">désactivé</span>'}</h3>
@@ -615,7 +777,7 @@
       await loadGuards(); render(); return true;
     }
     if(d.resetpw){
-      if(P.confirmReset !== d.resetpw){ P.confirmReset = d.resetpw; render(); return true; }
+      if(P.confirmReset !== d.resetpw){ P.confirmReset = d.resetpw; P.confirmDel = null; render(); return true; }
       P.confirmReset = null;
       const { data: { session } } = await sb.auth.getSession();
       try{
@@ -623,6 +785,21 @@
         const body = await res.json().catch(() => ({}));
         if(!res.ok){ toastPl(body.error || 'Erreur lors de la réinitialisation.'); render(); return true; }
         P.tempPw = { user: d.resetpw, password: body.password };
+        await loadRefs(); await loadGuards(); render();
+      }catch(e){ toastPl('Erreur réseau : réessayez.'); render(); }
+      return true;
+    }
+    if(d.delu){
+      if(P.confirmDel !== d.delu){ P.confirmDel = d.delu; P.confirmReset = null; render(); return true; }
+      P.confirmDel = null;
+      const who = uname(d.delu);
+      const { data: { session } } = await sb.auth.getSession();
+      try{
+        const res = await fetch('/api/delete-collaborator', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }, body: JSON.stringify({ userId: d.delu }) });
+        const body = await res.json().catch(() => ({}));
+        if(!res.ok){ toastPl(body.error || 'Suppression impossible.'); render(); return true; }
+        toastPl(body.archived ? `${who} : accès supprimé. Son historique (${body.records} enregistrement${body.records > 1 ? 's' : ''}) est conservé et sa fiche est désactivée.` : `${who} : compte supprimé.`);
+        if(P.selUser === d.delu) P.selUser = null;
         await loadRefs(); await loadGuards(); render();
       }catch(e){ toastPl('Erreur réseau : réessayez.'); render(); }
       return true;
@@ -696,7 +873,7 @@
   const num = v => (v === null || v === undefined || isNaN(v)) ? '' : String(r2(Number(v))).replace('.', ',');
   function exportCsv(kind){
     const W = periodMondays(), team = teamUsers(), ids = team.map(u => u.user_id);
-    const tag = P.period === 'd' ? P.day : P.period === 'w' ? 'S' + isoWeek(P.week) : `S${isoWeek(W[0])}-S${isoWeek(W[W.length - 1])}`;
+    const tag = P.period === 'd' ? P.day : P.period === 'w' ? 'S' + isoWeek(P.week) : `${W.from}_${W.to}`;
     let rows;
     if(kind === 'detail'){
       rows = [['Date', 'Collaborateur', 'Métier', 'Format', 'Activité / motif', 'Quantité', 'Temps déclaré (h)', 'Standard appliqué (h/qté)', 'Temps théorique (h)', 'N° de série', 'Modèle', 'Statut étape', 'Commentaire', 'Annulée']];
@@ -749,10 +926,13 @@
     if(row){ P.selUser = row.dataset.open; P.view = 'collab'; render(); return; }
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset;
+    if(d.a === 'collabBack'){ P.selUser = null; P.brandSel = null; render(); return; }
+    if(d.brand !== undefined){ P.brandSel = P.brandSel === d.brand ? null : d.brand; render(); return; }
     if(d.view){ P.view = d.view; P.closing = null; render(); }
-    else if(d.period){ P.period = d.period; if(d.period === 'd' && !P.day) P.day = P.today; render(); }
-    else if(d.dayp !== undefined){ const n = +d.dayp; P.day = n === 0 ? P.today : addDays(P.day, n); if(P.day > P.today) P.day = P.today; if(P.day < last8()[0]) P.day = last8()[0]; render(); }
-    else if(d.week !== undefined){ P.week = addDays(P.week, 7 * +d.week); if(P.week > mondayOf(P.today)) P.week = mondayOf(P.today); render(); }
+    else if(d.period) setPeriod(() => { P.period = d.period; if(d.period === 'd' && !P.day) P.day = P.today;
+      if(d.period === 'custom' && !P.from){ P.to = P.today; P.from = addDays(P.today, -90); } });
+    else if(d.dayp !== undefined) setPeriod(() => { const n = +d.dayp; P.day = n === 0 ? P.today : addDays(P.day, n); if(P.day > P.today) P.day = P.today; });
+    else if(d.week !== undefined) setPeriod(() => { P.week = addDays(P.week, 7 * +d.week); if(P.week > mondayOf(P.today)) P.week = mondayOf(P.today); });
     else if(d.opsf){ P.opsF = d.opsf; P.closing = null; render(); }
     else if(d.close){ P.closing = { id: d.close, mode: d.mode, motif: d.mode === 'annulee' ? ((P.motifs.find(m => /erreur/i.test(m.label)) || {}).id || '') : '', comment: '', err: '', busy: false }; render(); }
     else if(d.a === 'closeCancel'){ P.closing = null; render(); }
@@ -761,6 +941,7 @@
     else if(d.mq){ P.mq = d.mq; render(); }
     else await onParamClick(d);
   });
+  root.addEventListener('toggle', e => { const el = e.target; if(el.dataset && el.dataset.acc) P.acc[el.dataset.acc] = el.open; }, true);
   root.addEventListener('keydown', e => {
     const row = e.target.closest && e.target.closest('[data-open]');
     if(row && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); P.selUser = row.dataset.open; P.view = 'collab'; render(); }
@@ -778,7 +959,11 @@
   root.addEventListener('change', e => {
     const t = e.target;
     if(t.dataset.filt !== undefined){ P.filt[t.dataset.filt] = t.value; render(); }
-    else if(t.id === 'plDay'){ if(t.value && t.value >= last8()[0] && t.value <= P.today){ P.day = t.value; render(); } }
+    else if(t.id === 'plDay'){ if(t.value && t.value <= P.today) setPeriod(() => { P.day = t.value; }); }
+    else if(t.id === 'plFrom' || t.id === 'plTo'){
+      const v = t.value; if(!v || v > P.today) return;
+      setPeriod(() => { if(t.id === 'plFrom') P.from = v; else P.to = v; if(P.from > P.to){ const x = P.from; P.from = P.to; P.to = x; } });
+    }
     else if(t.id === 'plUser'){ P.selUser = t.value; render(); }
     else if(t.id === 'plMotif' && P.closing){ P.closing.motif = t.value; P.closing.err = ''; render(); }
     else if(t.closest('.pl-ptable') || t.dataset.rule !== undefined) onParamChange(t);
