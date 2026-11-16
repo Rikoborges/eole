@@ -310,6 +310,7 @@ supabase/
   machine-models.sql        ⭐ rodar depois do 2º (248 modelos da oficina + código famille)
   atelier-schema.sql        ⭐ base da declaração de atividade (cahier des charges)
   import-jobs.sql           copia o histórico do Suivi antigo (jobs) para as telas novas, sem apagar nada
+  machines-neuves.sql       cria/ativa Installation + Mise en route (matricule + modelo, como o nettoyage)
   securite-connexion.sql    ⭐ bloqueio após 5 senhas erradas + senha provisória (rodar depois do atelier-schema)
   cleanup-old-models.sql    retira a lista antiga de modelos (sem código famille), mantém a base da oficina
   harden-admin-check.sql    ⭐ rodar 3º (tranca quem pode chamar is_admin())
