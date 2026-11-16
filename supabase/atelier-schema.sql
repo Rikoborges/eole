@@ -653,8 +653,8 @@ on conflict (user_id) do nothing;
 -- Réglages par défaut de la fusion Suivi → Saisir (une seule fois : ensuite,
 -- c'est le responsable qui décide dans Paramètres)
 insert into activites (metier_id, name, requires_machine, sort) values
-  ('TECH', 'Installation imprimante neuve', false, 20),
-  ('TECH', 'Mise en route imprimante neuve', false, 21)
+  ('TECH', 'Installation imprimante neuve', true, 20),
+  ('TECH', 'Mise en route imprimante neuve', true, 21)
 on conflict (metier_id, name) do nothing;
 do $$ begin
   if not exists (select 1 from regles_saisie where key = 'defauts_suivi_v1') then
