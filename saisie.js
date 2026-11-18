@@ -264,6 +264,7 @@
       </div>
 
       <div class="sx-side">
+        ${chronoSide()}
         ${alertsCard()}
         ${dayCard()}
       </div>
@@ -418,21 +419,30 @@
       <span class="sx-chchip"><button type="button" data-chr="open" data-cid="${c.id}" title="Revenir à cette tâche"><b>${esc(c.label)}</b> <span class="sx-mono" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span> ▶</button><button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono">✕</button></span>`).join('')}</div>`;
   }
   // Dans l'étape « Temps » : le chrono de la tâche affichée
+  // Le chrono de la tâche affichée : dans l'étape « Temps » sur téléphone,
+  // dans la colonne de droite sur ordinateur (même contenu, un seul visible)
+  function chronoBody(c){
+    const long = c.start && chronoMs(c) > 4 * 3600000;
+    return `<div class="sx-row sx-between"><b class="sx-chrono-l">⏱ ${esc(c.label)}</b><span class="sx-pill sx-${c.start ? 'ok' : 'dim'}">${c.start ? 'En marche' : 'En pause'}</span></div>
+      <span class="sx-chrono-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
+      ${c.prior ? `<span class="sx-small">Déjà déclaré ${hm(c.prior)} · séance <span data-chrono-s="${c.id}">${hms(chronoMs(c))}</span></span>` : ''}
+      <div class="sx-row"><button type="button" class="sx-btn sx-sm sx-primary" data-chr="use" data-cid="${c.id}">Utiliser ce temps</button>
+        <button type="button" class="sx-btn sx-sm" data-chr="${c.start ? 'pause' : 'run'}" data-cid="${c.id}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button></div>
+      <span class="sx-small">${SX.form.tManual ? 'Vous avez tapé un temps : « Utiliser ce temps » le remplace par celui du chrono.' : 'Le temps se remplit tout seul. « Utiliser ce temps » le fige au besoin.'}</span>
+      ${long ? '<span class="sx-small sx-bad">Plus de 4 h sans pause : pensez à mettre en pause (repas, fin de journée).</span>' : ''}`;
+  }
   function chronoInline(){
     if(!chronoOn() || SX.form.editId) return '';
-    const c = chronoOfForm(); if(!c) return '';
-    const long = c.start && chronoMs(c) > 4 * 3600000;
-    return `<div class="sx-chinline ${c.start ? 'run' : 'paused'}">
-      <span class="sx-chrono-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
-      <button type="button" class="sx-btn sx-sm" data-chr="${c.start ? 'pause' : 'run'}" data-cid="${c.id}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button>
-      <span class="sx-small">${c.prior ? `Déjà déclaré ${hm(c.prior)} · séance <span data-chrono-s="${c.id}">${hms(chronoMs(c))}</span>. ` : ''}${SX.form.tManual ? 'Temps tapé à la main : il sera utilisé.' : 'Le temps se remplit tout seul ; vous pouvez le corriger.'}</span>
-      ${long ? '<span class="sx-small sx-bad">Plus de 4 h sans pause : pensez à mettre en pause (repas, fin de journée).</span>' : ''}
-    </div>`;
+    const c = chronoOfForm(); return c ? `<div class="sx-chinline ${c.start ? 'run' : 'paused'}">${chronoBody(c)}</div>` : '';
+  }
+  function chronoSide(){
+    if(!chronoOn() || SX.form.editId) return '';
+    const c = chronoOfForm(); return c ? `<div class="sx-card sx-chside ${c.start ? 'run' : 'paused'}">${chronoBody(c)}</div>` : '';
   }
   function fillTimeFromChrono(){
     const f = SX.form; if(!chronoOn() || f.tManual || f.editId) return;
     const c = chronoOfForm(); if(!c) return;
-    const h = sessH(c); f.tRaw = h >= 0.01 ? h2(h) : '';
+    const h = sessH(c); if(h < 0.01) return; f.tRaw = h2(h);
     const i = document.getElementById('sxTime'); if(i && document.activeElement !== i) i.value = f.tRaw;
   }
   function chronoAction(a, cid){
@@ -442,6 +452,10 @@
     else if(a === 'run' && !c.start){ c.start = Date.now(); runOnly(list, c.id); }
     else if(a === 'del'){ list.splice(list.indexOf(c), 1); }
     else if(a === 'open'){ chronosSet(list); openChrono(c); return; }
+    else if(a === 'use'){
+      SX.form.tManual = false; const h = sessH(c); SX.form.tRaw = h2(Math.max(0.01, h));
+      chronosSet(list); render(); toast(`Temps du chrono repris : ${hm(Math.max(0.01, h))}.`); return;
+    }
     chronosSet(list); fillTimeFromChrono(); render();
   }
   function pauseAllChronos(){ const list = chronosGet(); list.forEach(c => { if(c.start){ c.acc = chronoMs(c); c.start = null; } }); chronosSet(list); }

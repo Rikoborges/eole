@@ -169,7 +169,7 @@ h1{
   .plate, .tabs, .stripe{ max-width: 900px; }
 }
 @media (min-width: 1200px){
-  .plate, .tabs, .stripe{ max-width: 1120px; }
+  .plate, .tabs, .stripe{ max-width: min(1400px, calc(100vw - 64px)); }
 }
 
 /* ===================== LAYOUT PRINCIPAL ===================== */
@@ -196,7 +196,7 @@ main{
   main{ max-width: 900px; padding: var(--space-5); }
 }
 @media (min-width: 1200px){
-  main{ max-width: 1120px; }
+  main{ max-width: min(1400px, calc(100vw - 64px)); }
 }
 
 /* ===================== BUSCA / FILTRO (Peças) ===================== */
@@ -1656,3 +1656,15 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 .sx-chchip button:hover{ background: var(--panel-2); }
 .sx-chchip .sx-chx{ border-left: 1px solid var(--line); color: var(--text-dim); padding: 8px 10px; }
 .sx-chchip button:focus-visible{ outline: 3px solid var(--copper); outline-offset: -3px; }
+
+/* Chrono : dans « Temps » sur téléphone, colonne de droite sur ordinateur */
+.sx-chinline{ flex-direction: column; align-items: stretch; }
+.sx-chside{ display: none; gap: 8px; }
+.sx-chside.run{ border-color: var(--copper); }
+.sx-chside .sx-chrono-t{ font-size: 34px; }
+.sx-chside.paused .sx-chrono-t{ color: var(--text-dim); }
+@container app (min-width: 820px){
+  .sx-chinline{ display: none; }
+  .sx-chside{ display: grid; }
+  .sx-grid{ grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); }
+}
