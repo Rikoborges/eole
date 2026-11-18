@@ -1641,3 +1641,18 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 .sx-chrono .sx-chrono-t{ font-size: 24px; }
 .sx-chrono.paused .sx-chrono-t{ color: var(--text-dim); }
 .sx-chrono-l{ font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+/* ---------- Chrono automatique ---------- */
+.sx-chinline{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.sx-chinline.run{ border-color: var(--copper); }
+.sx-chinline .sx-chrono-t{ font-size: 22px; }
+.sx-chinline.paused .sx-chrono-t{ color: var(--text-dim); }
+.sx-chinline .sx-small{ flex: 1 1 220px; min-width: 0; }
+.sx-chstrip{ display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+.sx-chchip{ display: inline-flex; align-items: stretch; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); overflow: hidden; max-width: 100%; }
+.sx-chchip button{ background: none; border: 0; color: var(--text); font: inherit; font-size: 14px; padding: 8px 12px; cursor: pointer; min-height: 40px; }
+.sx-chchip button:first-child{ display: inline-flex; gap: 8px; align-items: center; min-width: 0; }
+.sx-chchip button:first-child b{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; font-weight: 600; }
+.sx-chchip button:hover{ background: var(--panel-2); }
+.sx-chchip .sx-chx{ border-left: 1px solid var(--line); color: var(--text-dim); padding: 8px 10px; }
+.sx-chchip button:focus-visible{ outline: 3px solid var(--copper); outline-offset: -3px; }
