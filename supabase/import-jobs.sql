@@ -51,8 +51,8 @@ where s.valid_from = date '2026-01-01' and s.created_by is null
 
 -- Activités de l'ancien Suivi qui n'existent pas encore
 insert into activites (metier_id, name, requires_machine, sort) values
-  ('TECH', 'Installation imprimante neuve', false, 20),
-  ('TECH', 'Mise en route imprimante neuve', false, 21)
+  ('TECH', 'Installation imprimante neuve', true, 20),
+  ('TECH', 'Mise en route imprimante neuve', true, 21)
 on conflict (metier_id, name) do nothing;
 
 -- Fiches manquantes (comptes qui n'ont jamais ouvert la nouvelle version)

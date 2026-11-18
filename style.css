@@ -1633,3 +1633,11 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 .pl-donut li span{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-donut li small{ color: var(--text-dim); text-align: right; }
 @media (max-width: 520px){ .pl-donut{ grid-template-columns: 1fr; justify-items: center; } .pl-donut ul{ width: 100%; } }
+
+/* ---------- Chronos multiples ---------- */
+.sx-chrono{ display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.sx-chrono.run{ border-color: var(--copper); }
+.sx-chrono.cur{ box-shadow: inset 3px 0 0 var(--copper); }
+.sx-chrono .sx-chrono-t{ font-size: 24px; }
+.sx-chrono.paused .sx-chrono-t{ color: var(--text-dim); }
+.sx-chrono-l{ font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

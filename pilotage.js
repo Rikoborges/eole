@@ -922,6 +922,8 @@
 
   /* ---------- événements ---------- */
   root.addEventListener('click', async e => {
+    const sum = e.target.closest('details[data-acc] > summary'); // retenu dès le clic (le « toggle » arrive un peu après)
+    if(sum){ const det = sum.parentElement; P.acc[det.dataset.acc] = !det.open; return; }
     const row = e.target.closest('[data-open]');
     if(row){ P.selUser = row.dataset.open; P.view = 'collab'; render(); return; }
     const b = e.target.closest('button'); if(!b || b.disabled) return;

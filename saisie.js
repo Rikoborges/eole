@@ -247,7 +247,7 @@
         <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}</h3>
           <div class="sx-quick">${[0.25, 0.5, 1, 1.5, 2, 3].map(v => `<button type="button" data-tq="${v}" aria-pressed="false">${h2(v)}</button>`).join('')}</div>
           <div class="sx-row sx-mt"><input type="text" id="sxTime" class="sx-mono sx-time" value="${esc(f.tRaw)}" placeholder="ex : 1h30, 45 min" aria-label="Temps consacré" inputmode="decimal"><span id="sxConv" class="sx-small"></span></div>
-          ${SX.rules.chrono === true && chronoGet() ? '<p class="sx-small sx-mt">⏱ Chrono en marche : son bouton « Utiliser ce temps » remplit ce champ.</p>' : ''}
+          ${SX.rules.chrono === true && chronoOfForm() ? '<p class="sx-small sx-mt">⏱ Cette tâche a un chrono : son bouton « Utiliser ce temps » remplit ce champ avec la séance.</p>' : ''}
         </div></div>
         ${isM ? `<div class="sx-step"><span class="sx-num">${N()}</span><div><h3>Statut de l'étape</h3>
           <div class="sx-stchoice">
@@ -348,35 +348,106 @@
       ${c.items.map((it, i) => `<label class="sx-check"><input type="checkbox" data-chk="${i}" ${SX.form.checks.includes(it) ? 'checked' : ''}> ${esc(it)}</label>`).join('')}</div>`;
   }
 
-  /* ---------- chrono facultatif (si le responsable l'active) ----------
-     Il ne fait que proposer un temps : le collaborateur le voit dans le champ
-     et valide lui-même. Rien n'est enregistré en base tant qu'il ne valide pas. */
-  const chronoKey = () => 'rb-chrono-' + SX.userId;
-  // état : { start: ms ou null (en pause), acc: ms déjà comptés }
-  const chronoGet = () => { try{ const v = JSON.parse(localStorage.getItem(chronoKey()) || 'null'); return v && typeof v === 'object' ? v : null; }catch(e){ return null; } };
-  const chronoSet = v => { try{ if(v) localStorage.setItem(chronoKey(), JSON.stringify(v)); else localStorage.removeItem(chronoKey()); }catch(e){ toast('Chrono indisponible sur ce navigateur.'); } };
-  const chronoMs = c => c ? c.acc + (c.start ? Date.now() - c.start : 0) : 0;
+  /* ---------- chronos facultatifs (si le responsable les active) ----------
+     Comme l'ancien Suivi : un chrono par tâche, plusieurs à la fois. Lancer ou
+     reprendre l'un met les autres en pause. Une machine « à poursuivre » garde
+     son chrono : en la reprenant, il repart de là où il s'était arrêté (cumul
+     déjà déclaré + nouvelle séance). Le chrono ne fait que proposer le temps de
+     la séance : rien n'est enregistré tant que le collaborateur ne valide pas.
+     Stockés dans ce navigateur (un appareil par poste de travail). */
+  const chronoKey = () => 'rb-chronos-' + SX.userId;
+  // chrono : { id, key, label, act, hp, kind, opId, serial, model, start (ms|null), acc (ms de la séance), prior (h déjà déclarées) }
+  function chronosGet(){
+    try{
+      let list = JSON.parse(localStorage.getItem(chronoKey()) || 'null');
+      if(!Array.isArray(list)){
+        list = [];
+        const old = JSON.parse(localStorage.getItem('rb-chrono-' + SX.userId) || 'null'); // ancien chrono unique
+        if(old && typeof old === 'object') list.push({ id: 'c' + Date.now(), key: 'free', label: 'Chrono', start: old.start, acc: old.acc || 0, prior: 0 });
+        localStorage.removeItem('rb-chrono-' + SX.userId);
+      }
+      return list.filter(c => c && c.id);
+    }catch(e){ return []; }
+  }
+  const chronosSet = list => { try{ localStorage.setItem(chronoKey(), JSON.stringify(list)); }catch(e){ toast('Chrono indisponible sur ce navigateur.'); } };
+  const chronoMs = c => c ? (c.acc || 0) + (c.start ? Date.now() - c.start : 0) : 0;
   const hms = ms => { const t = Math.floor(ms / 1000); return [t / 3600 | 0, (t % 3600) / 60 | 0, t % 60].map(n => String(n).padStart(2, '0')).join(':'); };
+  // Clé de la tâche affichée dans le formulaire
+  function formKey(f){
+    if(f.opId) return 'op:' + f.opId;
+    if(f.kind === 'hp') return f.hp ? 'hp:' + f.hp : null;
+    return f.act ? 'act:' + f.act : null; // nouvelle machine : le matricule peut être tapé après le lancement du chrono
+  }
+  function formLabel(f){
+    if(f.kind === 'hp') return (hpById(f.hp) || {}).label || 'Hors production';
+    const a = actById(f.act); if(!a) return 'Chrono';
+    const op = f.opId ? SX.opsById[f.opId] : null, serial = op ? op.serial : f.serial.trim().toUpperCase();
+    return a.name + (a.requires_machine ? ' · ' + (serial || 'sans matricule') : '');
+  }
+  const chronoOfForm = () => { const k = formKey(SX.form); return k ? chronosGet().find(c => c.key === k) : null; };
+  function runOnly(list, id){ // un seul chrono tourne : les autres passent en pause
+    list.forEach(c => { if(c.id !== id && c.start){ c.acc = chronoMs(c); c.start = null; } });
+  }
   function chronoHTML(){
-    const c = chronoGet();
-    if(!c) return `<div class="sx-card sx-chronocard"><div class="sx-row sx-between"><span class="sx-h2">⏱ Chrono</span><button type="button" class="sx-btn sx-sm" data-a="chronoStart">Démarrer</button></div>
-      <p class="sx-small">Facultatif, comme l'ancien Suivi : lancez-le en commençant, il remplit le temps quand vous avez fini.</p></div>`;
-    return `<div class="sx-card sx-chronocard ${c.start ? 'run' : 'paused'}"><div class="sx-row sx-between"><span class="sx-h2">⏱ Chrono${c.start ? '' : ' · en pause'}</span>
-        <button type="button" class="sx-link" data-a="chronoReset">Remettre à zéro</button></div>
-      <div id="sxChronoT" class="sx-chrono-t">${hms(chronoMs(c))}</div>
-      <div class="sx-row"><button type="button" class="sx-btn sx-sm" data-a="${c.start ? 'chronoPause' : 'chronoResume'}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button>
-        <button type="button" class="sx-btn sx-sm sx-primary" data-a="chronoStop">Utiliser ce temps</button></div></div>`;
+    const list = chronosGet(), f = SX.form, k = formKey(f), mine = k && list.find(c => c.key === k);
+    const canStart = k && !mine;
+    const rows = list.map(c => {
+      const sess = chronoMs(c), isForm = c.key === k;
+      return `<div class="sx-chrono ${c.start ? 'run' : 'paused'}${isForm ? ' cur' : ''}">
+        <div class="sx-row sx-between"><b class="sx-chrono-l">${esc(c.label)}</b><button type="button" class="sx-link" data-chr="del" data-cid="${c.id}" aria-label="Supprimer ce chrono">✕</button></div>
+        <div class="sx-chrono-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + sess)}</div>
+        ${c.prior ? `<span class="sx-small">Déjà déclaré ${hm(c.prior)} · séance <span data-chrono-s="${c.id}">${hms(sess)}</span></span>` : ''}
+        <div class="sx-row"><button type="button" class="sx-btn sx-sm" data-chr="${c.start ? 'pause' : 'run'}" data-cid="${c.id}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button>
+          ${isForm ? `<button type="button" class="sx-btn sx-sm sx-primary" data-chr="use" data-cid="${c.id}">Utiliser ce temps</button>` : `<button type="button" class="sx-btn sx-sm" data-chr="open" data-cid="${c.id}">Ouvrir</button>`}</div></div>`;
+    }).join('');
+    return `<div class="sx-card sx-chronocard"><div class="sx-row sx-between"><span class="sx-h2">⏱ Chronos${list.length ? ` (${list.length})` : ''}</span>
+        ${canStart ? `<button type="button" class="sx-btn sx-sm sx-primary" data-chr="start">Démarrer pour cette tâche</button>` : ''}</div>
+      ${rows || `<p class="sx-small">${k ? 'Lancez un chrono pour la tâche choisie. Vous pouvez en avoir plusieurs : mettez-en un en pause, faites autre chose, revenez.' : 'Choisissez d\'abord une activité, puis lancez son chrono. Plusieurs tâches peuvent avoir chacune le sien.'}</p>`}
+    </div>`;
   }
-  function chronoAction(a){
-    const c = chronoGet();
-    if(a === 'chronoStart') chronoSet({ start: Date.now(), acc: 0 });
-    else if(a === 'chronoPause' && c && c.start) chronoSet({ start: null, acc: chronoMs(c) });
-    else if(a === 'chronoResume' && c && !c.start) chronoSet({ start: Date.now(), acc: c.acc });
-    else if(a === 'chronoStop' && c){ SX.form.tRaw = h2(Math.max(0.01, r2(chronoMs(c) / 3600000))); chronoSet(null); }
-    else if(a === 'chronoReset') chronoSet(null);
-    render();
+  function chronoAction(a, cid){
+    const list = chronosGet(), c = list.find(x => x.id === cid), f = SX.form;
+    if(a === 'start'){
+      const k = formKey(f); if(!k) return;
+      const op = f.opId ? SX.opsById[f.opId] : null;
+      const nc = { id: 'c' + Date.now(), key: k, label: formLabel(f), kind: f.kind, act: f.act, hp: f.hp, opId: f.opId, serial: f.serial, model: f.model,
+                   start: Date.now(), acc: 0, prior: op ? Number(op.total_hours) || 0 : 0 };
+      list.push(nc); runOnly(list, nc.id);
+    }
+    else if(!c) return;
+    else if(a === 'pause' && c.start){ c.acc = chronoMs(c); c.start = null; }
+    else if(a === 'run' && !c.start){ c.start = Date.now(); runOnly(list, c.id); }
+    else if(a === 'del'){ list.splice(list.indexOf(c), 1); }
+    else if(a === 'open'){ chronosSet(list); openChrono(c); return; }
+    else if(a === 'use'){
+      if(c.start){ c.acc = chronoMs(c); c.start = null; }
+      f.tRaw = h2(Math.max(0.01, r2(c.acc / 3600000)));
+      toast(`Temps de la séance repris : ${hm(c.acc / 3600000)}. Vérifiez puis validez.`);
+    }
+    chronosSet(list); render();
   }
-  setInterval(() => { const el = document.getElementById('sxChronoT'); if(!el) return; const c = chronoGet(); if(c && c.start) el.textContent = hms(chronoMs(c)); }, 1000);
+  // Ouvre la tâche d'un chrono dans le formulaire (la reprend si c'est une machine en cours)
+  function openChrono(c){
+    if(c.opId && !SX.openOps.some(o => o.id === c.opId)){ toast('Cette étape n\'est plus en cours.'); return; }
+    SX.form = Object.assign(blankForm(), c.kind === 'hp' ? { kind: 'hp', hp: c.hp } : { kind: 'prod', act: c.act, opId: c.opId || null, serial: c.opId ? '' : (c.serial || ''), model: c.opId ? null : (c.model || null) });
+    SX.lookup = { serial: '', rows: [] };
+    render(); const card = document.getElementById('sxFormCard'); if(card) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  // Après « Valider » : la machine à poursuivre garde son chrono (en pause, cumul à jour) ; sinon le chrono est terminé
+  function chronoAfterSave(oldKey, isM, st, opId){
+    if(!oldKey) return;
+    const list = chronosGet(), c = list.find(x => x.key === oldKey); if(!c) return;
+    const op = opId ? SX.opsById[opId] : null;
+    if(isM && st === 'pause' && op){
+      Object.assign(c, { key: 'op:' + op.id, opId: op.id, start: null, acc: 0, prior: Number(op.total_hours) || 0, label: formLabel({ kind: 'prod', act: op.activite_id, opId: op.id, serial: '' }) });
+    } else list.splice(list.indexOf(c), 1);
+    chronosSet(list);
+  }
+  setInterval(() => {
+    const els = root.querySelectorAll('[data-chrono-t]'); if(!els.length) return;
+    const list = chronosGet();
+    els.forEach(el => { const c = list.find(x => x.id === el.dataset.chronoT); if(c && c.start){ el.textContent = hms((c.prior || 0) * 3600000 + chronoMs(c)); const s = root.querySelector(`[data-chrono-s="${c.id}"]`); if(s) s.textContent = hms(chronoMs(c)); } });
+  }, 1000);
 
   /* ---------- modèle : recherche avec loupe ---------- */
   function searchModels(q, limit = 8){
@@ -521,8 +592,13 @@
     SX.busy = false;
     if(error){ f.err = esc(dbError(error)); render(); return; }
     if(!f.opId && !f.editId) SX.lastSaved = { kind: f.kind, act: f.act, hp: f.hp, qte: f.qte, model: f.model };
-    const kind = f.kind; SX.form = blankForm(); SX.form.kind = kind; SX.lookup = { serial: '', rows: [] };
+    const kind = f.kind, oldKey = f.editId ? null : formKey(f); SX.form = blankForm(); SX.form.kind = kind; SX.lookup = { serial: '', rows: [] };
     await loadDay();
+    if(oldKey){
+      let opId = f.opId;
+      if(isM && !opId){ const s0 = f.serial.trim().toUpperCase() || null; const o = SX.openOps.filter(x => x.activite_id === a.id && (x.serial || null) === s0).pop(); opId = o && o.id; }
+      chronoAfterSave(oldKey, isM, f.st, opId);
+    }
     render();
     if(isM && f.st === 'final'){
       const op = Object.values(SX.opsById).find(o => o.status === 'final' && o.activite_id === a.id && (f.opId ? o.id === f.opId : o.serial === (f.serial.trim().toUpperCase() || null)));
@@ -550,6 +626,10 @@
   function resume(id){
     const op = SX.openOps.find(o => o.id === id); if(!op) return;
     SX.form = Object.assign(blankForm(), { kind: 'prod', act: op.activite_id, opId: op.id });
+    if(SX.rules.chrono === true){ // son chrono repart là où il s'était arrêté
+      const list = chronosGet(), c = list.find(x => x.key === 'op:' + op.id);
+      if(c){ c.prior = Number(op.total_hours) || 0; if(!c.start){ c.start = Date.now(); runOnly(list, c.id); } chronosSet(list); toast('Chrono de la machine relancé.'); }
+    }
     render(); document.getElementById('sxFormCard').scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
@@ -568,7 +648,7 @@
     else if(d.a === 'qm'){ f.qte = Math.max(1, (parseInt(f.qte, 10) || 1) - 1); document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'qp'){ f.qte = (parseInt(f.qte, 10) || 0) + 1; document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'save') save();
-    else if(d.a && d.a.startsWith('chrono')) chronoAction(d.a);
+    else if(d.chr) chronoAction(d.chr, d.cid);
     else if(d.a === 'repeat'){ SX.form = Object.assign(blankForm(), SX.lastSaved); render(); toast('Activité et modèle repris : indiquez le matricule et le temps.'); }
     else if(d.a === 'cancelForm'){ SX.form = blankForm(); render(); }
     else if(d.a === 'mChange'){ f.model = null; const box = document.getElementById('sxModelBox'); box.innerHTML = modelBox(); document.getElementById('sxModelQ').focus(); }
