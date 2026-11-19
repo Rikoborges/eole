@@ -31,3 +31,17 @@
 if('serviceWorker' in navigator && location.protocol === 'https:'){
   window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(e => console.warn('Service worker :', e)); });
 }
+
+/* Bandeau « hors ligne » : rassure quand le Wi-Fi de l'atelier coupe */
+(function(){
+  function bar(){
+    let el = document.getElementById('offlineBar');
+    if(!el){ el = document.createElement('div'); el.id = 'offlineBar'; el.className = 'offline-bar'; el.setAttribute('role', 'status');
+      el.textContent = 'Hors ligne : pas de réseau. Attendez son retour avant de valider une déclaration.'; el.hidden = true; document.body.appendChild(el); }
+    return el;
+  }
+  function update(){ if(document.body) bar().hidden = navigator.onLine !== false; }
+  window.addEventListener('online', () => { update(); });
+  window.addEventListener('offline', update);
+  document.addEventListener('DOMContentLoaded', update);
+})();

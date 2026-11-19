@@ -55,7 +55,7 @@
   /* ---------- état ---------- */
   const P = {
     allowed: null, ready: false, loading: false, error: null, me: null,
-    view: 'atelier', period: 'w', week: null, day: null, today: null,
+    view: 'inbox', period: 'w', week: null, day: null, today: null,
     filt: { metier: '', format: '', marque: '' }, opsF: 'open', selUser: null, mq: '', acc: {},
     users: [], acts: [], hp: [], formats: [], metiers: [], models: [], motifs: [],
     decls: [], ops: [], presence: [], firstDecl: {}, standards: [], rules: {}, pTab: 'collab', pmq: '', confirmDel: null, feed: [], closing: null, channel: null, reloadTimer: null
@@ -296,7 +296,46 @@
     if(window.markPilotageTab) window.markPilotageTab(P.view);
     const opTab = document.querySelector('.tab[data-pview="operations"]');
     if(opTab) opTab.innerHTML = 'Opérations' + (nOpen ? ` <span class="pl-count">${nOpen}</span>` : '');
-    root.innerHTML = `${({ atelier: vAtelier, operations: vOperations, collab: vCollab, activites: vActivites, machines: vMachines, params: vParams })[P.view]()}`;
+    const inTab = document.querySelector('.tab[data-pview="inbox"]');
+    if(inTab){ const n = inboxItems().reduce((a, g) => a + g.items.length, 0); inTab.innerHTML = 'À traiter' + (n ? ` <span class="pl-count">${n}</span>` : ''); }
+    root.innerHTML = `${({ inbox: vInbox, atelier: vAtelier, operations: vOperations, collab: vCollab, activites: vActivites, machines: vMachines, params: vParams })[P.view]()}`;
+  }
+
+  /* ---------- À traiter : tout ce qui attend une action du responsable ---------- */
+  function inboxItems(){
+    const team = P.users.filter(u => u.active && u.metier_id && u.format_id), cur = mondayOf(P.today);
+    const last8w = last8(), last2 = [addDays(cur, -7), cur];
+    const groups = [];
+    if(P.valOk) groups.push({ key: 'fiches', title: 'Fiches de la semaine à valider', items: team.flatMap(u => toValidate(u, last8w).map(m => {
+      const v = valOf(u.user_id, m), s = stats([u.user_id], [m]);
+      return { k: v && v.signed_at ? 'mid' : 'dim', t: `${esc(uname(u.user_id))} · S${isoWeek(m)}`, m: `${hm(s.decl + s.hp)} / ${hm(expected(u, [m]))} · ${v && v.signed_at ? 'signée par le collaborateur' : 'pas encore signée'}`,
+               actions: `<button type="button" class="sx-btn sx-sm sx-primary" data-val="${m}" data-uid="${u.user_id}">Valider</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">Voir la fiche</button>` }; })) });
+    groups.push({ key: 'jours', title: 'Journées incomplètes (2 dernières semaines)', items: team.map(u => {
+      const al = alertsFor(u, last2).filter(a => a.t === 'Temps incomplet' || a.t === 'Temps supérieur à l\'objectif');
+      if(!al.length) return null;
+      const miss = al.filter(a => a.t === 'Temps incomplet').length, over = al.length - miss;
+      return { k: 'mid', t: `${esc(uname(u.user_id))} · ${al.length} jour${al.length > 1 ? 's' : ''}`,
+               m: `${miss ? `incomplet${miss > 1 ? 's' : ''} : ` : ''}${al.slice(0, 8).map(a => esc(shortDate(a.d))).join(', ')}${al.length > 8 ? '…' : ''}${over ? ` · dont ${over} au-dessus de l'objectif` : ''}`,
+               actions: `<button type="button" class="sx-btn sx-sm" data-open="${u.user_id}">Voir le collaborateur</button>` };
+    }).filter(Boolean) });
+    groups.push({ key: 'machines', title: 'Machines en attente depuis 3 jours ou plus', items: P.ops.filter(o => OPEN.includes(o.status) && workdaysBetween(o.last_work_date || o.started_on, P.today) >= 3).map(o => ({
+      k: 'mid', t: `${esc(o.serial || 'sans matricule')} · ${esc(aname(o.activite_id))}`, m: `chez ${esc(uname(o.user_id))} · dernier travail ${esc(shortDate(o.last_work_date || o.started_on))} (${workdaysBetween(o.last_work_date || o.started_on, P.today)} j)`,
+      actions: o.serial ? `<button type="button" class="sx-btn sx-sm" data-mq="${esc(o.serial)}">Fiche machine</button>` : `<button type="button" class="sx-btn sx-sm" data-view="operations">Opérations</button>` })) });
+    groups.push({ key: 'matricules', title: 'Matricule ou modèle à compléter', items: P.ops.filter(o => o.status !== 'annulee' && !o.imported && (!o.serial || !o.model_id)).map(o => ({
+      k: 'bad', t: `${esc(aname(o.activite_id))} · ${esc(uname(o.user_id))}`, m: `${!o.serial ? 'N° de série manquant' : 'modèle manquant'} · commencée le ${esc(shortDate(o.started_on))}`, actions: '<button type="button" class="sx-btn sx-sm" data-view="operations">Opérations</button>' })) });
+    groups.push({ key: 'comptes', title: 'Comptes bloqués', items: (P.guards || []).filter(g => g.locked_until && new Date(g.locked_until) > new Date()).map(g => ({
+      k: 'bad', t: esc(uname(g.user_id)), m: `bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))} (mots de passe faux)`, actions: `<button type="button" class="sx-btn sx-sm sx-primary" data-unlock="${g.user_id}">Débloquer</button>` })) });
+    groups.push({ key: 'fiches-inc', title: 'Fiches collaborateur incomplètes', items: P.users.filter(u => u.active && (!u.metier_id || !u.format_id)).map(u => ({
+      k: 'mid', t: esc(u.display_name || 'Sans nom'), m: 'métier ou format horaire à renseigner : la personne ne peut pas encore déclarer', actions: '<button type="button" class="sx-btn sx-sm" data-view="params">Paramètres</button>' })) });
+    return groups;
+  }
+  function vInbox(){
+    const groups = inboxItems(), total = groups.reduce((a, g) => a + g.items.length, 0);
+    if(!total) return `<div class="sx-card pl-inbox-empty"><h2 class="sx-h2">Tout est à jour ✓</h2><p class="sx-small">Aucune fiche à valider, aucune journée incomplète, aucune machine bloquée.</p></div>`;
+    return `<p class="sx-small">${total} point${total > 1 ? 's' : ''} à traiter. Chaque ligne a son bouton d'action.</p>
+      ${groups.filter(g => g.items.length).map(g => `<div class="sx-card pl-inbox"><h2 class="sx-h2 sx-mb">${g.title} <span class="pl-acc-n">${g.items.length}</span></h2>
+        <ul>${g.items.slice(0, 30).map(i => `<li class="pl-ib-${i.k}"><div><b>${i.t}</b><span class="sx-small">${i.m}</span></div><div class="sx-row">${i.actions}</div></li>`).join('')}</ul>
+        ${g.items.length > 30 ? `<p class="sx-small sx-mt">… et ${g.items.length - 30} de plus.</p>` : ''}</div>`).join('')}`;
   }
 
   function vAtelier(){

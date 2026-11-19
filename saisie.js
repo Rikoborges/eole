@@ -88,6 +88,18 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 4500);
   }
 
+  // « Enregistré · Annuler » : 8 secondes pour revenir en arrière (comme Gmail)
+  let undoEl = null, undoTimer = null;
+  function toastUndo(html, onUndo){
+    if(toastEl) toastEl.hidden = true;
+    if(!undoEl){ undoEl = document.createElement('div'); undoEl.className = 'sx-toast sx-toast-undo'; undoEl.setAttribute('role', 'status'); document.body.appendChild(undoEl); }
+    undoEl.innerHTML = `<span>${html}</span><button type="button" class="sx-undo">Annuler</button><span class="sx-undo-bar"></span>`;
+    undoEl.hidden = false;
+    const btn = undoEl.querySelector('.sx-undo');
+    btn.onclick = async () => { btn.disabled = true; btn.textContent = '…'; clearTimeout(undoTimer); try{ await onUndo(); } finally { undoEl.hidden = true; } };
+    clearTimeout(undoTimer); undoTimer = setTimeout(() => { undoEl.hidden = true; }, 8000);
+  }
+
   function dbError(error){
     const msg = (error && (error.message || error.details)) || 'erreur inconnue';
     if(error && error.code === '23505') return 'Ce N° de série est déjà enregistré pour cette étape. S\'il est à vous et pas terminé, utilisez « Reprendre l\'étape ».';
@@ -212,6 +224,7 @@
       </div>
     </div>
 
+    ${endOfDayHTML(obj, rest)}
     ${opsCard()}
     ${chronoStrip()}
 
@@ -271,6 +284,15 @@
       </div>
     </div>`;
     updConv(); lookupSerial(true);
+  }
+
+  // Rappel de fin de journée (à partir de 16 h 30, heure de l'atelier)
+  const parisMinutes = () => { const p = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+    const g = t => +(p.find(x => x.type === t) || {}).value || 0; return g('hour') * 60 + g('minute'); };
+  function endOfDayHTML(obj, rest){
+    if(!obj || rest < 0.01 || parisMinutes() < 16 * 60 + 30 || SX.eodHidden === SX.today) return '';
+    return `<div class="sx-eod" role="status"><span>⏰ <b>Il manque ${hm(rest)}</b> pour compléter votre journée.</span>
+      <span class="sx-row"><button type="button" class="sx-btn sx-sm sx-primary" data-a="eodGo">Déclarer maintenant</button><button type="button" class="sx-link" data-a="eodHide">Plus tard</button></span></div>`;
   }
 
   function opsCard(){
@@ -650,13 +672,14 @@
 
     SX.busy = true; f.err = ''; render();
     const note = f.note.trim() || null;
-    let error = null, msg = '';
+    let error = null, msg = '', newId = null;
+    const chronosBefore = chronosGet(), formBefore = Object.assign({}, f, { tManual: true, err: '', st: f.st });
     try{
       if(isM){
         const r = await sb.rpc('declare_machine_step', {
           p_activite: a.id, p_operation: f.opId, p_serial: f.opId ? null : (f.serial.trim() || null),
           p_model: f.opId ? null : f.model, p_hours: t, p_note: note, p_finalize: f.st === 'final' });
-        error = r.error;
+        error = r.error; newId = r.data;
         if(!error && f.st === 'final' && f.checks.length) await sb.from('declarations').update({ checklist: f.checks }).eq('id', r.data);
         msg = f.st === 'final' ? `Étape finalisée · ${esc(a.name)}` : `Temps enregistré (${hm(t)}). L'étape est dans « Mes étapes en cours ».`;
       }else{
@@ -667,6 +690,7 @@
           : await sb.from('declarations').insert(Object.assign({ user_id: SX.userId }, row)).select().single();
         error = r.error;
         if(!error){
+          if(!f.editId) newId = r.data.id;
           const d = r.data, theo = d.activite_id && d.std_value !== null ? d.quantity * d.std_value : null;
           msg = f.editId ? 'Déclaration mise à jour.'
             : `Enregistré · ${esc(isP ? a.name : hpById(f.hp).label)} · ${hm(t)}${theo !== null ? ` · théorique ${h2(theo)} h · écart ${sgn(t - theo)} h` : ''}`;
@@ -688,7 +712,17 @@
       const op = Object.values(SX.opsById).find(o => o.status === 'final' && o.activite_id === a.id && (f.opId ? o.id === f.opId : o.serial === (f.serial.trim().toUpperCase() || null)));
       if(op && op.std_value !== null) msg += ` · total ${h2(op.total_hours)} h pour ${h2(op.std_value)} h attendues (écart ${sgn(op.total_hours - op.std_value)} h)`;
     }
-    toast(msg);
+    if(newId) toastUndo(msg, async () => {
+      const { error: e2 } = await sb.from('declarations').update({ cancelled: true }).eq('id', newId);
+      if(e2){ toast(esc(dbError(e2))); return; }
+      if(chronoOn()) chronosSet(chronosBefore);          // le chrono revient comme avant
+      SX.form = Object.assign(blankForm(), formBefore);  // et le formulaire aussi, pour corriger
+      if(SX.form.opId && !SX.openOps.some(o => o.id === SX.form.opId)) SX.form.opId = formBefore.opId;
+      SX.lookup = { serial: '', rows: [] };
+      await loadDay(); render();
+      toast('Déclaration annulée : corrigez puis validez à nouveau.');
+    });
+    else toast(msg);
   }
 
   async function cancelDeclaration(id){
@@ -730,6 +764,8 @@
     else if(d.a === 'qm'){ f.qte = Math.max(1, (parseInt(f.qte, 10) || 1) - 1); document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'qp'){ f.qte = (parseInt(f.qte, 10) || 0) + 1; document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'save') save();
+    else if(d.a === 'eodGo'){ const c = document.getElementById('sxFormCard'); if(c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    else if(d.a === 'eodHide'){ SX.eodHidden = SX.today; render(); }
     else if(d.chr) chronoAction(d.chr, d.cid);
     else if(d.a === 'repeat'){ const pk = formKey(f); SX.form = Object.assign(blankForm(), SX.lastSaved); syncChrono(pk); render(); toast('Activité et modèle repris : indiquez le matricule et le temps.'); }
     else if(d.a === 'cancelForm'){
@@ -787,6 +823,9 @@
       if(view && view.classList.contains('active')) initSaisie(session.user.id !== SX.userId);
     }, 0);
   });
+  // Le rappel de 16 h 30 apparaît même si la page reste ouverte
+  let eodShown = false;
+  setInterval(() => { const on = parisMinutes() >= 16 * 60 + 30; if(on !== eodShown){ eodShown = on; const v = document.getElementById('view-saisie'); if(SX.ready && v && v.classList.contains('active') && !document.activeElement.matches('input, textarea')) render(); } }, 60000);
   // Revenir sur l'onglet après minuit : on recharge la bonne journée
   document.addEventListener('visibilitychange', () => {
     const view = document.getElementById('view-saisie');

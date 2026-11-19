@@ -1706,3 +1706,42 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
   .sx-chpaused{ display: grid; }
   .sx-chstrip{ display: none; }
 }
+
+/* Toast « Annuler » (8 s) */
+.sx-toast-undo{ display: flex; align-items: center; gap: 14px; padding-right: 10px; overflow: hidden; }
+.sx-toast-undo[hidden]{ display: none; }
+.sx-undo{ background: none; border: 1px solid currentColor; color: inherit; font: 600 14px 'Barlow', sans-serif; border-radius: 8px; padding: 6px 12px; cursor: pointer; white-space: nowrap; min-height: 36px; }
+.sx-undo:hover{ background: rgba(127,127,127,.18); }
+.sx-undo-bar{ position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--copper); transform-origin: left; animation: sx-undo 8s linear forwards; }
+@keyframes sx-undo{ from{ transform: scaleX(1); } to{ transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce){ .sx-undo-bar{ animation: none; } }
+
+/* ---------- Téléphone : onglets en bas, à portée du pouce (comme une application) ---------- */
+@media (max-width: 699px){
+  .tabs{ position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; max-width: none;
+         background: var(--panel); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(0,0,0,.18);
+         padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+  .tab{ flex: 1 1 0; min-width: 72px; min-height: 58px; padding: 8px 6px 10px; font-size: 12.5px; letter-spacing: .02em;
+        border-bottom: 0; border-top: 3px solid transparent; white-space: normal; line-height: 1.15; }
+  .tab.active{ border-top-color: var(--copper); border-bottom-color: transparent; }
+  main{ padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .sx-toast{ bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ---------- Bandeau « hors ligne » ---------- */
+.offline-bar{ position: fixed; top: 0; left: 0; right: 0; z-index: 70; display: flex; gap: 8px; align-items: center; justify-content: center;
+  padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 6px; background: var(--warning); color: #111827; font: 600 14px 'Barlow', sans-serif; text-align: center; }
+.offline-bar[hidden]{ display: none; }
+
+/* Rappel de fin de journée */
+.sx-eod{ display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 0 12px; padding: 12px 16px;
+  border: 1px solid var(--warning); border-radius: 12px; background: var(--tint-warning); color: var(--text); font-size: 15px; }
+
+/* ---------- À traiter ---------- */
+.pl-inbox ul{ list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pl-inbox li{ display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.pl-inbox li > div:first-child{ display: grid; gap: 2px; min-width: 0; }
+.pl-inbox li.pl-ib-bad{ border-left-color: var(--elec); }
+.pl-inbox li.pl-ib-mid{ border-left-color: var(--warning); }
+.pl-inbox li.pl-ib-dim{ border-left-color: var(--text-dim); }
+.pl-inbox-empty{ text-align: center; padding: 32px 16px; }
