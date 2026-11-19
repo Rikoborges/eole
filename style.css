@@ -1691,3 +1691,18 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 .pl-segs{ list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
 .pl-segs li{ display: grid; grid-template-columns: 110px minmax(80px, 160px) 70px minmax(0, 1fr); gap: 8px; font-size: 13.5px; align-items: baseline; }
 @media (max-width: 620px){ .pl-segs li{ grid-template-columns: 1fr 1fr; } }
+
+/* Tâches en pause : colonne de droite sur ordinateur, bandeau en haut sur téléphone */
+.sx-chpaused{ display: none; gap: 8px; }
+.sx-chp{ display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); overflow: hidden; }
+.sx-chp:hover{ border-color: var(--copper); }
+.sx-chp-open{ flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; background: none; border: 0; color: var(--text); font: inherit; text-align: left; padding: 10px 12px; cursor: pointer; }
+.sx-chp-l{ font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sx-chp-t{ font-size: 15px; color: var(--text-dim); }
+.sx-chp-go{ grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--copper-text); }
+.sx-chp-open:focus-visible{ outline: 3px solid var(--copper); outline-offset: -3px; }
+.sx-chp .sx-chx{ background: none; border: 0; border-left: 1px solid var(--line); color: var(--text-dim); padding: 0 12px; cursor: pointer; font: inherit; }
+@container app (min-width: 820px){
+  .sx-chpaused{ display: grid; }
+  .sx-chstrip{ display: none; }
+}

@@ -265,6 +265,7 @@
 
       <div class="sx-side">
         ${chronoSide()}
+        ${chronoPausedSide()}
         ${alertsCard()}
         ${dayCard()}
       </div>
@@ -449,6 +450,21 @@
     if(!others.length) return '';
     return `<div class="sx-chstrip" aria-label="Tâches commencées"><span class="sx-small">En attente :</span>${others.map(c => `
       <span class="sx-chchip"><button type="button" data-chr="open" data-cid="${c.id}" title="Revenir à cette tâche"><b>${esc(c.label)}</b> <span class="sx-mono" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span> ▶</button><button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono">✕</button></span>`).join('')}</div>`;
+  }
+  // Colonne de droite (ordinateur) : les tâches en pause, un clic pour y revenir
+  function chronoPausedSide(){
+    if(!chronoOn()) return '';
+    const k = formKey(SX.form), others = chronosGet().filter(c => c.key !== k);
+    if(!others.length) return '';
+    return `<div class="sx-card sx-chpaused"><h2 class="sx-h2">Tâches en pause (${others.length})</h2>
+      <p class="sx-small">Cliquez sur une tâche pour la reprendre : son chrono repart, celle en cours se met en pause.</p>
+      ${others.map(c => `<div class="sx-chp">
+        <button type="button" class="sx-chp-open" data-chr="open" data-cid="${c.id}" title="Reprendre cette tâche">
+          <span class="sx-chp-l">${esc(c.label)}</span>
+          <span class="sx-mono sx-chp-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
+          <span class="sx-chp-go">▶ Reprendre</span></button>
+        <button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono" title="Oublier ce chrono">✕</button></div>`).join('')}
+    </div>`;
   }
   // Dans l'étape « Temps » : le chrono de la tâche affichée
   // Le chrono de la tâche affichée : dans l'étape « Temps » sur téléphone,
