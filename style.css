@@ -1668,3 +1668,26 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
   .sx-chside{ display: grid; }
   .sx-grid{ grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); }
 }
+
+/* ---------- Journal des modifications ---------- */
+.pl-journal{ list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pl-journal li{ display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; font-size: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.pl-journal time{ font: 500 12px 'IBM Plex Mono', monospace; color: var(--text-dim); }
+.pl-journal small{ color: var(--text-dim); }
+@media (max-width: 520px){ .pl-journal li{ grid-template-columns: 1fr; gap: 2px; } }
+
+/* ---------- Fiche machine ---------- */
+.pl-link{ background: none; border: 0; padding: 0; color: var(--copper-text); text-decoration: underline; cursor: pointer; font: inherit; }
+.pl-mcard{ display: grid; gap: 12px; margin-top: 12px; }
+.pl-mserial{ font-size: 24px; margin: 0; letter-spacing: .03em; }
+.pl-msum{ display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; color: var(--text-dim); }
+.pl-msum b{ color: var(--text); }
+.pl-timeline{ list-style: none; margin: 0; padding: 0 0 0 18px; display: grid; gap: 10px; border-left: 2px solid var(--line); }
+.pl-timeline > li{ position: relative; display: grid; gap: 4px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; }
+.pl-timeline > li::before{ content: ""; position: absolute; left: -26px; top: 16px; width: 12px; height: 12px; border-radius: 50%; background: var(--text-dim); border: 2px solid var(--panel); }
+.pl-timeline > li.st-final::before{ background: var(--clean); }
+.pl-timeline > li.st-pause::before, .pl-timeline > li.st-encours::before{ background: var(--copper); }
+.pl-timeline > li.st-abandon::before, .pl-timeline > li.st-annulee::before{ background: var(--elec); }
+.pl-segs{ list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.pl-segs li{ display: grid; grid-template-columns: 110px minmax(80px, 160px) 70px minmax(0, 1fr); gap: 8px; font-size: 13.5px; align-items: baseline; }
+@media (max-width: 620px){ .pl-segs li{ grid-template-columns: 1fr 1fr; } }
