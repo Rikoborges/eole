@@ -134,6 +134,8 @@
     P.firstDecl = {};
     decls.forEach(d => { if(!d.cancelled && (!P.firstDecl[d.user_id] || d.work_date < P.firstDecl[d.user_id])) P.firstDecl[d.user_id] = d.work_date; });
     const ops = new Map(); [...opsRecent, ...opsOpen].forEach(o => ops.set(o.id, o)); P.ops = [...ops.values()];
+    const vs = await sb.from('validations_semaine').select('*').gte('week_monday', mondayOf(from));
+    P.vals = vs.error ? [] : (vs.data || []); P.valOk = !vs.error; // table pas encore installée : section masquée
     const pr = await sb.from('presence').select('user_id, day, first_seen, last_seen').eq('day', P.today);
     P.presence = pr.error ? [] : pr.data;
   }
@@ -475,18 +477,40 @@
     return P.selUser ? collabDetail(team) : collabOverview(team);
   }
 
+  /* ---------- fiches hebdomadaires : signature, validation, Excel / PDF ---------- */
+  const valOf = (uid, m) => (P.vals || []).find(v => v.user_id === uid && v.week_monday === m);
+  // semaines passées avec des déclarations mais pas encore validées
+  const toValidate = (u, W) => W.filter(m => m < mondayOf(P.today) && !(valOf(u.user_id, m) || {}).validated_at && P.decls.some(d => d.user_id === u.user_id && !d.cancelled && mondayOf(d.work_date) === m));
+  function weeksCard(u, W){
+    if(!P.valOk) return '';
+    const weeks = W.filter(m => m <= P.today).slice().reverse().slice(0, 12);
+    const rows = weeks.map(m => {
+      const v = valOf(u.user_id, m), WW = [m], s = stats([u.user_id], WW), exp = expected(u, WW), tot = r2(s.decl + s.hp);
+      const has = P.decls.some(d => d.user_id === u.user_id && !d.cancelled && mondayOf(d.work_date) === m);
+      return `<tr><td><b>S${isoWeek(m)}</b> <span class="sx-small">${esc(fmtDate(m, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(m, 4), { day: 'numeric', month: 'short' }))}</span></td>
+        <td class="n">${hm(tot)} <small>/ ${hm(exp)}</small></td><td>${Fiche.statusHTML(v)}</td>
+        <td class="pl-actions">${v && v.validated_at
+          ? `<button type="button" class="sx-btn sx-sm" data-unval="${m}" data-uid="${u.user_id}">${P.confirmUnval === m ? 'Confirmer la réouverture' : 'Rouvrir'}</button>`
+          : `<button type="button" class="sx-btn sx-sm sx-primary" data-val="${m}" data-uid="${u.user_id}" ${has || (v && v.signed_at) ? '' : 'disabled'}>Valider</button>`}
+          <button type="button" class="sx-btn sx-sm" data-fx="${m}" data-uid="${u.user_id}">⬇ Excel</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">🖨 PDF</button></td></tr>`;
+    }).join('');
+    return `<div class="sx-card sx-tscroll"><h2 class="sx-h2 sx-mb">Fiches de la semaine</h2>
+      <table class="sx-table"><thead><tr><th>Semaine</th><th class="n">Déclaré / attendu</th><th>État</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="sx-small">Aucune semaine sur la période.</td></tr>'}</tbody></table>
+      <p class="sx-small sx-mt">Valider verrouille la semaine : le collaborateur ne peut plus la modifier. « Rouvrir » la déverrouille.</p></div>`;
+  }
+
   // 1) Vue d'ensemble : une carte par personne, l'essentiel d'un coup d'œil
   function collabOverview(team){
     const W = periodMondays();
     const list = team.filter(u => u.active).map(u => {
       const s = stats([u.user_id], W), exp = expected(u, W), al = alertsFor(u, W), open = P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status)).length;
-      return { u, s, exp, al, open, fill: exp ? (s.decl + s.hp) / exp : null };
+      return { u, s, exp, al, open, fill: exp ? (s.decl + s.hp) / exp : null, tv: P.valOk ? toValidate(u, W).length : 0 };
     });
     const inactive = team.filter(u => !u.active);
     return `${periodCtl()}
-      <div class="pl-cgrid">${list.map(({ u, s, exp, al, open, fill }) => `
+      <div class="pl-cgrid">${list.map(({ u, s, exp, al, open, fill, tv }) => `
         <button type="button" class="pl-ccard" data-open="${u.user_id}">
-          <span class="pl-ccard-h"><b>${esc(u.display_name || 'Sans nom')}</b>${u.interim ? '<span class="sx-pill sx-blue">intérim</span>' : ''}${al.length ? `<span class="sx-pill sx-mid">${al.length} alerte${al.length > 1 ? 's' : ''}</span>` : '<span class="sx-pill sx-ok">OK</span>'}</span>
+          <span class="pl-ccard-h"><b>${esc(u.display_name || 'Sans nom')}</b>${u.interim ? '<span class="sx-pill sx-blue">intérim</span>' : ''}${al.length ? `<span class="sx-pill sx-mid">${al.length} alerte${al.length > 1 ? 's' : ''}</span>` : '<span class="sx-pill sx-ok">OK</span>'}${tv ? `<span class="sx-pill sx-blue">${tv} fiche${tv > 1 ? 's' : ''} à valider</span>` : ''}</span>
           <span class="sx-small">${esc(metierLabel(u.metier_id))} · ${esc((formatOf(u) || {}).label || '')}</span>
           <span class="pl-ccard-row"><span>Déclaré</span><b class="sx-mono">${hm(s.decl + s.hp)} <small>/ ${hm(exp)}</small></b></span>
           <span class="pl-track"><span style="width:${Math.min(100, (fill || 0) * 100)}%"></span></span>
@@ -544,6 +568,7 @@
         ${kpi('Unités finalisées', s.qte, '', `${h2(s.theo)} h théoriques`)}
         ${kpi('Hors production', hm(s.hp), '', 'réunions, formation, congés…')}
       </div>
+      ${weeksCard(u, W)}
       <div class="pl-charts">
         <div class="sx-card pl-chart-wide"><h2 class="sx-h2 sx-mb">Heures par ${W.from === W.to || (W.to < P.today ? W.to : P.today) <= addDays(W.from, 30) ? 'jour' : 'semaine'}</h2>${hoursChart(u, W)}</div>
         <div class="sx-card"><h2 class="sx-h2 sx-mb">Machines par marque</h2>${brandChart(u, W)}</div>
@@ -929,6 +954,14 @@
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset;
     if(d.a === 'collabBack'){ P.selUser = null; P.brandSel = null; render(); return; }
+    if(d.val){ const { error } = await sb.rpc('validate_week', { p_user: d.uid, p_monday: d.val }); if(error){ toastPl('Validation impossible : ' + dbError(error)); return; }
+      const vs = await sb.from('validations_semaine').select('*').eq('user_id', d.uid).eq('week_monday', d.val).maybeSingle();
+      P.vals = (P.vals || []).filter(v => !(v.user_id === d.uid && v.week_monday === d.val)).concat(vs.data ? [vs.data] : []); toastPl(`Semaine ${isoWeek(d.val)} validée et verrouillée.`); render(); return; }
+    if(d.unval){ if(P.confirmUnval !== d.unval){ P.confirmUnval = d.unval; render(); return; } P.confirmUnval = null;
+      const { error } = await sb.rpc('unvalidate_week', { p_user: d.uid, p_monday: d.unval }); if(error){ toastPl('Réouverture impossible : ' + dbError(error)); return; }
+      P.vals = (P.vals || []).map(v => v.user_id === d.uid && v.week_monday === d.unval ? Object.assign({}, v, { validated_at: null, validated_by: null }) : v); toastPl(`Semaine ${isoWeek(d.unval)} rouverte.`); render(); return; }
+    if(d.fx){ b.disabled = true; try{ await Fiche.xlsx(await Fiche.load(d.uid, d.fx)); }catch(err){ toastPl('Fiche impossible : ' + err.message); } b.disabled = false; return; }
+    if(d.fp){ Fiche.print(d.fp, d.uid); return; }
     if(d.brand !== undefined){ P.brandSel = P.brandSel === d.brand ? null : d.brand; render(); return; }
     if(d.view){ P.view = d.view; P.closing = null; render(); }
     else if(d.period) setPeriod(() => { P.period = d.period; if(d.period === 'd' && !P.day) P.day = P.today;
