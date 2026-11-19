@@ -229,7 +229,7 @@
         </tfoot></table></div>
       <p class="sx-small">Heures (quantité). ⏸ = étape à poursuivre : le temps compte le jour où il est fait, la machine est comptée le jour où elle est finalisée.</p>
       ${weekSignHTML(m)}
-      <div class="sx-row"><button type="button" class="sx-btn sx-primary" data-a="ficheXlsx">⬇ Fiche de la semaine (Excel)</button><button type="button" class="sx-btn" data-a="fichePdf">🖨 Fiche à imprimer / PDF</button>
+      <div class="sx-row"><button type="button" class="sx-btn sx-primary" data-a="ficheXlsx">⬇ Fiche de la semaine (Excel)</button><button type="button" class="sx-btn" data-a="fichePdf">👁 Voir la fiche (imprimer / PDF)</button>
         <button type="button" class="sx-btn" data-a="exportWeek">⬇ Détail des saisies (CSV)</button><button type="button" class="sx-btn" data-a="exportMine">⬇ Toutes mes données (RGPD)</button></div>`;
   }
 

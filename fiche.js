@@ -211,10 +211,13 @@
       .sum{ display: flex; gap: 28px; margin: 12px 0; } .sum b{ display: block; font-size: 16px; }
       .sig{ display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 18px; } .sig div{ border: 1px solid #B8C0CC; min-height: 64px; padding: 8px; }
       .note{ color: #4B5563; font-size: 10px; margin-top: 10px; }
-      .actions{ margin: 0 0 12px; } @media print{ .actions{ display: none; } } @media screen{ body{ padding: 20px 24px; max-width: 1200px; margin: 0 auto; } }
+      .actions{ margin: 0 0 16px; padding: 12px 14px; background: #F3F4F6; border: 1px solid #D9DEE5; border-radius: 8px; } .actions .fix{ margin: 8px 0 0; color: #374151; font-size: 12.5px; } @media print{ .actions{ display: none; } } @media screen{ body{ padding: 20px 24px; max-width: 1200px; margin: 0 auto; } }
       button{ font: inherit; padding: 8px 14px; border: 1px solid #111827; background: #fff; border-radius: 6px; cursor: pointer; margin-right: 8px; }
     </style></head><body>
-      <div class="actions"><button type="button" data-p="print">Imprimer / Enregistrer en PDF</button><button type="button" data-p="close">Fermer</button></div>
+      <div class="actions"><div><button type="button" data-p="print">🖨 Imprimer / Enregistrer en PDF</button><button type="button" data-p="refresh">↻ Actualiser</button><button type="button" data-p="close">Fermer</button></div>
+        <p class="fix">${v && v.validated_at
+          ? 'Semaine validée et verrouillée : pour corriger, le responsable doit d\'abord la rouvrir (Admin › Collaborateurs › Fiches de la semaine › Rouvrir).'
+          : 'Une erreur ? Laissez cette fenêtre ouverte, corrigez dans ReproBench (Saisir › liste du jour › Modifier, ou Annuler puis déclarer à nouveau), puis cliquez sur « Actualiser ».'}</p></div>
       <h1>Fiche d'activité — semaine ${f.week}</h1><div class="bar"></div>
       <div class="info"><div><b>Collaborateur</b>${esc(f.name)}${f.interim ? ' (intérim)' : ''}</div><div><b>Métier</b>${esc(f.metier)}</div><div><b>Format</b>${esc(f.format)}</div>
         <div><b>Période</b>du ${fmt(f.monday, { day: 'numeric', month: 'long' })} au ${fmt(f.sunday, { day: 'numeric', month: 'long', year: 'numeric' })}</div></div>
@@ -229,20 +232,24 @@
       <p class="note">Heures en décimal (1,50 = 1 h 30) ; quantité entre parenthèses. Une machine est comptée le jour où elle est finalisée. Document généré par ReproBench le ${dt(new Date().toISOString())}.</p>
     </body></html>`;
   }
-  // La fenêtre est ouverte tout de suite (au clic) pour ne pas être bloquée, puis remplie
+  // Aperçu de la fiche (pas d'impression automatique : on vérifie d'abord).
+  // La fenêtre est ouverte tout de suite (au clic) pour ne pas être bloquée, puis remplie.
   async function print(monday, userId){
     const w = window.open('', '_blank');
-    if(!w){ alert('Autorisez l\'ouverture de fenêtres pour imprimer la fiche.'); return; }
+    if(!w){ alert('Autorisez l\'ouverture de fenêtres pour voir la fiche.'); return; }
     w.document.write('<p style="font:14px Arial;padding:20px">Préparation de la fiche…</p>');
-    try{
-      const f = await load(userId, monday);
-      w.document.open(); w.document.write(printHTML(f)); w.document.close();
-      // pas de script dans la fenêtre (sécurité du site) : les boutons sont branchés d'ici
-      const pb = w.document.querySelector('[data-p="print"]'), cb = w.document.querySelector('[data-p="close"]');
-      if(pb) pb.addEventListener('click', () => w.print());
-      if(cb) cb.addEventListener('click', () => w.close());
-      setTimeout(() => { try{ w.focus(); w.print(); }catch(e){} }, 300);
-    }catch(e){ w.document.body.innerHTML = '<p style="font:14px Arial;padding:20px">Fiche indisponible : ' + esc(e.message) + '</p>'; }
+    async function fill(){
+      try{
+        const f = await load(userId, monday);
+        w.document.open(); w.document.write(printHTML(f)); w.document.close();
+        // pas de script dans la fenêtre (sécurité du site) : les boutons sont branchés d'ici
+        const on = (k, fn) => { const el = w.document.querySelector(`[data-p="${k}"]`); if(el) el.addEventListener('click', fn); };
+        on('print', () => w.print());
+        on('close', () => w.close());
+        on('refresh', () => { w.document.body.style.opacity = '.5'; fill(); });
+      }catch(e){ w.document.body.innerHTML = '<p style="font:14px Arial;padding:20px">Fiche indisponible : ' + esc(e.message) + '</p>'; }
+    }
+    await fill();
   }
 
   window.Fiche = { load, xlsx, print, statusHTML, statusText, isoWeek };
