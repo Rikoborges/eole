@@ -293,6 +293,9 @@ vendido para terceiros.
 ```
 index.html              estrutura da página (todas as telas)
 style.css               visual (paleta petróleo + cobre, mobile-first)
+manifest.webmanifest    app instalável (nome, ícones, cores)
+sw.js                   service worker: abre o app mesmo sem rede (sempre busca a versão nova primeiro)
+icons/                  ícones do app (192, 512, Apple)
 motdepasse.js           botão 🔑 (trocar a própria senha) + troca obrigatória da senha provisória
 script.js               toda a lógica (dados, telas, gráficos, Supabase)
 favicon.svg             ícone do site
@@ -310,6 +313,7 @@ supabase/
   machine-models.sql        ⭐ rodar depois do 2º (248 modelos da oficina + código famille)
   atelier-schema.sql        ⭐ base da declaração de atividade (cahier des charges)
   import-jobs.sql           copia o histórico do Suivi antigo (jobs) para as telas novas, sem apagar nada
+  chronos.sql               cronômetros salvos no servidor (seguem do PC para o celular)
   machines-neuves.sql       cria/ativa Installation + Mise en route (matricule + modelo, como o nettoyage)
   securite-connexion.sql    ⭐ bloqueio após 5 senhas erradas + senha provisória (rodar depois do atelier-schema)
   cleanup-old-models.sql    retira a lista antiga de modelos (sem código famille), mantém a base da oficina

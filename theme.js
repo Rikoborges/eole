@@ -26,3 +26,8 @@
   });
   if(window.matchMedia) matchMedia('(prefers-color-scheme: light)').addEventListener('change', function(){ if(get() === 'auto') apply('auto'); });
 })();
+
+/* Application installable (téléphone / PC) : service worker, si le navigateur le permet */
+if('serviceWorker' in navigator && location.protocol === 'https:'){
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(e => console.warn('Service worker :', e)); });
+}

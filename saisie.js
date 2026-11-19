@@ -169,7 +169,7 @@
     if(!SX.viewDate || !SX.ready) SX.viewDate = SX.today;
     try{
       const ok = await loadRefs();
-      if(ok && SX.profile && SX.profile.metier_id && SX.format) await loadDay();
+      if(ok && SX.profile && SX.profile.metier_id && SX.format){ await loadDay(); if(SX.rules.chrono === true) await pullChronos(); }
       SX.ready = true;
     }catch(e){
       console.error('Erreur Saisir:', e);
@@ -356,7 +356,9 @@
      son chrono : en la reprenant, il repart de là où il s'était arrêté (cumul
      déjà déclaré + nouvelle séance). Le chrono ne fait que proposer le temps de
      la séance : rien n'est enregistré tant que le collaborateur ne valide pas.
-     Stockés dans ce navigateur (un appareil par poste de travail). */
+     Enregistrés sur le serveur (table chronos_user) : un chrono commencé sur le
+     PC de l'atelier continue sur le téléphone. Copie locale dans le navigateur
+     pour l'affichage instantané et si le serveur n'est pas joignable. */
   const chronoKey = () => 'rb-chronos-' + SX.userId;
   // chrono : { id, key, label, act, hp, kind, opId, serial, model, start (ms|null), acc (ms de la séance), prior (h déjà déclarées) }
   function chronosGet(){
@@ -371,7 +373,37 @@
       return list.filter(c => c && c.id);
     }catch(e){ return []; }
   }
-  const chronosSet = list => { try{ localStorage.setItem(chronoKey(), JSON.stringify(list)); }catch(e){ toast('Chrono indisponible sur ce navigateur.'); } };
+  const chronoTsKey = () => chronoKey() + '-ts';
+  const localTs = () => { try{ return +localStorage.getItem(chronoTsKey()) || 0; }catch(e){ return 0; } };
+  let pushTimer = null;
+  function chronosSet(list, fromServerTs){
+    try{
+      localStorage.setItem(chronoKey(), JSON.stringify(list));
+      localStorage.setItem(chronoTsKey(), String(fromServerTs || Date.now()));
+    }catch(e){ toast('Chrono indisponible sur ce navigateur.'); }
+    if(!fromServerTs){ clearTimeout(pushTimer); pushTimer = setTimeout(pushChronos, 500); }
+  }
+  // Envoie la liste au serveur (le dernier appareil qui modifie a raison)
+  async function pushChronos(){
+    if(SX.chronoServer === false || !SX.userId) return;
+    const { error } = await sb.from('chronos_user').upsert({ user_id: SX.userId, data: chronosGet(), updated_at: new Date(localTs() || Date.now()).toISOString() });
+    if(error){ console.warn('Chronos non synchronisés :', error.message); if(/chronos_user|PGRST205|does not exist/i.test(error.message)) SX.chronoServer = false; }
+  }
+  // Récupère la version du serveur si elle est plus récente ; renvoie true si elle a changé
+  async function pullChronos(){
+    if(SX.chronoServer === false || !SX.userId) return false;
+    const { data, error } = await sb.from('chronos_user').select('data, updated_at').eq('user_id', SX.userId).maybeSingle();
+    if(error){ if(/chronos_user|PGRST205|does not exist/i.test(error.message || '')) SX.chronoServer = false; return false; }
+    SX.chronoServer = true;
+    const ts = data ? Date.parse(data.updated_at) : 0;
+    if(data && ts > localTs()){
+      const before = JSON.stringify(chronosGet());
+      chronosSet(Array.isArray(data.data) ? data.data : [], ts);
+      return before !== JSON.stringify(chronosGet());
+    }
+    if(!data || ts < localTs()) await pushChronos();
+    return false;
+  }
   const chronoMs = c => c ? (c.acc || 0) + (c.start ? Date.now() - c.start : 0) : 0;
   const hms = ms => { const t = Math.floor(ms / 1000); return [t / 3600 | 0, (t % 3600) / 60 | 0, t % 60].map(n => String(n).padStart(2, '0')).join(':'); };
   // Clé de la tâche affichée dans le formulaire
@@ -743,5 +775,9 @@
   document.addEventListener('visibilitychange', () => {
     const view = document.getElementById('view-saisie');
     if(document.visibilityState === 'visible' && SX.ready && view && view.classList.contains('active') && SX.today !== todayStr()) initSaisie(true);
+    else if(document.visibilityState === 'visible' && SX.ready && SX.rules.chrono === true) pullChronos().then(changed => { if(changed && view && view.classList.contains('active')) render(); });
   });
+  // Déconnexion : les chronos sont mis en pause avant la sortie (pour l'autre appareil aussi)
+  const logoutBtn = document.getElementById('btnLogout');
+  if(logoutBtn) logoutBtn.addEventListener('click', () => { if(SX.userId && SX.rules.chrono === true){ pauseAllChronos(); clearTimeout(pushTimer); pushChronos(); } }, true);
 })();
