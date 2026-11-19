@@ -92,17 +92,19 @@
   async function loadData(){
     const uid = S.userId;
     const lastMon = S.week, from = addDays(lastMon, -7 * 7), to = addDays(lastMon, 6);
-    const [decls, ops, open] = await Promise.all([
+    const [decls, ops, open, val] = await Promise.all([
       sb.from('declarations').select('id, work_date, activite_id, hors_production_id, operation_id, quantity, hours, std_value')
         .eq('user_id', uid).eq('cancelled', false).gte('work_date', from).lte('work_date', to).order('work_date').limit(5000),
       sb.from('operations_avec_temps').select('id, activite_id, serial, status, started_on, finished_on, std_value, total_hours, last_work_date')
         .eq('user_id', uid).eq('status', 'final').gte('finished_on', from).lte('finished_on', to).limit(2000),
       sb.from('operations_avec_temps').select('id, activite_id, serial, status, started_on, std_value, total_hours')
-        .eq('user_id', uid).in('status', ['encours', 'pause'])
+        .eq('user_id', uid).in('status', ['encours', 'pause']),
+      sb.from('validations_semaine').select('*').eq('user_id', uid).gte('week_monday', from).lte('week_monday', lastMon)
     ]);
     const bad = [decls, ops, open].find(r => r.error);
     if(bad){ S.error = dbError(bad.error); return; }
     S.decls = decls.data || []; S.ops = ops.data || []; S.openOps = open.data || []; S.loadedFrom = from;
+    S.vals = val.error ? [] : (val.data || []); S.valOk = !val.error; // table pas encore installée : on masque la signature
   }
 
   async function initSemaine(force){
@@ -226,7 +228,21 @@
           }).join('')}<td colspan="4"></td></tr>
         </tfoot></table></div>
       <p class="sx-small">Heures (quantité). ⏸ = étape à poursuivre : le temps compte le jour où il est fait, la machine est comptée le jour où elle est finalisée.</p>
-      <div class="sx-row"><button type="button" class="sx-btn" data-a="exportWeek">⬇ Exporter cette semaine (Excel)</button><button type="button" class="sx-btn" data-a="exportMine">⬇ Exporter toutes mes données (RGPD)</button></div>`;
+      ${weekSignHTML(m)}
+      <div class="sx-row"><button type="button" class="sx-btn sx-primary" data-a="ficheXlsx">⬇ Fiche de la semaine (Excel)</button><button type="button" class="sx-btn" data-a="fichePdf">🖨 Fiche à imprimer / PDF</button>
+        <button type="button" class="sx-btn" data-a="exportWeek">⬇ Détail des saisies (CSV)</button><button type="button" class="sx-btn" data-a="exportMine">⬇ Toutes mes données (RGPD)</button></div>`;
+  }
+
+  // Signature de la semaine (le responsable valide ensuite, la semaine est alors verrouillée)
+  function weekSignHTML(m){
+    if(!S.valOk) return '';
+    const v = (S.vals || []).find(x => x.week_monday === m);
+    const started = m <= S.today;
+    let action = '';
+    if(v && v.validated_at) action = '<span class="sx-small">Semaine verrouillée : seul le responsable peut la corriger ou la rouvrir.</span>';
+    else if(started) action = `<button type="button" class="sx-btn sx-sm sx-primary" data-a="signWeek">✍ ${v && v.signed_at ? 'Signer à nouveau' : 'Signer ma semaine'}</button><span class="sx-small">Je confirme que mes déclarations de la semaine sont justes. Le responsable la validera ensuite.</span>`;
+    return `<div class="sx-card sw-sign"><div class="sx-row sx-between"><b>Fiche de la semaine ${isoWeek(m)}</b>${Fiche.statusHTML(v)}</div>
+      <span class="sx-small">${esc(Fiche.statusText(v))}</span><div class="sx-row">${action}</div></div>`;
   }
 
   const kpi = (l, v, k, h) => `<div class="sw-kpi"><span class="sw-lbl">${l}</span><span class="sw-val ${k ? 'sx-' + k : ''}">${v}</span><span class="sx-small">${esc(h)}</span></div>`;
@@ -319,6 +335,13 @@
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset;
     if(d.a === 'exportWeek') exportWeek();
+    else if(d.a === 'ficheXlsx'){ b.disabled = true; b.textContent = 'Préparation…'; try{ await Fiche.xlsx(await Fiche.load(S.userId, S.week)); }catch(err){ alert('Fiche impossible : ' + err.message); } render(); }
+    else if(d.a === 'fichePdf') Fiche.print(S.week, S.userId);
+    else if(d.a === 'signWeek'){
+      const { error } = await sb.rpc('sign_week', { p_monday: S.week });
+      if(error){ alert('Signature impossible : ' + error.message); return; }
+      await loadData(); render();
+    }
     else if(d.a === 'exportMine') exportMine();
     else if(d.tab){ S.tab = d.tab; render(); }
     else if(d.period){ S.period = d.period; render(); }

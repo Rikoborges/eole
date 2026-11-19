@@ -11,13 +11,21 @@
   <script src="theme.js"></script>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ReproBench">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' https://cdn.jsdelivr.net;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src https://fonts.gstatic.com;
     img-src 'self' data: https://*.supabase.co;
-    connect-src 'self' https://ddyekeeuaynqipdmlqhq.supabase.co;
+    connect-src 'self' https://ddyekeeuaynqipdmlqhq.supabase.co wss://ddyekeeuaynqipdmlqhq.supabase.co;
+    worker-src 'self';
+    manifest-src 'self';
     frame-ancestors 'none';
     base-uri 'self';
     form-action 'none';
@@ -94,7 +102,8 @@
       <button class="tab" data-role="col" data-view="semaine" id="tab-semaine" aria-selected="false">Ma semaine</button>
       <button class="tab" data-role="col" data-view="pecas" aria-selected="false">Pièces</button>
       <!-- Responsable (visibles seulement pour un responsable, en mode Responsable) -->
-      <button class="tab" data-role="resp" data-view="pilotage" data-pview="atelier" id="tab-pilotage-btn" aria-selected="false" hidden>Atelier</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="inbox" id="tab-pilotage-btn" aria-selected="false" hidden>À traiter</button>
+      <button class="tab" data-role="resp" data-view="pilotage" data-pview="atelier" aria-selected="false" hidden>Atelier</button>
       <button class="tab" data-role="resp" data-view="pilotage" data-pview="operations" aria-selected="false" hidden>Opérations</button>
       <button class="tab" data-role="resp" data-view="pilotage" data-pview="collab" aria-selected="false" hidden>Collaborateurs</button>
       <button class="tab" data-role="resp" data-view="pilotage" data-pview="activites" aria-selected="false" hidden>Activités</button>
@@ -621,6 +630,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js" integrity="sha384-qafw21c/iciq0VXsi9FzkfoQv5I/V0iqE4lSNcKXPnW9/UTJLnv5CcN4FHxVLnKg" crossorigin="anonymous"></script>
   <script src="script.js"></script>
   <script src="saisie.js"></script>
+  <script src="fiche.js"></script>
   <script src="semaine.js"></script>
   <script src="pilotage.js"></script>
   <script src="motdepasse.js"></script>

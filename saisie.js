@@ -52,7 +52,7 @@
     abandon: ['bad', 'Abandonnée / Non réalisable'], annulee: ['dim', 'Annulée (archivée)']
   };
   const blankForm = () => ({ checks: [], kind: 'prod', act: null, hp: null, qte: 1, serial: '', model: null, unreadable: false,
-                             tRaw: '', note: '', editId: null, opId: null, st: null, err: '' });
+                             tRaw: '', tManual: false, note: '', editId: null, opId: null, st: null, err: '' });
   const SX = {
     userId: null, ready: false, loading: false, setupError: null,
     profile: null, format: null, metierLabel: '',
@@ -86,6 +86,18 @@
     if(!toastEl){ toastEl = document.createElement('div'); toastEl.className = 'sx-toast'; toastEl.setAttribute('role', 'status'); document.body.appendChild(toastEl); }
     toastEl.innerHTML = html; toastEl.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl.hidden = true; }, 4500);
+  }
+
+  // « Enregistré · Annuler » : 8 secondes pour revenir en arrière (comme Gmail)
+  let undoEl = null, undoTimer = null;
+  function toastUndo(html, onUndo){
+    if(toastEl) toastEl.hidden = true;
+    if(!undoEl){ undoEl = document.createElement('div'); undoEl.className = 'sx-toast sx-toast-undo'; undoEl.setAttribute('role', 'status'); document.body.appendChild(undoEl); }
+    undoEl.innerHTML = `<span>${html}</span><button type="button" class="sx-undo">Annuler</button><span class="sx-undo-bar"></span>`;
+    undoEl.hidden = false;
+    const btn = undoEl.querySelector('.sx-undo');
+    btn.onclick = async () => { btn.disabled = true; btn.textContent = '…'; clearTimeout(undoTimer); try{ await onUndo(); } finally { undoEl.hidden = true; } };
+    clearTimeout(undoTimer); undoTimer = setTimeout(() => { undoEl.hidden = true; }, 8000);
   }
 
   function dbError(error){
@@ -169,7 +181,7 @@
     if(!SX.viewDate || !SX.ready) SX.viewDate = SX.today;
     try{
       const ok = await loadRefs();
-      if(ok && SX.profile && SX.profile.metier_id && SX.format) await loadDay();
+      if(ok && SX.profile && SX.profile.metier_id && SX.format){ await loadDay(); if(SX.rules.chrono === true) await pullChronos(); }
       SX.ready = true;
     }catch(e){
       console.error('Erreur Saisir:', e);
@@ -183,6 +195,7 @@
 
   /* ---------- rendu ---------- */
   function render(){
+    fillTimeFromChrono();
     if(SX.setupError){
       root.innerHTML = `<div class="sx-card sx-notice"><h2 class="sx-h2">Saisie indisponible</h2><p>${esc(SX.setupError)}</p></div>`;
       return;
@@ -211,7 +224,9 @@
       </div>
     </div>
 
+    ${endOfDayHTML(obj, rest)}
     ${opsCard()}
+    ${chronoStrip()}
 
     <div class="sx-grid">
       <div class="sx-card" id="sxFormCard">
@@ -247,7 +262,7 @@
         <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}</h3>
           <div class="sx-quick">${[0.25, 0.5, 1, 1.5, 2, 3].map(v => `<button type="button" data-tq="${v}" aria-pressed="false">${h2(v)}</button>`).join('')}</div>
           <div class="sx-row sx-mt"><input type="text" id="sxTime" class="sx-mono sx-time" value="${esc(f.tRaw)}" placeholder="ex : 1h30, 45 min" aria-label="Temps consacré" inputmode="decimal"><span id="sxConv" class="sx-small"></span></div>
-          ${SX.rules.chrono === true && chronoOfForm() ? '<p class="sx-small sx-mt">⏱ Cette tâche a un chrono : son bouton « Utiliser ce temps » remplit ce champ avec la séance.</p>' : ''}
+          ${chronoInline()}
         </div></div>
         ${isM ? `<div class="sx-step"><span class="sx-num">${N()}</span><div><h3>Statut de l'étape</h3>
           <div class="sx-stchoice">
@@ -262,12 +277,22 @@
       </div>
 
       <div class="sx-side">
-        ${SX.rules.chrono === true ? chronoHTML() : ''}
+        ${chronoSide()}
+        ${chronoPausedSide()}
         ${alertsCard()}
         ${dayCard()}
       </div>
     </div>`;
     updConv(); lookupSerial(true);
+  }
+
+  // Rappel de fin de journée (à partir de 16 h 30, heure de l'atelier)
+  const parisMinutes = () => { const p = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+    const g = t => +(p.find(x => x.type === t) || {}).value || 0; return g('hour') * 60 + g('minute'); };
+  function endOfDayHTML(obj, rest){
+    if(!obj || rest < 0.01 || parisMinutes() < 16 * 60 + 30 || SX.eodHidden === SX.today) return '';
+    return `<div class="sx-eod" role="status"><span>⏰ <b>Il manque ${hm(rest)}</b> pour compléter votre journée.</span>
+      <span class="sx-row"><button type="button" class="sx-btn sx-sm sx-primary" data-a="eodGo">Déclarer maintenant</button><button type="button" class="sx-link" data-a="eodHide">Plus tard</button></span></div>`;
   }
 
   function opsCard(){
@@ -354,7 +379,9 @@
      son chrono : en la reprenant, il repart de là où il s'était arrêté (cumul
      déjà déclaré + nouvelle séance). Le chrono ne fait que proposer le temps de
      la séance : rien n'est enregistré tant que le collaborateur ne valide pas.
-     Stockés dans ce navigateur (un appareil par poste de travail). */
+     Enregistrés sur le serveur (table chronos_user) : un chrono commencé sur le
+     PC de l'atelier continue sur le téléphone. Copie locale dans le navigateur
+     pour l'affichage instantané et si le serveur n'est pas joignable. */
   const chronoKey = () => 'rb-chronos-' + SX.userId;
   // chrono : { id, key, label, act, hp, kind, opId, serial, model, start (ms|null), acc (ms de la séance), prior (h déjà déclarées) }
   function chronosGet(){
@@ -369,7 +396,37 @@
       return list.filter(c => c && c.id);
     }catch(e){ return []; }
   }
-  const chronosSet = list => { try{ localStorage.setItem(chronoKey(), JSON.stringify(list)); }catch(e){ toast('Chrono indisponible sur ce navigateur.'); } };
+  const chronoTsKey = () => chronoKey() + '-ts';
+  const localTs = () => { try{ return +localStorage.getItem(chronoTsKey()) || 0; }catch(e){ return 0; } };
+  let pushTimer = null;
+  function chronosSet(list, fromServerTs){
+    try{
+      localStorage.setItem(chronoKey(), JSON.stringify(list));
+      localStorage.setItem(chronoTsKey(), String(fromServerTs || Date.now()));
+    }catch(e){ toast('Chrono indisponible sur ce navigateur.'); }
+    if(!fromServerTs){ clearTimeout(pushTimer); pushTimer = setTimeout(pushChronos, 500); }
+  }
+  // Envoie la liste au serveur (le dernier appareil qui modifie a raison)
+  async function pushChronos(){
+    if(SX.chronoServer === false || !SX.userId) return;
+    const { error } = await sb.from('chronos_user').upsert({ user_id: SX.userId, data: chronosGet(), updated_at: new Date(localTs() || Date.now()).toISOString() });
+    if(error){ console.warn('Chronos non synchronisés :', error.message); if(/chronos_user|PGRST205|does not exist/i.test(error.message)) SX.chronoServer = false; }
+  }
+  // Récupère la version du serveur si elle est plus récente ; renvoie true si elle a changé
+  async function pullChronos(){
+    if(SX.chronoServer === false || !SX.userId) return false;
+    const { data, error } = await sb.from('chronos_user').select('data, updated_at').eq('user_id', SX.userId).maybeSingle();
+    if(error){ if(/chronos_user|PGRST205|does not exist/i.test(error.message || '')) SX.chronoServer = false; return false; }
+    SX.chronoServer = true;
+    const ts = data ? Date.parse(data.updated_at) : 0;
+    if(data && ts > localTs()){
+      const before = JSON.stringify(chronosGet());
+      chronosSet(Array.isArray(data.data) ? data.data : [], ts);
+      return before !== JSON.stringify(chronosGet());
+    }
+    if(!data || ts < localTs()) await pushChronos();
+    return false;
+  }
   const chronoMs = c => c ? (c.acc || 0) + (c.start ? Date.now() - c.start : 0) : 0;
   const hms = ms => { const t = Math.floor(ms / 1000); return [t / 3600 | 0, (t % 3600) / 60 | 0, t % 60].map(n => String(n).padStart(2, '0')).join(':'); };
   // Clé de la tâche affichée dans le formulaire
@@ -388,49 +445,97 @@
   function runOnly(list, id){ // un seul chrono tourne : les autres passent en pause
     list.forEach(c => { if(c.id !== id && c.start){ c.acc = chronoMs(c); c.start = null; } });
   }
-  function chronoHTML(){
-    const list = chronosGet(), f = SX.form, k = formKey(f), mine = k && list.find(c => c.key === k);
-    const canStart = k && !mine;
-    const rows = list.map(c => {
-      const sess = chronoMs(c), isForm = c.key === k;
-      return `<div class="sx-chrono ${c.start ? 'run' : 'paused'}${isForm ? ' cur' : ''}">
-        <div class="sx-row sx-between"><b class="sx-chrono-l">${esc(c.label)}</b><button type="button" class="sx-link" data-chr="del" data-cid="${c.id}" aria-label="Supprimer ce chrono">✕</button></div>
-        <div class="sx-chrono-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + sess)}</div>
-        ${c.prior ? `<span class="sx-small">Déjà déclaré ${hm(c.prior)} · séance <span data-chrono-s="${c.id}">${hms(sess)}</span></span>` : ''}
-        <div class="sx-row"><button type="button" class="sx-btn sx-sm" data-chr="${c.start ? 'pause' : 'run'}" data-cid="${c.id}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button>
-          ${isForm ? `<button type="button" class="sx-btn sx-sm sx-primary" data-chr="use" data-cid="${c.id}">Utiliser ce temps</button>` : `<button type="button" class="sx-btn sx-sm" data-chr="open" data-cid="${c.id}">Ouvrir</button>`}</div></div>`;
-    }).join('');
-    return `<div class="sx-card sx-chronocard"><div class="sx-row sx-between"><span class="sx-h2">⏱ Chronos${list.length ? ` (${list.length})` : ''}</span>
-        ${canStart ? `<button type="button" class="sx-btn sx-sm sx-primary" data-chr="start">Démarrer pour cette tâche</button>` : ''}</div>
-      ${rows || `<p class="sx-small">${k ? 'Lancez un chrono pour la tâche choisie. Vous pouvez en avoir plusieurs : mettez-en un en pause, faites autre chose, revenez.' : 'Choisissez d\'abord une activité, puis lancez son chrono. Plusieurs tâches peuvent avoir chacune le sien.'}</p>`}
+  const chronoOn = () => SX.rules.chrono === true;
+  const sessH = c => r2(chronoMs(c) / 3600000);
+  // Le formulaire change de tâche : l'ancienne se met en pause (ou disparaît si
+  // elle n'a duré que quelques secondes : simple clic de passage), la nouvelle démarre.
+  function syncChrono(prevKey){
+    if(!chronoOn()) return;
+    const f = SX.form, k = f.editId ? null : formKey(f), list = chronosGet();
+    if(prevKey && prevKey !== k){
+      const p = list.find(c => c.key === prevKey);
+      if(p){ if(!p.opId && !p.prior && chronoMs(p) < 60000) list.splice(list.indexOf(p), 1); else if(p.start){ p.acc = chronoMs(p); p.start = null; } }
+    }
+    if(k){
+      let c = list.find(x => x.key === k);
+      const op = f.opId ? SX.opsById[f.opId] : null;
+      if(!c){ c = { id: 'c' + Date.now(), key: k, label: formLabel(f), kind: f.kind, act: f.act, hp: f.hp, opId: f.opId, serial: f.serial, model: f.model, start: Date.now(), acc: 0, prior: op ? Number(op.total_hours) || 0 : 0 }; list.push(c); }
+      else { if(op) c.prior = Number(op.total_hours) || 0; if(!c.start) c.start = Date.now(); }
+      runOnly(list, c.id);
+    }
+    chronosSet(list);
+  }
+  // Lignes du haut : les autres tâches commencées (un toque pour y revenir)
+  function chronoStrip(){
+    if(!chronoOn()) return '';
+    const k = formKey(SX.form), others = chronosGet().filter(c => c.key !== k);
+    if(!others.length) return '';
+    return `<div class="sx-chstrip" aria-label="Tâches commencées"><span class="sx-small">En attente :</span>${others.map(c => `
+      <span class="sx-chchip"><button type="button" data-chr="open" data-cid="${c.id}" title="Revenir à cette tâche"><b>${esc(c.label)}</b> <span class="sx-mono" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span> ▶</button><button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono">✕</button></span>`).join('')}</div>`;
+  }
+  // Colonne de droite (ordinateur) : les tâches en pause, un clic pour y revenir
+  function chronoPausedSide(){
+    if(!chronoOn()) return '';
+    const k = formKey(SX.form), others = chronosGet().filter(c => c.key !== k);
+    if(!others.length) return '';
+    return `<div class="sx-card sx-chpaused"><h2 class="sx-h2">Tâches en pause (${others.length})</h2>
+      <p class="sx-small">Cliquez sur une tâche pour la reprendre : son chrono repart, celle en cours se met en pause.</p>
+      ${others.map(c => `<div class="sx-chp">
+        <button type="button" class="sx-chp-open" data-chr="open" data-cid="${c.id}" title="Reprendre cette tâche">
+          <span class="sx-chp-l">${esc(c.label)}</span>
+          <span class="sx-mono sx-chp-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
+          <span class="sx-chp-go">▶ Reprendre</span></button>
+        <button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono" title="Oublier ce chrono">✕</button></div>`).join('')}
     </div>`;
   }
+  // Dans l'étape « Temps » : le chrono de la tâche affichée
+  // Le chrono de la tâche affichée : dans l'étape « Temps » sur téléphone,
+  // dans la colonne de droite sur ordinateur (même contenu, un seul visible)
+  function chronoBody(c){
+    const long = c.start && chronoMs(c) > 4 * 3600000;
+    return `<div class="sx-row sx-between"><b class="sx-chrono-l">⏱ ${esc(c.label)}</b><span class="sx-pill sx-${c.start ? 'ok' : 'dim'}">${c.start ? 'En marche' : 'En pause'}</span></div>
+      <span class="sx-chrono-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
+      ${c.prior ? `<span class="sx-small">Déjà déclaré ${hm(c.prior)} · séance <span data-chrono-s="${c.id}">${hms(chronoMs(c))}</span></span>` : ''}
+      <div class="sx-row"><button type="button" class="sx-btn sx-sm sx-primary" data-chr="use" data-cid="${c.id}">Utiliser ce temps</button>
+        <button type="button" class="sx-btn sx-sm" data-chr="${c.start ? 'pause' : 'run'}" data-cid="${c.id}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button></div>
+      <span class="sx-small">${SX.form.tManual ? 'Vous avez tapé un temps : « Utiliser ce temps » le remplace par celui du chrono.' : 'Le temps se remplit tout seul. « Utiliser ce temps » le fige au besoin.'}</span>
+      ${long ? '<span class="sx-small sx-bad">Plus de 4 h sans pause : pensez à mettre en pause (repas, fin de journée).</span>' : ''}`;
+  }
+  function chronoInline(){
+    if(!chronoOn() || SX.form.editId) return '';
+    const c = chronoOfForm(); return c ? `<div class="sx-chinline ${c.start ? 'run' : 'paused'}">${chronoBody(c)}</div>` : '';
+  }
+  function chronoSide(){
+    if(!chronoOn() || SX.form.editId) return '';
+    const c = chronoOfForm(); return c ? `<div class="sx-card sx-chside ${c.start ? 'run' : 'paused'}">${chronoBody(c)}</div>` : '';
+  }
+  function fillTimeFromChrono(){
+    const f = SX.form; if(!chronoOn() || f.tManual || f.editId) return;
+    const c = chronoOfForm(); if(!c) return;
+    const h = sessH(c); if(h < 0.01) return; f.tRaw = h2(h);
+    const i = document.getElementById('sxTime'); if(i && document.activeElement !== i) i.value = f.tRaw;
+  }
   function chronoAction(a, cid){
-    const list = chronosGet(), c = list.find(x => x.id === cid), f = SX.form;
-    if(a === 'start'){
-      const k = formKey(f); if(!k) return;
-      const op = f.opId ? SX.opsById[f.opId] : null;
-      const nc = { id: 'c' + Date.now(), key: k, label: formLabel(f), kind: f.kind, act: f.act, hp: f.hp, opId: f.opId, serial: f.serial, model: f.model,
-                   start: Date.now(), acc: 0, prior: op ? Number(op.total_hours) || 0 : 0 };
-      list.push(nc); runOnly(list, nc.id);
-    }
-    else if(!c) return;
-    else if(a === 'pause' && c.start){ c.acc = chronoMs(c); c.start = null; }
+    const list = chronosGet(), c = list.find(x => x.id === cid);
+    if(!c) return;
+    if(a === 'pause' && c.start){ c.acc = chronoMs(c); c.start = null; }
     else if(a === 'run' && !c.start){ c.start = Date.now(); runOnly(list, c.id); }
     else if(a === 'del'){ list.splice(list.indexOf(c), 1); }
     else if(a === 'open'){ chronosSet(list); openChrono(c); return; }
     else if(a === 'use'){
-      if(c.start){ c.acc = chronoMs(c); c.start = null; }
-      f.tRaw = h2(Math.max(0.01, r2(c.acc / 3600000)));
-      toast(`Temps de la séance repris : ${hm(c.acc / 3600000)}. Vérifiez puis validez.`);
+      SX.form.tManual = false; const h = sessH(c); SX.form.tRaw = h2(Math.max(0.01, h));
+      chronosSet(list); render(); toast(`Temps du chrono repris : ${hm(Math.max(0.01, h))}.`); return;
     }
-    chronosSet(list); render();
+    chronosSet(list); fillTimeFromChrono(); render();
   }
+  function pauseAllChronos(){ const list = chronosGet(); list.forEach(c => { if(c.start){ c.acc = chronoMs(c); c.start = null; } }); chronosSet(list); }
   // Ouvre la tâche d'un chrono dans le formulaire (la reprend si c'est une machine en cours)
   function openChrono(c){
+    const prevKey = formKey(SX.form);
     if(c.opId && !SX.openOps.some(o => o.id === c.opId)){ toast('Cette étape n\'est plus en cours.'); return; }
     SX.form = Object.assign(blankForm(), c.kind === 'hp' ? { kind: 'hp', hp: c.hp } : { kind: 'prod', act: c.act, opId: c.opId || null, serial: c.opId ? '' : (c.serial || ''), model: c.opId ? null : (c.model || null) });
     SX.lookup = { serial: '', rows: [] };
+    syncChrono(prevKey); fillTimeFromChrono();
     render(); const card = document.getElementById('sxFormCard'); if(card) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
   // Après « Valider » : la machine à poursuivre garde son chrono (en pause, cumul à jour) ; sinon le chrono est terminé
@@ -447,6 +552,7 @@
     const els = root.querySelectorAll('[data-chrono-t]'); if(!els.length) return;
     const list = chronosGet();
     els.forEach(el => { const c = list.find(x => x.id === el.dataset.chronoT); if(c && c.start){ el.textContent = hms((c.prior || 0) * 3600000 + chronoMs(c)); const s = root.querySelector(`[data-chrono-s="${c.id}"]`); if(s) s.textContent = hms(chronoMs(c)); } });
+    const before = SX.form.tRaw; fillTimeFromChrono(); if(SX.form.tRaw !== before) updConv();
   }, 1000);
 
   /* ---------- modèle : recherche avec loupe ---------- */
@@ -566,13 +672,14 @@
 
     SX.busy = true; f.err = ''; render();
     const note = f.note.trim() || null;
-    let error = null, msg = '';
+    let error = null, msg = '', newId = null;
+    const chronosBefore = chronosGet(), formBefore = Object.assign({}, f, { tManual: true, err: '', st: f.st });
     try{
       if(isM){
         const r = await sb.rpc('declare_machine_step', {
           p_activite: a.id, p_operation: f.opId, p_serial: f.opId ? null : (f.serial.trim() || null),
           p_model: f.opId ? null : f.model, p_hours: t, p_note: note, p_finalize: f.st === 'final' });
-        error = r.error;
+        error = r.error; newId = r.data;
         if(!error && f.st === 'final' && f.checks.length) await sb.from('declarations').update({ checklist: f.checks }).eq('id', r.data);
         msg = f.st === 'final' ? `Étape finalisée · ${esc(a.name)}` : `Temps enregistré (${hm(t)}). L'étape est dans « Mes étapes en cours ».`;
       }else{
@@ -583,6 +690,7 @@
           : await sb.from('declarations').insert(Object.assign({ user_id: SX.userId }, row)).select().single();
         error = r.error;
         if(!error){
+          if(!f.editId) newId = r.data.id;
           const d = r.data, theo = d.activite_id && d.std_value !== null ? d.quantity * d.std_value : null;
           msg = f.editId ? 'Déclaration mise à jour.'
             : `Enregistré · ${esc(isP ? a.name : hpById(f.hp).label)} · ${hm(t)}${theo !== null ? ` · théorique ${h2(theo)} h · écart ${sgn(t - theo)} h` : ''}`;
@@ -604,7 +712,17 @@
       const op = Object.values(SX.opsById).find(o => o.status === 'final' && o.activite_id === a.id && (f.opId ? o.id === f.opId : o.serial === (f.serial.trim().toUpperCase() || null)));
       if(op && op.std_value !== null) msg += ` · total ${h2(op.total_hours)} h pour ${h2(op.std_value)} h attendues (écart ${sgn(op.total_hours - op.std_value)} h)`;
     }
-    toast(msg);
+    if(newId) toastUndo(msg, async () => {
+      const { error: e2 } = await sb.from('declarations').update({ cancelled: true }).eq('id', newId);
+      if(e2){ toast(esc(dbError(e2))); return; }
+      if(chronoOn()) chronosSet(chronosBefore);          // le chrono revient comme avant
+      SX.form = Object.assign(blankForm(), formBefore);  // et le formulaire aussi, pour corriger
+      if(SX.form.opId && !SX.openOps.some(o => o.id === SX.form.opId)) SX.form.opId = formBefore.opId;
+      SX.lookup = { serial: '', rows: [] };
+      await loadDay(); render();
+      toast('Déclaration annulée : corrigez puis validez à nouveau.');
+    });
+    else toast(msg);
   }
 
   async function cancelDeclaration(id){
@@ -619,17 +737,15 @@
     const d = [...SX.viewDecls, ...SX.todayDecls].find(x => x.id === id); if(!d) return;
     SX.dayOpen = true;
     SX.form = Object.assign(blankForm(), { kind: d.activite_id ? 'prod' : 'hp', act: d.activite_id, hp: d.hors_production_id,
-      qte: d.quantity || 1, tRaw: h2(d.hours), note: d.note || '', editId: d.id, checks: Array.isArray(d.checklist) ? d.checklist : [] });
+      qte: d.quantity || 1, tRaw: h2(d.hours), tManual: true, note: d.note || '', editId: d.id, checks: Array.isArray(d.checklist) ? d.checklist : [] });
     render(); document.getElementById('sxFormCard').scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   function resume(id){
     const op = SX.openOps.find(o => o.id === id); if(!op) return;
+    const prevKey = formKey(SX.form);
     SX.form = Object.assign(blankForm(), { kind: 'prod', act: op.activite_id, opId: op.id });
-    if(SX.rules.chrono === true){ // son chrono repart là où il s'était arrêté
-      const list = chronosGet(), c = list.find(x => x.key === 'op:' + op.id);
-      if(c){ c.prior = Number(op.total_hours) || 0; if(!c.start){ c.start = Date.now(); runOnly(list, c.id); } chronosSet(list); toast('Chrono de la machine relancé.'); }
-    }
+    syncChrono(prevKey); // son chrono repart là où il s'était arrêté
     render(); document.getElementById('sxFormCard').scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
@@ -639,18 +755,24 @@
     if(li){ pickModel(li.dataset.pick); return; }
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset, f = SX.form;
-    if(d.kind){ f.kind = d.kind; f.act = null; f.hp = null; f.err = ''; render(); }
-    else if(d.act){ f.act = d.act; f.st = null; f.err = ''; SX.lookup = { serial: '', rows: [] }; render(); }
-    else if(d.hp){ f.hp = d.hp; f.err = ''; render(); }
-    else if(d.tq){ f.tRaw = h2(+d.tq); const i = document.getElementById('sxTime'); if(i) i.value = f.tRaw; updConv(); }
+    if(d.kind){ const pk = formKey(f); f.kind = d.kind; f.act = null; f.hp = null; f.err = ''; syncChrono(pk); render(); }
+    else if(d.act){ const pk = formKey(f); f.act = d.act; f.st = null; f.err = ''; SX.lookup = { serial: '', rows: [] }; if(pk !== formKey(f)) f.tManual = false; syncChrono(pk); render(); }
+    else if(d.hp){ const pk = formKey(f); f.hp = d.hp; f.err = ''; if(pk !== formKey(f)) f.tManual = false; syncChrono(pk); render(); }
+    else if(d.tq){ f.tManual = true; f.tRaw = h2(+d.tq); const i = document.getElementById('sxTime'); if(i) i.value = f.tRaw; updConv(); }
     else if(d.st){ f.st = d.st; render(); }
     else if(d.resume) resume(d.resume);
     else if(d.a === 'qm'){ f.qte = Math.max(1, (parseInt(f.qte, 10) || 1) - 1); document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'qp'){ f.qte = (parseInt(f.qte, 10) || 0) + 1; document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'save') save();
+    else if(d.a === 'eodGo'){ const c = document.getElementById('sxFormCard'); if(c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    else if(d.a === 'eodHide'){ SX.eodHidden = SX.today; render(); }
     else if(d.chr) chronoAction(d.chr, d.cid);
-    else if(d.a === 'repeat'){ SX.form = Object.assign(blankForm(), SX.lastSaved); render(); toast('Activité et modèle repris : indiquez le matricule et le temps.'); }
-    else if(d.a === 'cancelForm'){ SX.form = blankForm(); render(); }
+    else if(d.a === 'repeat'){ const pk = formKey(f); SX.form = Object.assign(blankForm(), SX.lastSaved); syncChrono(pk); render(); toast('Activité et modèle repris : indiquez le matricule et le temps.'); }
+    else if(d.a === 'cancelForm'){
+      const k = formKey(f), list = chronosGet(), c = k && list.find(x => x.key === k);
+      if(c && !f.opId){ list.splice(list.indexOf(c), 1); chronosSet(list); }  // tâche abandonnée : son chrono aussi
+      else if(c && c.start){ c.acc = chronoMs(c); c.start = null; chronosSet(list); } // machine en cours : on garde son chrono, en pause
+      SX.form = blankForm(); render(); }
     else if(d.a === 'mChange'){ f.model = null; const box = document.getElementById('sxModelBox'); box.innerHTML = modelBox(); document.getElementById('sxModelQ').focus(); }
     else if(d.edit) startEdit(d.edit);
     else if(d.cancel){ if(SX.confirmCancel === d.cancel) await cancelDeclaration(d.cancel); else { SX.confirmCancel = d.cancel; render(); } }
@@ -669,7 +791,7 @@
   }, true);
   root.addEventListener('input', e => {
     const t = e.target, f = SX.form;
-    if(t.id === 'sxTime'){ f.tRaw = t.value; updConv(); }
+    if(t.id === 'sxTime'){ f.tRaw = t.value; f.tManual = t.value.trim() !== ''; updConv(); }
     else if(t.id === 'sxQte'){ f.qte = t.value; updConv(); }
     else if(t.id === 'sxSerial'){ f.serial = t.value; lookupSerial(false); }
     else if(t.id === 'sxNote') f.note = t.value;
@@ -695,15 +817,22 @@
 
   /* ---------- connexion / changement de compte ---------- */
   sb.auth.onAuthStateChange((_event, session) => {
-    if(!session){ Object.assign(SX, { userId: null, ready: false }); root.innerHTML = ''; return; }
+    if(!session){ if(SX.userId) pauseAllChronos(); Object.assign(SX, { userId: null, ready: false }); root.innerHTML = ''; return; }
     setTimeout(() => {
       const view = document.getElementById('view-saisie');
       if(view && view.classList.contains('active')) initSaisie(session.user.id !== SX.userId);
     }, 0);
   });
+  // Le rappel de 16 h 30 apparaît même si la page reste ouverte
+  let eodShown = false;
+  setInterval(() => { const on = parisMinutes() >= 16 * 60 + 30; if(on !== eodShown){ eodShown = on; const v = document.getElementById('view-saisie'); if(SX.ready && v && v.classList.contains('active') && !document.activeElement.matches('input, textarea')) render(); } }, 60000);
   // Revenir sur l'onglet après minuit : on recharge la bonne journée
   document.addEventListener('visibilitychange', () => {
     const view = document.getElementById('view-saisie');
     if(document.visibilityState === 'visible' && SX.ready && view && view.classList.contains('active') && SX.today !== todayStr()) initSaisie(true);
+    else if(document.visibilityState === 'visible' && SX.ready && SX.rules.chrono === true) pullChronos().then(changed => { if(changed && view && view.classList.contains('active')) render(); });
   });
+  // Déconnexion : les chronos sont mis en pause avant la sortie (pour l'autre appareil aussi)
+  const logoutBtn = document.getElementById('btnLogout');
+  if(logoutBtn) logoutBtn.addEventListener('click', () => { if(SX.userId && SX.rules.chrono === true){ pauseAllChronos(); clearTimeout(pushTimer); pushChronos(); } }, true);
 })();

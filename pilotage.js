@@ -55,7 +55,7 @@
   /* ---------- état ---------- */
   const P = {
     allowed: null, ready: false, loading: false, error: null, me: null,
-    view: 'atelier', period: 'w', week: null, day: null, today: null,
+    view: 'inbox', period: 'w', week: null, day: null, today: null,
     filt: { metier: '', format: '', marque: '' }, opsF: 'open', selUser: null, mq: '', acc: {},
     users: [], acts: [], hp: [], formats: [], metiers: [], models: [], motifs: [],
     decls: [], ops: [], presence: [], firstDecl: {}, standards: [], rules: {}, pTab: 'collab', pmq: '', confirmDel: null, feed: [], closing: null, channel: null, reloadTimer: null
@@ -134,6 +134,10 @@
     P.firstDecl = {};
     decls.forEach(d => { if(!d.cancelled && (!P.firstDecl[d.user_id] || d.work_date < P.firstDecl[d.user_id])) P.firstDecl[d.user_id] = d.work_date; });
     const ops = new Map(); [...opsRecent, ...opsOpen].forEach(o => ops.set(o.id, o)); P.ops = [...ops.values()];
+    const jr = await sb.from('journal').select('*').gte('at', from + 'T00:00:00Z').order('at', { ascending: false }).limit(3000);
+    P.journal = jr.error ? [] : (jr.data || []); P.journalOk = !jr.error;
+    const vs = await sb.from('validations_semaine').select('*').gte('week_monday', mondayOf(from));
+    P.vals = vs.error ? [] : (vs.data || []); P.valOk = !vs.error; // table pas encore installée : section masquée
     const pr = await sb.from('presence').select('user_id, day, first_seen, last_seen').eq('day', P.today);
     P.presence = pr.error ? [] : pr.data;
   }
@@ -292,7 +296,46 @@
     if(window.markPilotageTab) window.markPilotageTab(P.view);
     const opTab = document.querySelector('.tab[data-pview="operations"]');
     if(opTab) opTab.innerHTML = 'Opérations' + (nOpen ? ` <span class="pl-count">${nOpen}</span>` : '');
-    root.innerHTML = `${({ atelier: vAtelier, operations: vOperations, collab: vCollab, activites: vActivites, machines: vMachines, params: vParams })[P.view]()}`;
+    const inTab = document.querySelector('.tab[data-pview="inbox"]');
+    if(inTab){ const n = inboxItems().reduce((a, g) => a + g.items.length, 0); inTab.innerHTML = 'À traiter' + (n ? ` <span class="pl-count">${n}</span>` : ''); }
+    root.innerHTML = `${({ inbox: vInbox, atelier: vAtelier, operations: vOperations, collab: vCollab, activites: vActivites, machines: vMachines, params: vParams })[P.view]()}`;
+  }
+
+  /* ---------- À traiter : tout ce qui attend une action du responsable ---------- */
+  function inboxItems(){
+    const team = P.users.filter(u => u.active && u.metier_id && u.format_id), cur = mondayOf(P.today);
+    const last8w = last8(), last2 = [addDays(cur, -7), cur];
+    const groups = [];
+    if(P.valOk) groups.push({ key: 'fiches', title: 'Fiches de la semaine à valider', items: team.flatMap(u => toValidate(u, last8w).map(m => {
+      const v = valOf(u.user_id, m), s = stats([u.user_id], [m]);
+      return { k: v && v.signed_at ? 'mid' : 'dim', t: `${esc(uname(u.user_id))} · S${isoWeek(m)}`, m: `${hm(s.decl + s.hp)} / ${hm(expected(u, [m]))} · ${v && v.signed_at ? 'signée par le collaborateur' : 'pas encore signée'}`,
+               actions: `<button type="button" class="sx-btn sx-sm sx-primary" data-val="${m}" data-uid="${u.user_id}">Valider</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">Voir la fiche</button>` }; })) });
+    groups.push({ key: 'jours', title: 'Journées incomplètes (2 dernières semaines)', items: team.map(u => {
+      const al = alertsFor(u, last2).filter(a => a.t === 'Temps incomplet' || a.t === 'Temps supérieur à l\'objectif');
+      if(!al.length) return null;
+      const miss = al.filter(a => a.t === 'Temps incomplet').length, over = al.length - miss;
+      return { k: 'mid', t: `${esc(uname(u.user_id))} · ${al.length} jour${al.length > 1 ? 's' : ''}`,
+               m: `${miss ? `incomplet${miss > 1 ? 's' : ''} : ` : ''}${al.slice(0, 8).map(a => esc(shortDate(a.d))).join(', ')}${al.length > 8 ? '…' : ''}${over ? ` · dont ${over} au-dessus de l'objectif` : ''}`,
+               actions: `<button type="button" class="sx-btn sx-sm" data-open="${u.user_id}">Voir le collaborateur</button>` };
+    }).filter(Boolean) });
+    groups.push({ key: 'machines', title: 'Machines en attente depuis 3 jours ou plus', items: P.ops.filter(o => OPEN.includes(o.status) && workdaysBetween(o.last_work_date || o.started_on, P.today) >= 3).map(o => ({
+      k: 'mid', t: `${esc(o.serial || 'sans matricule')} · ${esc(aname(o.activite_id))}`, m: `chez ${esc(uname(o.user_id))} · dernier travail ${esc(shortDate(o.last_work_date || o.started_on))} (${workdaysBetween(o.last_work_date || o.started_on, P.today)} j)`,
+      actions: o.serial ? `<button type="button" class="sx-btn sx-sm" data-mq="${esc(o.serial)}">Fiche machine</button>` : `<button type="button" class="sx-btn sx-sm" data-view="operations">Opérations</button>` })) });
+    groups.push({ key: 'matricules', title: 'Matricule ou modèle à compléter', items: P.ops.filter(o => o.status !== 'annulee' && !o.imported && (!o.serial || !o.model_id)).map(o => ({
+      k: 'bad', t: `${esc(aname(o.activite_id))} · ${esc(uname(o.user_id))}`, m: `${!o.serial ? 'N° de série manquant' : 'modèle manquant'} · commencée le ${esc(shortDate(o.started_on))}`, actions: '<button type="button" class="sx-btn sx-sm" data-view="operations">Opérations</button>' })) });
+    groups.push({ key: 'comptes', title: 'Comptes bloqués', items: (P.guards || []).filter(g => g.locked_until && new Date(g.locked_until) > new Date()).map(g => ({
+      k: 'bad', t: esc(uname(g.user_id)), m: `bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))} (mots de passe faux)`, actions: `<button type="button" class="sx-btn sx-sm sx-primary" data-unlock="${g.user_id}">Débloquer</button>` })) });
+    groups.push({ key: 'fiches-inc', title: 'Fiches collaborateur incomplètes', items: P.users.filter(u => u.active && (!u.metier_id || !u.format_id)).map(u => ({
+      k: 'mid', t: esc(u.display_name || 'Sans nom'), m: 'métier ou format horaire à renseigner : la personne ne peut pas encore déclarer', actions: '<button type="button" class="sx-btn sx-sm" data-view="params">Paramètres</button>' })) });
+    return groups;
+  }
+  function vInbox(){
+    const groups = inboxItems(), total = groups.reduce((a, g) => a + g.items.length, 0);
+    if(!total) return `<div class="sx-card pl-inbox-empty"><h2 class="sx-h2">Tout est à jour ✓</h2><p class="sx-small">Aucune fiche à valider, aucune journée incomplète, aucune machine bloquée.</p></div>`;
+    return `<p class="sx-small">${total} point${total > 1 ? 's' : ''} à traiter. Chaque ligne a son bouton d'action.</p>
+      ${groups.filter(g => g.items.length).map(g => `<div class="sx-card pl-inbox"><h2 class="sx-h2 sx-mb">${g.title} <span class="pl-acc-n">${g.items.length}</span></h2>
+        <ul>${g.items.slice(0, 30).map(i => `<li class="pl-ib-${i.k}"><div><b>${i.t}</b><span class="sx-small">${i.m}</span></div><div class="sx-row">${i.actions}</div></li>`).join('')}</ul>
+        ${g.items.length > 30 ? `<p class="sx-small sx-mt">… et ${g.items.length - 30} de plus.</p>` : ''}</div>`).join('')}`;
   }
 
   function vAtelier(){
@@ -362,7 +405,7 @@
       ${list.map(o => {
         const last = o.last_work_date || o.started_on, n = OPEN.includes(o.status) ? workdaysBetween(last, P.today) : 0;
         const motif = (P.motifs.find(m => m.id === o.motif_id) || {}).label;
-        const row = `<tr class="${o.status === 'annulee' ? 'pl-struck' : ''}"><td class="sx-mono">${o.serial ? esc(o.serial) : o.imported ? '<span class="sx-small">ancien Suivi</span>' : '<span class="sx-bad">à compléter</span>'}</td><td class="sx-small">${esc((modelById(o.model_id) || {}).model || '—')}</td>
+        const row = `<tr class="${o.status === 'annulee' ? 'pl-struck' : ''}"><td class="sx-mono">${o.serial ? `<button type="button" class="pl-link sx-mono" data-mq="${esc(o.serial)}" title="Voir la fiche de la machine">${esc(o.serial)}</button>` : o.imported ? '<span class="sx-small">ancien Suivi</span>' : '<span class="sx-bad">à compléter</span>'}</td><td class="sx-small">${esc((modelById(o.model_id) || {}).model || '—')}</td>
           <td>${esc(aname(o.activite_id))}</td><td>${esc(uname(o.user_id))}</td><td>${esc(shortDate(o.started_on))}</td><td>${esc(shortDate(last))}${n >= 2 ? ` <span class="sx-pill sx-mid">${n} j</span>` : ''}</td>
           <td class="n">${h2(o.total_hours)} h</td><td class="n">${h2(o.std_value)} h</td>
           <td>${pill(o.status)}${(motif || o.close_comment) ? `<br><span class="sx-small">${esc(motif || '')}${o.close_comment ? ' · ' + esc(o.close_comment) : ''}${o.closed_at ? ' · ' + esc(new Date(o.closed_at).toLocaleString('fr-FR', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' })) : ''}${o.closed_by ? ' · par ' + esc(uname(o.closed_by)) : ''}</span>` : ''}</td>
@@ -475,18 +518,71 @@
     return P.selUser ? collabDetail(team) : collabOverview(team);
   }
 
+  /* ---------- journal des modifications : phrases lisibles ---------- */
+  const STATUS_TXT = { encours: 'En cours', pause: 'À poursuivre', final: 'Finalisée', abandon: 'Abandonnée', annulee: 'Annulée' };
+  function journalText(j){
+    const b = j.before || {}, a = j.after || {};
+    const what = x => x.activite_id ? aname(x.activite_id) : x.hors_production_id ? ((P.hp.find(h => h.id === x.hors_production_id) || {}).label || 'Hors production') : '';
+    if(j.table_name === 'declarations'){
+      const head = `${esc(what(b) || what(a))}${b.work_date ? ' du ' + esc(shortDate(b.work_date)) : ''}`;
+      if(j.action === 'suppression') return `${head} : supprimée`;
+      if(j.action === 'annulation') return `${head} : <b>annulée</b> (${h2(b.hours)} h)`;
+      const ch = [];
+      if(b.hours !== a.hours) ch.push(`temps ${h2(b.hours)} → <b>${h2(a.hours)} h</b>`);
+      if(b.quantity !== a.quantity) ch.push(`quantité ${b.quantity} → <b>${a.quantity}</b>`);
+      if(b.activite_id !== a.activite_id || b.hors_production_id !== a.hors_production_id) ch.push(`activité → <b>${esc(what(a))}</b>`);
+      if(b.work_date !== a.work_date) ch.push(`jour → <b>${esc(shortDate(a.work_date))}</b>`);
+      if((b.note || '') !== (a.note || '')) ch.push(`commentaire « ${esc(a.note || '')} »`);
+      if(JSON.stringify(b.checklist) !== JSON.stringify(a.checklist)) ch.push('checklist modifiée');
+      if(b.cancelled && !a.cancelled) ch.push('<b>rétablie</b>');
+      return `${head} : ${ch.join(' · ') || 'modifiée'}`;
+    }
+    const ch = [];
+    if(b.serial !== a.serial) ch.push(`matricule ${esc(b.serial || '—')} → <b>${esc(a.serial || '—')}</b>`);
+    if(b.model_id !== a.model_id) ch.push(`modèle → <b>${esc((modelById(a.model_id) || {}).model || '—')}</b>`);
+    if(b.status !== a.status){ const m = (P.motifs.find(x => x.id === a.motif_id) || {}).label; ch.push(`${STATUS_TXT[b.status] || b.status} → <b>${STATUS_TXT[a.status] || a.status}</b>${m ? ' (' + esc(m) + ')' : ''}${a.close_comment ? ' « ' + esc(a.close_comment) + ' »' : ''}`); }
+    return `Étape ${esc(aname(a.activite_id || b.activite_id))}${a.serial || b.serial ? ' · ' + esc(a.serial || b.serial) : ''} : ${ch.join(' · ') || 'modifiée'}`;
+  }
+  function journalList(list, emptyTxt){
+    if(!list.length) return `<p class="sx-small">${emptyTxt}</p>`;
+    return `<ul class="pl-journal">${list.map(j => `<li><time>${esc(new Date(j.at).toLocaleString('fr-FR', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' }))}</time>
+      <span>${journalText(j)}<small> · par ${esc(j.actor === j.user_id ? 'le collaborateur' : uname(j.actor))}</small></span></li>`).join('')}</ul>`;
+  }
+
+  /* ---------- fiches hebdomadaires : signature, validation, Excel / PDF ---------- */
+  const valOf = (uid, m) => (P.vals || []).find(v => v.user_id === uid && v.week_monday === m);
+  // semaines passées avec des déclarations mais pas encore validées
+  const toValidate = (u, W) => W.filter(m => m < mondayOf(P.today) && !(valOf(u.user_id, m) || {}).validated_at && P.decls.some(d => d.user_id === u.user_id && !d.cancelled && mondayOf(d.work_date) === m));
+  function weeksCard(u, W){
+    if(!P.valOk) return '';
+    const weeks = W.filter(m => m <= P.today).slice().reverse().slice(0, 12);
+    const rows = weeks.map(m => {
+      const v = valOf(u.user_id, m), WW = [m], s = stats([u.user_id], WW), exp = expected(u, WW), tot = r2(s.decl + s.hp);
+      const has = P.decls.some(d => d.user_id === u.user_id && !d.cancelled && mondayOf(d.work_date) === m);
+      return `<tr><td><b>S${isoWeek(m)}</b> <span class="sx-small">${esc(fmtDate(m, { day: 'numeric', month: 'short' }))} – ${esc(fmtDate(addDays(m, 4), { day: 'numeric', month: 'short' }))}</span></td>
+        <td class="n">${hm(tot)} <small>/ ${hm(exp)}</small></td><td>${Fiche.statusHTML(v)}</td>
+        <td class="pl-actions">${v && v.validated_at
+          ? `<button type="button" class="sx-btn sx-sm" data-unval="${m}" data-uid="${u.user_id}">${P.confirmUnval === m ? 'Confirmer la réouverture' : 'Rouvrir'}</button>`
+          : `<button type="button" class="sx-btn sx-sm sx-primary" data-val="${m}" data-uid="${u.user_id}" ${has || (v && v.signed_at) ? '' : 'disabled'}>Valider</button>`}
+          <button type="button" class="sx-btn sx-sm" data-fx="${m}" data-uid="${u.user_id}">⬇ Excel</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">🖨 PDF</button></td></tr>`;
+    }).join('');
+    return `<div class="sx-card sx-tscroll"><h2 class="sx-h2 sx-mb">Fiches de la semaine</h2>
+      <table class="sx-table"><thead><tr><th>Semaine</th><th class="n">Déclaré / attendu</th><th>État</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="sx-small">Aucune semaine sur la période.</td></tr>'}</tbody></table>
+      <p class="sx-small sx-mt">Valider verrouille la semaine : le collaborateur ne peut plus la modifier. « Rouvrir » la déverrouille.</p></div>`;
+  }
+
   // 1) Vue d'ensemble : une carte par personne, l'essentiel d'un coup d'œil
   function collabOverview(team){
     const W = periodMondays();
     const list = team.filter(u => u.active).map(u => {
       const s = stats([u.user_id], W), exp = expected(u, W), al = alertsFor(u, W), open = P.ops.filter(o => o.user_id === u.user_id && OPEN.includes(o.status)).length;
-      return { u, s, exp, al, open, fill: exp ? (s.decl + s.hp) / exp : null };
+      return { u, s, exp, al, open, fill: exp ? (s.decl + s.hp) / exp : null, tv: P.valOk ? toValidate(u, W).length : 0 };
     });
     const inactive = team.filter(u => !u.active);
     return `${periodCtl()}
-      <div class="pl-cgrid">${list.map(({ u, s, exp, al, open, fill }) => `
+      <div class="pl-cgrid">${list.map(({ u, s, exp, al, open, fill, tv }) => `
         <button type="button" class="pl-ccard" data-open="${u.user_id}">
-          <span class="pl-ccard-h"><b>${esc(u.display_name || 'Sans nom')}</b>${u.interim ? '<span class="sx-pill sx-blue">intérim</span>' : ''}${al.length ? `<span class="sx-pill sx-mid">${al.length} alerte${al.length > 1 ? 's' : ''}</span>` : '<span class="sx-pill sx-ok">OK</span>'}</span>
+          <span class="pl-ccard-h"><b>${esc(u.display_name || 'Sans nom')}</b>${u.interim ? '<span class="sx-pill sx-blue">intérim</span>' : ''}${al.length ? `<span class="sx-pill sx-mid">${al.length} alerte${al.length > 1 ? 's' : ''}</span>` : '<span class="sx-pill sx-ok">OK</span>'}${tv ? `<span class="sx-pill sx-blue">${tv} fiche${tv > 1 ? 's' : ''} à valider</span>` : ''}</span>
           <span class="sx-small">${esc(metierLabel(u.metier_id))} · ${esc((formatOf(u) || {}).label || '')}</span>
           <span class="pl-ccard-row"><span>Déclaré</span><b class="sx-mono">${hm(s.decl + s.hp)} <small>/ ${hm(exp)}</small></b></span>
           <span class="pl-track"><span style="width:${Math.min(100, (fill || 0) * 100)}%"></span></span>
@@ -544,6 +640,7 @@
         ${kpi('Unités finalisées', s.qte, '', `${h2(s.theo)} h théoriques`)}
         ${kpi('Hors production', hm(s.hp), '', 'réunions, formation, congés…')}
       </div>
+      ${weeksCard(u, W)}
       <div class="pl-charts">
         <div class="sx-card pl-chart-wide"><h2 class="sx-h2 sx-mb">Heures par ${W.from === W.to || (W.to < P.today ? W.to : P.today) <= addDays(W.from, 30) ? 'jour' : 'semaine'}</h2>${hoursChart(u, W)}</div>
         <div class="sx-card"><h2 class="sx-h2 sx-mb">Machines par marque</h2>${brandChart(u, W)}</div>
@@ -560,6 +657,7 @@
           const o = d.operation_id && P.ops.find(x => x.id === d.operation_id);
           const name = d.activite_id ? aname(d.activite_id) : ((P.hp.find(h => h.id === d.hors_production_id) || {}).label || '');
           return `<li class="sx-entry${d.cancelled ? ' sx-cancel' : ''}"><span class="sx-small">${esc(shortDate(d.work_date))}</span><div class="sx-row sx-between"><span><b>${esc(name)}</b>${d.quantity ? ` <small>× ${d.quantity}</small>` : ''}</span><span class="sx-time-v">${hm(Number(d.hours))}</span></div>${o ? `<span class="sx-meta sx-mono">${esc(o.serial || 'sans matricule')} · ${pill(o.status)}</span>` : ''}${d.note ? `<span class="sx-meta">« ${esc(d.note)} »</span>` : ''}</li>`; }).join('') || '<li class="sx-small">Aucune.</li>'}</ul>${decls.length > 30 ? '<p class="sx-small sx-mt">Les 30 plus récentes. Export complet : Atelier › Exports Excel.</p>' : ''}`)}
+        ${P.journalOk ? acc('journal', 'Historique des modifications', (P.journal || []).filter(j => j.user_id === u.user_id).length, journalList((P.journal || []).filter(j => j.user_id === u.user_id).slice(0, 60), 'Aucune correction ni annulation sur la période chargée.')) : ''}
         ${acc('pres', 'Heures de connexion (masqué)', null, `<p class="sx-small">Visible uniquement par le responsable, jamais par le collaborateur.</p><p class="sx-mono">${pres ? `Aujourd'hui : première activité ${t(pres.first_seen)} · dernière ${t(pres.last_seen)}` : 'Pas de connexion enregistrée aujourd\'hui.'}</p>`)}
       </div>`;
   }
@@ -580,28 +678,68 @@
   }
 
   function vMachines(){
-    const q = P.mq.trim().toUpperCase();
-    const hits = q.length >= 3 ? P.ops.filter(o => o.serial && o.serial.includes(q)) : [];
-    const groups = {}; hits.forEach(o => (groups[o.serial] = groups[o.serial] || []).push(o));
-    const recent = recentMachines();
-    return `<p class="sx-small">Traçabilité : tapez un N° de série (3 caractères minimum). Historique chargé : 8 dernières semaines et toutes les étapes en cours.</p>
+    if(P.mq.trim().length >= 3 && (!P.mres || P.mres.q !== P.mq.trim().toUpperCase().replace(/\s+/g, ''))) setTimeout(searchMachines, 0);
+    return `<p class="sx-small">Fiche machine : tapez un N° de série (3 caractères minimum). Toute l'histoire de la machine : étapes, collaborateurs, temps, checklists, corrections.</p>
       <div class="sx-msearch pl-msearch"><span class="sx-loupe" aria-hidden="true">🔍</span><input type="text" id="plMq" class="sx-mono" value="${esc(P.mq)}" placeholder="7019606410YBX" aria-label="Rechercher un N° de série" autocomplete="off"></div>
-      <div id="plMachines">${machinesResults(q, groups, recent)}</div>`;
+      <div id="plMachines">${machinesResults()}</div>`;
   }
   function recentMachines(){
     return [...new Map(P.ops.filter(o => o.serial).sort((a, b) => String(b.last_work_date || b.started_on).localeCompare(String(a.last_work_date || a.started_on))).map(o => [o.serial, o])).values()].slice(0, 10);
   }
-  function machinesResults(q, groups, recent){
-    if(q.length < 3) return `<div class="sx-card"><h2 class="sx-h2 sx-mb">Dernières machines traitées</h2><div class="sx-chips">${recent.map(o => `<button type="button" class="sx-chip sx-mono" data-mq="${esc(o.serial)}">${esc(o.serial)} <small>${esc((modelById(o.model_id) || {}).model || '')}</small></button>`).join('') || '<span class="sx-small">Aucune machine pour l\'instant.</span>'}</div></div>`;
-    const entries = Object.entries(groups);
-    if(!entries.length) return '<p class="sx-small">Aucune machine trouvée.</p>';
-    return entries.slice(0, 8).map(([serial, ops]) => `<div class="sx-card"><div class="sx-row sx-between"><h2 class="sx-h2">${esc(serial)}</h2><span class="sx-pill sx-dim">${esc((modelById(ops[0].model_id) || {}).model || 'modèle ?')}</span></div>
-      ${ops.sort((a, b) => a.started_on.localeCompare(b.started_on)).map(o => {
-        const segs = P.decls.filter(d => d.operation_id === o.id);
-        return `<div class="pl-machine-op"><div class="sx-row sx-between"><b>${esc(aname(o.activite_id))}</b>${pill(o.status)}</div>
-          <div class="sx-tscroll"><table class="sx-table"><thead><tr><th>Date</th><th>Collaborateur</th><th class="n">Temps</th><th>Note</th></tr></thead><tbody>${segs.map(d => `<tr class="${d.cancelled ? 'pl-struck' : ''}"><td>${esc(shortDate(d.work_date))}</td><td>${esc(uname(d.user_id))}</td><td class="n">${h2(d.hours)} h</td><td class="sx-small">${esc(d.note || '')}</td></tr>`).join('')}</tbody>
-          <tfoot><tr><td colspan="2"><b>Total étape</b></td><td class="n"><b>${h2(o.total_hours)} h</b></td><td class="sx-small">attendu ${h2(o.std_value)} h${o.status === 'final' && o.std_value !== null ? ` · écart ${sgn(o.total_hours - o.std_value)} h` : ''}</td></tr></tfoot></table></div></div>`; }).join('')}</div>`).join('');
+  // Fiche machine : tout l'historique (pas seulement les semaines chargées), recherché sur le serveur
+  let mqTimer = null;
+  function searchMachines(){
+    clearTimeout(mqTimer);
+    const q = P.mq.trim().toUpperCase().replace(/\s+/g, '');
+    if(q.length < 3){ P.mres = null; const el = document.getElementById('plMachines'); if(el) el.innerHTML = machinesResults(); return; }
+    mqTimer = setTimeout(async () => {
+      const el0 = document.getElementById('plMachines'); if(el0 && !P.mres) el0.innerHTML = '<p class="sx-small">Recherche…</p>';
+      const ops = await sb.from('operations_avec_temps').select('*').ilike('serial', '%' + q + '%').order('started_on').limit(80);
+      if(ops.error){ P.mres = { q, error: dbError(ops.error) }; }
+      else {
+        const list = (ops.data || []).filter(o => o.serial && o.serial.toUpperCase().includes(q)), ids = list.map(o => o.id);
+        const decls = ids.length ? await sb.from('declarations').select('id, user_id, work_date, operation_id, hours, note, checklist, cancelled, created_at').in('operation_id', ids).order('work_date') : { data: [] };
+        const dIds = (decls.data || []).map(d => d.id);
+        const jr = P.journalOk && ids.length ? await sb.from('journal').select('*').in('row_id', [...ids, ...dIds]).order('at', { ascending: false }).limit(200) : { data: [] };
+        P.mres = { q, ops: list, decls: decls.data || [], journal: jr.error ? [] : (jr.data || []) };
+      }
+      if(P.mq.trim().toUpperCase().replace(/\s+/g, '') !== q) return; // une autre recherche a été lancée entre-temps
+      const el = document.getElementById('plMachines'); if(el) el.innerHTML = machinesResults();
+    }, 300);
   }
+  function machinesResults(){
+    const r = P.mres;
+    if(!r){ const recent = recentMachines(); return `<div class="sx-card"><h2 class="sx-h2 sx-mb">Dernières machines traitées</h2><div class="sx-chips">${recent.map(o => `<button type="button" class="sx-chip sx-mono" data-mq="${esc(o.serial)}">${esc(o.serial)} <small>${esc((modelById(o.model_id) || {}).model || '')}</small></button>`).join('') || '<span class="sx-small">Aucune pour l\'instant.</span>'}</div></div>`; }
+    if(r.error) return `<div class="sx-error">${esc(r.error)}</div>`;
+    const groups = {}; r.ops.forEach(o => (groups[o.serial] = groups[o.serial] || []).push(o));
+    const entries = Object.entries(groups);
+    if(!entries.length) return '<p class="sx-small">Aucune machine trouvée pour ce N° de série.</p>';
+    return (entries.length > 1 ? `<p class="sx-small">${entries.length} machines correspondent : précisez le N° de série pour n'en voir qu'une.</p>` : '') + entries.slice(0, 6).map(([serial, ops]) => machineCard(serial, ops, r)).join('');
+  }
+  function machineCard(serial, ops, r){
+    ops.sort((a, b) => String(a.started_on).localeCompare(String(b.started_on)));
+    const m = modelById((ops.find(o => o.model_id) || {}).model_id) || {};
+    const live = r.decls.filter(d => !d.cancelled && ops.some(o => o.id === d.operation_id));
+    const total = r2(live.reduce((s, d) => s + Number(d.hours), 0)), fin = ops.filter(o => o.status === 'final').length;
+    const dates = live.map(d => d.work_date).sort(), people = [...new Set(live.map(d => d.user_id))].map(uname);
+    const opIds = new Set(ops.map(o => o.id)), dIds = new Set(r.decls.filter(d => opIds.has(d.operation_id)).map(d => d.id));
+    const jr = r.journal.filter(j => opIds.has(j.row_id) || dIds.has(j.row_id));
+    return `<div class="sx-card pl-mcard">
+      <div class="sx-row sx-between"><div><h2 class="pl-mserial sx-mono">${esc(serial)}</h2><p class="sx-small">${esc(m.brand || '')} ${esc(m.model || 'modèle non renseigné')}${m.famille ? ' · ' + esc(m.famille) : ''}</p></div>
+        ${ops.some(o => OPEN.includes(o.status)) ? pill('pause') : fin ? pill('final') : ''}</div>
+      <div class="pl-msum"><span><b>${fin}</b> / ${ops.length} étape${ops.length > 1 ? 's' : ''} finalisée${fin > 1 ? 's' : ''}</span><span><b>${h2(total)} h</b> au total</span>
+        ${dates.length ? `<span>du <b>${esc(shortDate(dates[0]))}</b> au <b>${esc(shortDate(dates[dates.length - 1]))}</b></span>` : ''}<span>${esc(people.join(', ') || '—')}</span></div>
+      <ol class="pl-timeline">${ops.map(o => {
+        const segs = r.decls.filter(d => d.operation_id === o.id);
+        const motif = (P.motifs.find(x => x.id === o.motif_id) || {}).label;
+        return `<li class="st-${o.status}"><div class="sx-row sx-between"><b>${esc(aname(o.activite_id))}</b>${pill(o.status)}</div>
+          <span class="sx-small">${h2(o.total_hours)} h pour ${h2(o.std_value)} h attendues${o.status === 'final' && o.std_value !== null ? ` · écart ${sgn(o.total_hours - o.std_value)} h` : ''}${motif ? ' · ' + esc(motif) : ''}${o.close_comment ? ' « ' + esc(o.close_comment) + ' »' : ''}</span>
+          <ul class="pl-segs">${segs.map(d => `<li class="${d.cancelled ? 'pl-struck' : ''}"><span>${esc(shortDate(d.work_date))}</span><span>${esc(uname(d.user_id))}</span><span class="sx-mono">${h2(d.hours)} h</span>
+            <span class="sx-small">${Array.isArray(d.checklist) && d.checklist.length ? '✓ checklist (' + d.checklist.length + ') ' : ''}${d.note ? '« ' + esc(d.note) + ' »' : ''}${d.cancelled ? ' (annulée)' : ''}</span></li>`).join('')}</ul></li>`; }).join('')}</ol>
+      ${P.journalOk ? `<details class="pl-acc"><summary><span>Modifications</span><span class="pl-acc-n">${jr.length}</span><span class="chev" aria-hidden="true">›</span></summary><div class="pl-acc-body">${journalList(jr, 'Aucune correction sur cette machine.')}</div></details>` : ''}
+    </div>`;
+  }
+
 
   function trendSVG(pts, mondays){
     const W = 380, H = 170, L = 40, B = 26, T = 16, lo = 0.75, hi = 1.15, n = pts.length;
@@ -929,6 +1067,14 @@
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset;
     if(d.a === 'collabBack'){ P.selUser = null; P.brandSel = null; render(); return; }
+    if(d.val){ const { error } = await sb.rpc('validate_week', { p_user: d.uid, p_monday: d.val }); if(error){ toastPl('Validation impossible : ' + dbError(error)); return; }
+      const vs = await sb.from('validations_semaine').select('*').eq('user_id', d.uid).eq('week_monday', d.val).maybeSingle();
+      P.vals = (P.vals || []).filter(v => !(v.user_id === d.uid && v.week_monday === d.val)).concat(vs.data ? [vs.data] : []); toastPl(`Semaine ${isoWeek(d.val)} validée et verrouillée.`); render(); return; }
+    if(d.unval){ if(P.confirmUnval !== d.unval){ P.confirmUnval = d.unval; render(); return; } P.confirmUnval = null;
+      const { error } = await sb.rpc('unvalidate_week', { p_user: d.uid, p_monday: d.unval }); if(error){ toastPl('Réouverture impossible : ' + dbError(error)); return; }
+      P.vals = (P.vals || []).map(v => v.user_id === d.uid && v.week_monday === d.unval ? Object.assign({}, v, { validated_at: null, validated_by: null }) : v); toastPl(`Semaine ${isoWeek(d.unval)} rouverte.`); render(); return; }
+    if(d.fx){ b.disabled = true; try{ await Fiche.xlsx(await Fiche.load(d.uid, d.fx)); }catch(err){ toastPl('Fiche impossible : ' + err.message); } b.disabled = false; return; }
+    if(d.fp){ Fiche.print(d.fp, d.uid); return; }
     if(d.brand !== undefined){ P.brandSel = P.brandSel === d.brand ? null : d.brand; render(); return; }
     if(d.view){ P.view = d.view; P.closing = null; render(); }
     else if(d.period) setPeriod(() => { P.period = d.period; if(d.period === 'd' && !P.day) P.day = P.today;
@@ -940,7 +1086,7 @@
     else if(d.a === 'closeCancel'){ P.closing = null; render(); }
     else if(d.a === 'closeOk') confirmClose();
     else if(d.export) exportCsv(d.export);
-    else if(d.mq){ P.mq = d.mq; render(); }
+    else if(d.mq){ P.mq = d.mq; P.mres = null; P.view = 'machines'; if(window.markPilotageTab) window.markPilotageTab('machines'); render(); }
     else await onParamClick(d);
   });
   root.addEventListener('toggle', e => { const el = e.target; if(el.dataset && el.dataset.acc) P.acc[el.dataset.acc] = el.open; }, true);
@@ -952,11 +1098,7 @@
     const t = e.target;
     if(t.id === 'plComment' && P.closing) P.closing.comment = t.value;
     else if(t.id === 'plPmq'){ P.pmq = t.value; const q = t.value.trim().toUpperCase().replace(/[\s.\-]/g, ''); document.getElementById('plModels').innerHTML = modelsTable(q ? P.models.filter(m => (m.model + (m.famille || '') + m.brand).toUpperCase().replace(/[\s.\-]/g, '').includes(q)) : P.models); }
-    else if(t.id === 'plMq'){
-      P.mq = t.value; const q = P.mq.trim().toUpperCase();
-      const groups = {}; if(q.length >= 3) P.ops.filter(o => o.serial && o.serial.includes(q)).forEach(o => (groups[o.serial] = groups[o.serial] || []).push(o));
-      document.getElementById('plMachines').innerHTML = machinesResults(q, groups, recentMachines());
-    }
+    else if(t.id === 'plMq'){ P.mq = t.value; searchMachines(); }
   });
   root.addEventListener('change', e => {
     const t = e.target;
