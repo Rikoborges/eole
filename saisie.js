@@ -267,7 +267,7 @@
           <div id="sxLookup"></div>
           <label class="sx-check"><input type="checkbox" id="sxUnreadable" ${f.unreadable ? 'checked' : ''}> Étiquette illisible, compléter plus tard (le responsable verra une alerte)</label>
         </div></div>` : ''}`}
-        <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}${chronoOn() && chronoMode() === 'off' && chronoOfForm() ? ' <button type="button" class="sx-chshow" data-a="chronoFull" title="Afficher le chrono" aria-label="Afficher le chrono">⏱</button>' : ''}</h3>
+        <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}${chronoOn() && !f.editId && formKey(f) ? (chronoOfForm() ? (chronoMode() === 'off' ? ' <button type="button" class="sx-chshow" data-a="chronoFull" title="Afficher le chrono" aria-label="Afficher le chrono">⏱</button>' : '') : ' <button type="button" class="sx-chshow" data-a="chronoStart" title="Chronométrer cette tâche (facultatif)">⏱ Chrono</button>') : ''}</h3>
           <div class="sx-quick">${[0.25, 0.5, 1, 1.5, 2, 3].map(v => `<button type="button" data-tq="${v}" aria-pressed="false">${h2(v)}</button>`).join('')}</div>
           <div class="sx-row sx-mt"><input type="text" id="sxTime" class="sx-mono sx-time" value="${esc(f.tRaw)}" placeholder="ex : 1h30, 45 min" aria-label="Temps consacré" inputmode="decimal"><span id="sxConv" class="sx-small"></span></div>
           ${chronoInline()}
@@ -479,8 +479,9 @@
   }
   const chronoOn = () => SX.rules.chrono === true;
   const sessH = c => r2(chronoMs(c) / 3600000);
-  // Le formulaire change de tâche : l'ancienne se met en pause (ou disparaît si
-  // elle n'a duré que quelques secondes : simple clic de passage), la nouvelle démarre.
+  // Le formulaire change de tâche : le chrono de l'ancienne (s'il y en a un) se met en
+  // pause. Le chrono ne démarre JAMAIS tout seul : seulement si la personne clique
+  // « ⏱ Chrono » (choix volontaire). Revenir sur une tâche qui en a un le relance.
   function syncChrono(prevKey){
     if(!chronoOn()) return;
     const f = SX.form, k = f.editId ? null : formKey(f), list = chronosGet();
@@ -489,13 +490,21 @@
       if(p){ if(!p.opId && !p.prior && chronoMs(p) < 60000) list.splice(list.indexOf(p), 1); else if(p.start){ p.acc = chronoMs(p); p.start = null; } }
     }
     if(k){
-      let c = list.find(x => x.key === k);
-      const op = f.opId ? SX.opsById[f.opId] : null;
-      if(!c){ c = { id: 'c' + Date.now(), key: k, label: formLabel(f), kind: f.kind, act: f.act, hp: f.hp, opId: f.opId, serial: f.serial, model: f.model, start: Date.now(), acc: 0, prior: op ? Number(op.total_hours) || 0 : 0 }; list.push(c); }
-      else { if(op) c.prior = Number(op.total_hours) || 0; if(!c.start) c.start = Date.now(); }
-      runOnly(list, c.id);
+      const c = list.find(x => x.key === k), op = f.opId ? SX.opsById[f.opId] : null;
+      if(c){ if(op) c.prior = Number(op.total_hours) || 0; if(!c.start) c.start = Date.now(); runOnly(list, c.id); }
     }
     chronosSet(list);
+  }
+  // « ⏱ Chrono » : la personne choisit de chronométrer cette tâche
+  function startChrono(){
+    const f = SX.form, k = formKey(f); if(!k) return;
+    const list = chronosGet(); let c = list.find(x => x.key === k);
+    const op = f.opId ? SX.opsById[f.opId] : null;
+    if(!c){ c = { id: 'c' + Date.now(), key: k, label: formLabel(f), kind: f.kind, act: f.act, hp: f.hp, opId: f.opId, serial: f.serial, model: f.model, start: Date.now(), acc: 0, prior: op ? Number(op.total_hours) || 0 : 0 }; list.push(c); }
+    else if(!c.start) c.start = Date.now();
+    runOnly(list, c.id); chronosSet(list);
+    if(chronoMode() === 'off') try{ localStorage.setItem(miniKey(), '1'); }catch(e){}
+    f.tManual = false; render();
   }
   // Lignes du haut : les autres tâches commencées (un toque pour y revenir)
   function chronoStrip(){
@@ -812,6 +821,7 @@
     else if(d.a === 'qm'){ f.qte = Math.max(1, (parseInt(f.qte, 10) || 1) - 1); document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'qp'){ f.qte = (parseInt(f.qte, 10) || 0) + 1; document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'save') save();
+    else if(d.a === 'chronoStart') startChrono();
     else if(d.a === 'chronoFull' || d.a === 'chronoMini' || d.a === 'chronoOff'){ try{ localStorage.setItem(miniKey(), d.a === 'chronoMini' ? '1' : d.a === 'chronoOff' ? 'off' : '0'); }catch(e){} render();
       if(d.a === 'chronoOff') toast('Chrono caché : il compte toujours et remplit le temps. Pour le revoir : ⏱ à côté de « Temps consacré ».'); }
     else if(d.a === 'addPast'){ const pk = formKey(f); SX.form = Object.assign(blankForm(), { workDate: SX.viewDate, tManual: true }); syncChrono(pk); render(); document.getElementById('sxFormCard').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
