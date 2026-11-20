@@ -789,17 +789,43 @@
       <div class="sx-seg pl-ptabs" role="group" aria-label="Paramètres">${tabs.map(([k, l]) => `<button type="button" data-ptab="${k}" aria-pressed="${P.pTab === k}">${l}</button>`).join('')}</div>
       <div class="sx-card">${({ collab: pCollab, acts: pActs, metiers: pMetiers, horaires: pHoraires, hp: pHp, motifs: pMotifs, models: pModels, rules: pRules })[P.pTab]()}</div>`;
   }
+  // Supprimer : deux choix clairs
+  function delPanelRow(u){
+    const n = P.decls.filter(d => d.user_id === u.user_id && !d.cancelled).length;
+    return `<tr class="pl-delrow"><td colspan="7"><div class="pl-delpanel">
+      <b>Supprimer ${esc(u.display_name || 'ce compte')} ?</b>
+      <div class="pl-delchoices">
+        <div><button type="button" class="sx-btn sx-sm" data-delu="${u.user_id}">Supprimer l'accès, garder l'historique</button>
+          <span class="sx-small">La personne ne peut plus se connecter et disparaît de la liste. Ses heures restent dans les totaux et les fiches. (Conseillé pour quelqu'un qui part.)</span></div>
+        <div>${P.confirmPurge === u.user_id
+            ? `<button type="button" class="sx-btn sx-sm sx-danger pl-purge-ok" data-purge="${u.user_id}">Oui, tout effacer définitivement</button>`
+            : `<button type="button" class="sx-btn sx-sm sx-danger" data-purgeask="${u.user_id}">Tout effacer</button>`}
+          <span class="sx-small">Le compte <b>et tout ce qu'il a fait</b> sont supprimés : déclarations${n ? ` (au moins ${n} ces 8 dernières semaines)` : ''}, étapes machine, ancien Suivi, fiches signées. <b>Irréversible.</b> (Pour un compte de test ou créé par erreur.)</span></div>
+      </div>
+      <button type="button" class="sx-link" data-a="delCancel">Annuler</button></div></td></tr>`;
+  }
+  // Comptes désactivés / supprimés : rangés à part
+  function inactiveHTML(){
+    const off = P.users.filter(u => !u.active);
+    if(!off.length) return '';
+    return `<details class="pl-acc pl-inactive" data-acc="inactive" ${P.acc.inactive ? 'open' : ''}><summary><span>Comptes désactivés ou supprimés</span><span class="pl-acc-n">${off.length}</span><span class="chev" aria-hidden="true">›</span></summary>
+      <div class="pl-acc-body"><ul class="pl-donelist">${off.map(u => `<li><div><b>${esc(u.display_name || 'Sans nom')}</b><span class="sx-small">${esc(metierLabel(u.metier_id) || 'sans métier')} · historique conservé</span></div>
+        <div class="sx-row"><button type="button" class="sx-btn sx-sm" data-react="${u.user_id}">Réactiver la fiche</button>
+          ${P.confirmPurge === u.user_id ? `<button type="button" class="sx-btn sx-sm sx-danger" data-purge="${u.user_id}">Oui, tout effacer définitivement</button>` : `<button type="button" class="sx-btn sx-sm sx-danger" data-purgeask="${u.user_id}">Tout effacer</button>`}</div></li>`).join('')}</ul>
+      <p class="sx-small sx-mt">« Réactiver la fiche » la remet dans la liste ; si l'accès avait été supprimé, créez-lui un nouveau compte. « Tout effacer » supprime aussi tout son historique.</p></div></details>`;
+  }
   function pCollab(){
     return `<div class="sx-tscroll"><table class="sx-table pl-ptable pl-collab"><thead><tr><th>Nom affiché</th><th>Métier</th><th>Format</th><th>Intérim</th><th>Droits</th><th>Actif</th><th>Accès</th></tr></thead><tbody>
-      ${P.users.map(u => `<tr><td><input type="text" data-cu="${u.user_id}" data-cf="display_name" value="${esc(u.display_name || '')}" aria-label="Nom affiché"></td>
+      ${P.users.filter(u => u.active).map(u => `<tr><td><input type="text" data-cu="${u.user_id}" data-cf="display_name" value="${esc(u.display_name || '')}" aria-label="Nom affiché"></td>
         <td><select data-cu="${u.user_id}" data-cf="metier_id" aria-label="Métier de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.metiers.filter(m => m.active || m.id === u.metier_id).map(m => `<option value="${m.id}" ${u.metier_id === m.id ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></td>
         <td><select data-cu="${u.user_id}" data-cf="format_id" aria-label="Format de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.formats.map(f => `<option value="${f.id}" ${u.format_id === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></td>
         <td>${cb(`data-cu="${u.user_id}" data-cf="interim"`, u.interim, 'Intérim')}</td>
         <td><select data-cu="${u.user_id}" data-cf="role" aria-label="Droits"><option value="collaborateur" ${u.role === 'collaborateur' ? 'selected' : ''}>Collaborateur</option><option value="responsable" ${u.role === 'responsable' ? 'selected' : ''}>Admin</option></select></td>
         <td>${cb(`data-cu="${u.user_id}" data-cf="active"`, u.active, 'Actif')}</td>
-        <td class="pl-access">${accessCell(u)}</td></tr>`).join('')}</tbody></table></div>
+        <td class="pl-access">${accessCell(u)}</td></tr>${P.delPanel === u.user_id ? delPanelRow(u) : ''}`).join('')}</tbody></table></div>
+      ${inactiveHTML()}
       ${P.tempPw ? `<div class="sx-alert sx-alert-mid pl-temppw"><b>Mot de passe provisoire de ${esc(uname(P.tempPw.user))}</b><span class="sx-mono">${esc(P.tempPw.password)}</span><span>Notez-le et donnez-le à la personne : il ne sera plus affiché. Elle devra choisir le sien à la connexion.</span><button type="button" class="sx-btn sx-sm" data-a="hideTempPw">J'ai noté</button></div>` : ''}
-      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Admin » donne accès au mode Admin (Atelier, Opérations… Paramètres). <b>Supprimer</b> : un compte créé par erreur disparaît ; pour quelqu'un qui a déjà déclaré, l'accès est supprimé mais ses heures restent dans l'historique.</p>
+      <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Admin » donne accès au mode Admin (Atelier, Opérations… Paramètres). <b>Supprimer</b> : au choix, retirer l'accès en gardant l'historique, ou tout effacer définitivement.</p>
       <h3 class="pl-h3">Créer un compte</h3>
       <div class="sx-row pl-addrow"><input type="text" id="ncName" placeholder="Nom (ex : Paul D.)" aria-label="Nom" autocomplete="off">
         <input type="text" id="ncEmail" placeholder="Identifiant (ex : paul.durand) ou e-mail" aria-label="Identifiant ou e-mail" autocomplete="off" autocapitalize="none">
@@ -813,7 +839,7 @@
     const status = locked ? `<span class="sx-pill sx-bad">Bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))}</span>`
       : u.must_change_password ? '<span class="sx-pill sx-mid">Mot de passe provisoire</span>'
       : g && g.failures ? `<span class="sx-pill sx-mid">${g.failures} essai${g.failures > 1 ? 's' : ''} faux</span>` : '<span class="sx-pill sx-ok">OK</span>';
-    return `${status}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button>${u.user_id === P.me ? '' : `<button type="button" class="sx-btn sx-sm sx-danger" data-delu="${u.user_id}" title="Supprimer ce compte">${P.confirmDel === u.user_id ? 'Confirmer la suppression ?' : 'Supprimer'}</button>`}</div>`;
+    return `${status}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button>${u.user_id === P.me ? '' : `<button type="button" class="sx-btn sx-sm sx-danger" data-delopen="${u.user_id}" title="Supprimer ce compte">Supprimer</button>`}</div>`;
   }
   function pActs(){
     return P.metiers.map(m => `<h3 class="pl-h3">${esc(m.label)}${m.active ? '' : ' <span class="sx-pill sx-dim">désactivé</span>'}</h3>
@@ -950,16 +976,33 @@
       }catch(e){ toastPl('Erreur réseau : réessayez.'); render(); }
       return true;
     }
+    if(d.delopen){ P.delPanel = P.delPanel === d.delopen ? null : d.delopen; P.confirmPurge = null; P.confirmReset = null; render(); return true; }
+    if(d.a === 'delCancel'){ P.delPanel = null; P.confirmPurge = null; render(); return true; }
+    if(d.purgeask){ P.confirmPurge = d.purgeask; render(); return true; }
+    if(d.react){ return saveParam(sb.from('collaborateurs').update({ active: true }).eq('user_id', d.react), 'Fiche réactivée.'); }
+    if(d.purge){
+      const who = uname(d.purge); P.confirmPurge = null; P.delPanel = null;
+      const { data: { session } } = await sb.auth.getSession();
+      try{
+        const res = await fetch('/api/delete-collaborator', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }, body: JSON.stringify({ userId: d.purge, purge: true }) });
+        const body = await res.json().catch(() => ({}));
+        if(!res.ok){ toastPl(body.error || 'Suppression impossible.'); render(); return true; }
+        const c = body.counts || {};
+        toastPl(`${who} : compte et historique effacés (${c.declarations || 0} déclaration${(c.declarations || 0) > 1 ? 's' : ''}, ${c.operations || 0} étape${(c.operations || 0) > 1 ? 's' : ''} machine${c.suivi ? `, ${c.suivi} ancien Suivi` : ''}).`);
+        if(P.selUser === d.purge) P.selUser = null;
+        await loadAll(); render();
+      }catch(e){ toastPl('Erreur réseau : réessayez.'); render(); }
+      return true;
+    }
     if(d.delu){
-      if(P.confirmDel !== d.delu){ P.confirmDel = d.delu; P.confirmReset = null; render(); return true; }
-      P.confirmDel = null;
+      P.delPanel = null;
       const who = uname(d.delu);
       const { data: { session } } = await sb.auth.getSession();
       try{
         const res = await fetch('/api/delete-collaborator', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }, body: JSON.stringify({ userId: d.delu }) });
         const body = await res.json().catch(() => ({}));
         if(!res.ok){ toastPl(body.error || 'Suppression impossible.'); render(); return true; }
-        toastPl(body.archived ? `${who} : accès supprimé. Son historique (${body.records} enregistrement${body.records > 1 ? 's' : ''}) est conservé et sa fiche est désactivée.` : `${who} : compte supprimé.`);
+        toastPl(body.archived ? `${who} : accès supprimé. Son historique (${body.records} enregistrement${body.records > 1 ? 's' : ''}) est conservé ; la fiche est rangée dans « Comptes désactivés ».` : `${who} : compte supprimé.`);
         if(P.selUser === d.delu) P.selUser = null;
         await loadRefs(); await loadGuards(); render();
       }catch(e){ toastPl('Erreur réseau : réessayez.'); render(); }
