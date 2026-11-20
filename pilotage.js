@@ -852,7 +852,7 @@
   function pRules(){
     const r = P.rules, corr = r.correction || 'day';
     const tog = (k, title, help, def) => `<label class="pl-toggle">${cb(`data-rule="${k}"`, r[k] === undefined ? def : r[k] === true, title)}<span><b>${title}</b><span class="sx-small">${help}</span></span></label>`;
-    return `<label class="pl-filters">Correction par le collaborateur <select data-rule="correction">${[['day', 'Jusqu\'à la fin de la journée'], ['h24', 'Pendant 24 h'], ['week', 'Jusqu\'à la fin de la semaine'], ['none', 'Responsable uniquement']].map(([k, l]) => `<option value="${k}" ${corr === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    return `<label class="pl-filters">Correction par le collaborateur <select data-rule="correction">${[['day', 'Jusqu\'à la fin de la journée'], ['h24', 'Pendant 24 h'], ['week', 'Jusqu\'à la fin de la semaine'], ['days7', '7 jours (la semaine écoulée)'], ['none', 'Responsable uniquement']].map(([k, l]) => `<option value="${k}" ${corr === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       ${tog('resultats_visibles', 'Les collaborateurs voient « Mes résultats »', 'Sinon, seul le responsable voit les résultats individuels.', true)}
       ${tog('chrono', 'Chrono facultatif dans Saisir', 'Désactivé par défaut : l\'outil est une déclaration, pas un pointage. Activé, il ne fait que proposer un temps que le collaborateur valide.', false)}
       ${tog('photos_suivi', 'Photos, checklist et lecture IA du bon (onglet Suivi)', 'Fonctions de l\'onglet Suivi, gardées en option.', true)}`;

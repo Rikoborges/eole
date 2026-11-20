@@ -314,6 +314,7 @@ supabase/
   machine-models.sql        ⭐ rodar depois do 2º (248 modelos da oficina + código famille)
   atelier-schema.sql        ⭐ base da declaração de atividade (cahier des charges)
   import-jobs.sql           copia o histórico do Suivi antigo (jobs) para as telas novas, sem apagar nada
+  correction-7jours.sql     o colaborador corrige/acrescenta os últimos 7 dias (ativa a regra « 7 jours »)
   journal.sql               histórico automático de correções/anulações (quem, quando, antes → depois)
   validation-semaine.sql    ficha da semana: o colaborador assina, o Admin valida e a semana fica travada
   chronos.sql               cronômetros salvos no servidor (seguem do PC para o celular)
