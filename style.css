@@ -1771,3 +1771,14 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 .sx-chinline-mini{ margin-top: 10px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; }
 .sx-chinline-mini{ display: block; }
 @container app (min-width: 820px){ .sx-chinline-mini{ display: none; } }
+
+/* À traiter : OK et Traités */
+.pl-ok{ border-color: var(--clean); color: var(--clean); }
+.pl-done{ margin-top: 12px; }
+.pl-donelist{ list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pl-donelist li{ display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; padding: 8px 10px; border-radius: 8px; background: var(--panel-2); opacity: .85; }
+.pl-donelist li > div{ display: grid; gap: 2px; min-width: 0; }
+
+.sx-chx-mini{ text-decoration: none; color: var(--text-dim); padding: 0 4px; }
+.sx-chshow{ background: none; border: 1px solid var(--line); border-radius: 999px; color: var(--text-dim); font-size: 12px; padding: 1px 7px; margin-left: 6px; cursor: pointer; vertical-align: middle; }
+.sx-chshow:hover{ color: var(--text); border-color: var(--copper); }

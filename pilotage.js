@@ -134,6 +134,7 @@
     P.firstDecl = {};
     decls.forEach(d => { if(!d.cancelled && (!P.firstDecl[d.user_id] || d.work_date < P.firstDecl[d.user_id])) P.firstDecl[d.user_id] = d.work_date; });
     const ops = new Map(); [...opsRecent, ...opsOpen].forEach(o => ops.set(o.id, o)); P.ops = [...ops.values()];
+    await loadSeen();
     const jr = await sb.from('journal').select('*').gte('at', from + 'T00:00:00Z').order('at', { ascending: false }).limit(3000);
     P.journal = jr.error ? [] : (jr.data || []); P.journalOk = !jr.error;
     const vs = await sb.from('validations_semaine').select('*').gte('week_monday', mondayOf(from));
@@ -308,34 +309,56 @@
     const groups = [];
     if(P.valOk) groups.push({ key: 'fiches', title: 'Fiches de la semaine à valider', items: team.flatMap(u => toValidate(u, last8w).map(m => {
       const v = valOf(u.user_id, m), s = stats([u.user_id], [m]);
-      return { k: v && v.signed_at ? 'mid' : 'dim', t: `${esc(uname(u.user_id))} · S${isoWeek(m)}`, m: `${hm(s.decl + s.hp)} / ${hm(expected(u, [m]))} · ${v && v.signed_at ? 'signée par le collaborateur' : 'pas encore signée'}`,
+      return { key: `fiche:${u.user_id}:${m}`, k: v && v.signed_at ? 'mid' : 'dim', t: `${esc(uname(u.user_id))} · S${isoWeek(m)}`, m: `${hm(s.decl + s.hp)} / ${hm(expected(u, [m]))} · ${v && v.signed_at ? 'signée par le collaborateur' : 'pas encore signée'}`,
                actions: `<button type="button" class="sx-btn sx-sm sx-primary" data-val="${m}" data-uid="${u.user_id}">Valider</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">Voir la fiche</button>` }; })) });
     groups.push({ key: 'jours', title: 'Journées incomplètes (2 dernières semaines)', items: team.map(u => {
       const al = alertsFor(u, last2).filter(a => a.t === 'Temps incomplet' || a.t === 'Temps supérieur à l\'objectif');
       if(!al.length) return null;
       const miss = al.filter(a => a.t === 'Temps incomplet').length, over = al.length - miss;
-      return { k: 'mid', t: `${esc(uname(u.user_id))} · ${al.length} jour${al.length > 1 ? 's' : ''}`,
+      return { key: `jours:${u.user_id}:${al.map(a => a.d).join(',')}`, k: 'mid', t: `${esc(uname(u.user_id))} · ${al.length} jour${al.length > 1 ? 's' : ''}`,
                m: `${miss ? `incomplet${miss > 1 ? 's' : ''} : ` : ''}${al.slice(0, 8).map(a => esc(shortDate(a.d))).join(', ')}${al.length > 8 ? '…' : ''}${over ? ` · dont ${over} au-dessus de l'objectif` : ''}`,
                actions: `<button type="button" class="sx-btn sx-sm" data-open="${u.user_id}">Voir le collaborateur</button>` };
     }).filter(Boolean) });
     groups.push({ key: 'machines', title: 'Machines en attente depuis 3 jours ou plus', items: P.ops.filter(o => OPEN.includes(o.status) && workdaysBetween(o.last_work_date || o.started_on, P.today) >= 3).map(o => ({
-      k: 'mid', t: `${esc(o.serial || 'sans matricule')} · ${esc(aname(o.activite_id))}`, m: `chez ${esc(uname(o.user_id))} · dernier travail ${esc(shortDate(o.last_work_date || o.started_on))} (${workdaysBetween(o.last_work_date || o.started_on, P.today)} j)`,
+      key: `machine:${o.id}:${o.last_work_date || o.started_on}`, k: 'mid', t: `${esc(o.serial || 'sans matricule')} · ${esc(aname(o.activite_id))}`, m: `chez ${esc(uname(o.user_id))} · dernier travail ${esc(shortDate(o.last_work_date || o.started_on))} (${workdaysBetween(o.last_work_date || o.started_on, P.today)} j)`,
       actions: o.serial ? `<button type="button" class="sx-btn sx-sm" data-mq="${esc(o.serial)}">Fiche machine</button>` : `<button type="button" class="sx-btn sx-sm" data-view="operations">Opérations</button>` })) });
     groups.push({ key: 'matricules', title: 'Matricule ou modèle à compléter', items: P.ops.filter(o => o.status !== 'annulee' && !o.imported && (!o.serial || !o.model_id)).map(o => ({
-      k: 'bad', t: `${esc(aname(o.activite_id))} · ${esc(uname(o.user_id))}`, m: `${!o.serial ? 'N° de série manquant' : 'modèle manquant'} · commencée le ${esc(shortDate(o.started_on))}`, actions: '<button type="button" class="sx-btn sx-sm" data-view="operations">Opérations</button>' })) });
+      key: `mat:${o.id}:${o.serial ? 'm' : 's'}`, k: 'bad', t: `${esc(aname(o.activite_id))} · ${esc(uname(o.user_id))}`, m: `${!o.serial ? 'N° de série manquant' : 'modèle manquant'} · commencée le ${esc(shortDate(o.started_on))}`, actions: '<button type="button" class="sx-btn sx-sm" data-view="operations">Opérations</button>' })) });
     groups.push({ key: 'comptes', title: 'Comptes bloqués', items: (P.guards || []).filter(g => g.locked_until && new Date(g.locked_until) > new Date()).map(g => ({
-      k: 'bad', t: esc(uname(g.user_id)), m: `bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))} (mots de passe faux)`, actions: `<button type="button" class="sx-btn sx-sm sx-primary" data-unlock="${g.user_id}">Débloquer</button>` })) });
+      key: `lock:${g.user_id}:${g.locked_until}`, k: 'bad', t: esc(uname(g.user_id)), m: `bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))} (mots de passe faux)`, actions: `<button type="button" class="sx-btn sx-sm sx-primary" data-unlock="${g.user_id}">Débloquer</button>` })) });
     groups.push({ key: 'fiches-inc', title: 'Fiches collaborateur incomplètes', items: P.users.filter(u => u.active && (!u.metier_id || !u.format_id)).map(u => ({
-      k: 'mid', t: esc(u.display_name || 'Sans nom'), m: 'métier ou format horaire à renseigner : la personne ne peut pas encore déclarer', actions: '<button type="button" class="sx-btn sx-sm" data-view="params">Paramètres</button>' })) });
+      key: `inc:${u.user_id}`, k: 'mid', t: esc(u.display_name || 'Sans nom'), m: 'métier ou format horaire à renseigner : la personne ne peut pas encore déclarer', actions: '<button type="button" class="sx-btn sx-sm" data-view="params">Paramètres</button>' })) });
+    const seen = P.seen || {};
+    groups.forEach(g => { g.done = g.items.filter(i => seen[i.key]); g.items = g.items.filter(i => !seen[i.key]); });
     return groups;
+  }
+  // « OK » : l'élément sort de la liste et est rangé dans « Traités » (serveur, sinon ce navigateur)
+  async function loadSeen(){
+    const r = await sb.from('inbox_vus').select('item_key, label, seen_at');
+    if(!r.error){ P.seenServer = true; P.seen = Object.fromEntries((r.data || []).map(x => [x.item_key, x])); return; }
+    P.seenServer = false;
+    try{ P.seen = JSON.parse(localStorage.getItem('rb-inbox-vus-' + P.me) || '{}'); }catch(e){ P.seen = {}; }
+  }
+  async function markSeen(key, label, on){
+    P.seen = P.seen || {};
+    if(on) P.seen[key] = { item_key: key, label, seen_at: new Date().toISOString() }; else delete P.seen[key];
+    if(P.seenServer){
+      const r = on ? await sb.from('inbox_vus').upsert({ item_key: key, label }) : await sb.from('inbox_vus').delete().eq('item_key', key);
+      if(r.error) toastPl('Non enregistré : ' + dbError(r.error));
+    } else { try{ localStorage.setItem('rb-inbox-vus-' + P.me, JSON.stringify(P.seen)); }catch(e){} }
   }
   function vInbox(){
     const groups = inboxItems(), total = groups.reduce((a, g) => a + g.items.length, 0);
-    if(!total) return `<div class="sx-card pl-inbox-empty"><h2 class="sx-h2">Tout est à jour ✓</h2><p class="sx-small">Aucune fiche à valider, aucune journée incomplète, aucune machine bloquée.</p></div>`;
-    return `<p class="sx-small">${total} point${total > 1 ? 's' : ''} à traiter. Chaque ligne a son bouton d'action.</p>
+    const done = groups.flatMap(g => g.done.map(i => Object.assign({ group: g.title }, i, { seen: (P.seen || {})[i.key] })));
+    const doneHTML = done.length ? `<details class="pl-acc pl-done" data-acc="inboxDone" ${P.acc.inboxDone ? 'open' : ''}><summary><span>Traités</span><span class="pl-acc-n">${done.length}</span><span class="chev" aria-hidden="true">›</span></summary>
+      <div class="pl-acc-body"><ul class="pl-donelist">${done.sort((a, b) => String(b.seen.seen_at).localeCompare(String(a.seen.seen_at))).map(i => `<li><div><b>${i.t}</b><span class="sx-small">${esc(i.group)} · vu le ${esc(new Date(i.seen.seen_at).toLocaleString('fr-FR', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' }))}</span></div>
+        <button type="button" class="sx-btn sx-sm" data-ibundo="${esc(i.key)}">Remettre</button></li>`).join('')}</ul>
+        <p class="sx-small sx-mt">Un élément rangé revient tout seul s'il change (nouveau jour incomplet, machine de nouveau bloquée…).</p></div></details>` : '';
+    if(!total) return `<div class="sx-card pl-inbox-empty"><h2 class="sx-h2">Tout est à jour ✓</h2><p class="sx-small">Aucune fiche à valider, aucune journée incomplète, aucune machine bloquée.</p></div>${doneHTML}`;
+    return `<p class="sx-small">${total} point${total > 1 ? 's' : ''} à traiter. Faites l'action, ou « ✓ OK » quand c'est vu : la ligne est rangée dans « Traités ».</p>
       ${groups.filter(g => g.items.length).map(g => `<div class="sx-card pl-inbox"><h2 class="sx-h2 sx-mb">${g.title} <span class="pl-acc-n">${g.items.length}</span></h2>
-        <ul>${g.items.slice(0, 30).map(i => `<li class="pl-ib-${i.k}"><div><b>${i.t}</b><span class="sx-small">${i.m}</span></div><div class="sx-row">${i.actions}</div></li>`).join('')}</ul>
-        ${g.items.length > 30 ? `<p class="sx-small sx-mt">… et ${g.items.length - 30} de plus.</p>` : ''}</div>`).join('')}`;
+        <ul>${g.items.slice(0, 30).map(i => `<li class="pl-ib-${i.k}"><div><b>${i.t}</b><span class="sx-small">${i.m}</span></div><div class="sx-row">${i.actions}<button type="button" class="sx-btn sx-sm pl-ok" data-ibok="${esc(i.key)}" data-iblabel="${esc(i.t.replace(/<[^>]+>/g, ''))}" title="Vu : ranger dans « Traités »">✓ OK</button></div></li>`).join('')}</ul>
+        ${g.items.length > 30 ? `<p class="sx-small sx-mt">… et ${g.items.length - 30} de plus.</p>` : ''}</div>`).join('')}${doneHTML}`;
   }
 
   function vAtelier(){
@@ -1075,6 +1098,8 @@
       P.vals = (P.vals || []).map(v => v.user_id === d.uid && v.week_monday === d.unval ? Object.assign({}, v, { validated_at: null, validated_by: null }) : v); toastPl(`Semaine ${isoWeek(d.unval)} rouverte.`); render(); return; }
     if(d.fx){ b.disabled = true; try{ await Fiche.xlsx(await Fiche.load(d.uid, d.fx)); }catch(err){ toastPl('Fiche impossible : ' + err.message); } b.disabled = false; return; }
     if(d.fp){ Fiche.print(d.fp, d.uid); return; }
+    if(d.ibok){ const li = b.closest('li'); if(li){ li.style.transition = 'opacity .2s'; li.style.opacity = '0'; } await markSeen(d.ibok, d.iblabel, true); render(); toastPl('Rangé dans « Traités ».'); return; }
+    if(d.ibundo){ await markSeen(d.ibundo, '', false); render(); return; }
     if(d.brand !== undefined){ P.brandSel = P.brandSel === d.brand ? null : d.brand; render(); return; }
     if(d.view){ P.view = d.view; P.closing = null; render(); }
     else if(d.period) setPeriod(() => { P.period = d.period; if(d.period === 'd' && !P.day) P.day = P.today;

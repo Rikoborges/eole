@@ -267,7 +267,7 @@
           <div id="sxLookup"></div>
           <label class="sx-check"><input type="checkbox" id="sxUnreadable" ${f.unreadable ? 'checked' : ''}> Étiquette illisible, compléter plus tard (le responsable verra une alerte)</label>
         </div></div>` : ''}`}
-        <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}</h3>
+        <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}${chronoOn() && chronoMode() === 'off' && chronoOfForm() ? ' <button type="button" class="sx-chshow" data-a="chronoFull" title="Afficher le chrono" aria-label="Afficher le chrono">⏱</button>' : ''}</h3>
           <div class="sx-quick">${[0.25, 0.5, 1, 1.5, 2, 3].map(v => `<button type="button" data-tq="${v}" aria-pressed="false">${h2(v)}</button>`).join('')}</div>
           <div class="sx-row sx-mt"><input type="text" id="sxTime" class="sx-mono sx-time" value="${esc(f.tRaw)}" placeholder="ex : 1h30, 45 min" aria-label="Temps consacré" inputmode="decimal"><span id="sxConv" class="sx-small"></span></div>
           ${chronoInline()}
@@ -536,21 +536,23 @@
   }
   // Chrono discret par défaut : une ligne avec le temps ; « Afficher » ouvre le panneau complet
   const miniKey = () => 'rb-chrono-mini-' + SX.userId;
-  const chronoMini = () => { try{ return localStorage.getItem(miniKey()) !== '0'; }catch(e){ return true; } };
+  // 3 façons de l'afficher : complet ('0'), discret (défaut) ou caché ('off' : il compte quand même)
+  const chronoMode = () => { try{ const v = localStorage.getItem(miniKey()); return v === '0' ? 'full' : v === 'off' ? 'off' : 'mini'; }catch(e){ return 'mini'; } };
+  const chronoMini = () => chronoMode() !== 'full';
   function chronoMiniBar(c){
     return `<div class="sx-chmini ${c.start ? 'run' : 'paused'}"><span class="sx-chmini-dot" aria-hidden="true"></span>
       <span class="sx-mono" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
       <span class="sx-small sx-chmini-l">${c.start ? '' : 'en pause · '}${esc(c.label)}</span>
-      <button type="button" class="sx-link" data-a="chronoFull">Afficher le chrono</button></div>`;
+      <button type="button" class="sx-link" data-a="chronoFull">Afficher</button><button type="button" class="sx-link sx-chx-mini" data-a="chronoOff" title="Cacher complètement le chrono (il continue de compter)" aria-label="Cacher complètement le chrono">✕</button></div>`;
   }
   function chronoInline(){
     if(!chronoOn() || SX.form.editId) return '';
-    const c = chronoOfForm(); if(!c) return '';
+    const c = chronoOfForm(); if(!c || chronoMode() === 'off') return '';
     return chronoMini() ? `<div class="sx-chinline-mini">${chronoMiniBar(c)}</div>` : `<div class="sx-chinline ${c.start ? 'run' : 'paused'}">${chronoBody(c)}</div>`;
   }
   function chronoSide(){
     if(!chronoOn() || SX.form.editId) return '';
-    const c = chronoOfForm(); if(!c) return '';
+    const c = chronoOfForm(); if(!c || chronoMode() === 'off') return '';
     return chronoMini() ? `<div class="sx-card sx-chside sx-chside-mini">${chronoMiniBar(c)}</div>` : `<div class="sx-card sx-chside ${c.start ? 'run' : 'paused'}">${chronoBody(c)}</div>`;
   }
   function fillTimeFromChrono(){
@@ -593,7 +595,7 @@
     chronosSet(list);
   }
   setInterval(() => {
-    const els = root.querySelectorAll('[data-chrono-t]'); if(!els.length) return;
+    const els = root.querySelectorAll('[data-chrono-t]'); // même chrono caché : le temps continue de se remplir
     const list = chronosGet();
     els.forEach(el => { const c = list.find(x => x.id === el.dataset.chronoT); if(c && c.start){ el.textContent = hms((c.prior || 0) * 3600000 + chronoMs(c)); const s = root.querySelector(`[data-chrono-s="${c.id}"]`); if(s) s.textContent = hms(chronoMs(c)); } });
     const before = SX.form.tRaw; fillTimeFromChrono(); if(SX.form.tRaw !== before) updConv();
@@ -810,7 +812,8 @@
     else if(d.a === 'qm'){ f.qte = Math.max(1, (parseInt(f.qte, 10) || 1) - 1); document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'qp'){ f.qte = (parseInt(f.qte, 10) || 0) + 1; document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'save') save();
-    else if(d.a === 'chronoFull' || d.a === 'chronoMini'){ try{ localStorage.setItem(miniKey(), d.a === 'chronoMini' ? '1' : '0'); }catch(e){} render(); }
+    else if(d.a === 'chronoFull' || d.a === 'chronoMini' || d.a === 'chronoOff'){ try{ localStorage.setItem(miniKey(), d.a === 'chronoMini' ? '1' : d.a === 'chronoOff' ? 'off' : '0'); }catch(e){} render();
+      if(d.a === 'chronoOff') toast('Chrono caché : il compte toujours et remplit le temps. Pour le revoir : ⏱ à côté de « Temps consacré ».'); }
     else if(d.a === 'addPast'){ const pk = formKey(f); SX.form = Object.assign(blankForm(), { workDate: SX.viewDate, tManual: true }); syncChrono(pk); render(); document.getElementById('sxFormCard').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
     else if(d.a === 'pastCancel'){ SX.form = blankForm(); SX.viewDate = SX.today; await loadDay(); render(); }
     else if(d.a === 'eodGo'){ const c = document.getElementById('sxFormCard'); if(c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
