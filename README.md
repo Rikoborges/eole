@@ -315,6 +315,7 @@ supabase/
   atelier-schema.sql        ⭐ base da declaração de atividade (cahier des charges)
   import-jobs.sql           copia o histórico do Suivi antigo (jobs) para as telas novas, sem apagar nada
   correction-7jours.sql     o colaborador corrige/acrescenta os últimos 7 dias (ativa a regra « 7 jours »)
+  suppression-complete.sql  « Tout effacer » um colaborador: conta + todo o histórico (irreversível)
   inbox.sql                 « À traiter »: lembra o que o responsável já marcou « OK » (lista « Traités »)
   journal.sql               histórico automático de correções/anulações (quem, quando, antes → depois)
   validation-semaine.sql    ficha da semana: o colaborador assina, o Admin valida e a semana fica travada
