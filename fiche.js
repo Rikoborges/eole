@@ -87,8 +87,8 @@
     return 'Non signée';
   }
   function statusHTML(v){
-    if(v && v.validated_at) return '<span class="sx-pill sx-ok">🔒 Validée</span>';
-    if(v && v.signed_at) return '<span class="sx-pill sx-mid">✍ Signée · à valider</span>';
+    if(v && v.validated_at) return '<span class="sx-pill sx-ok">' + ico('lock', 14) + ' Validée</span>';
+    if(v && v.signed_at) return '<span class="sx-pill sx-mid">' + ico('pen', 14) + ' Signée · à valider</span>';
     return '<span class="sx-pill sx-dim">Non signée</span>';
   }
 
@@ -214,7 +214,7 @@
       .actions{ margin: 0 0 16px; padding: 12px 14px; background: #F3F4F6; border: 1px solid #D9DEE5; border-radius: 8px; } .actions .fix{ margin: 8px 0 0; color: #374151; font-size: 12.5px; } @media print{ .actions{ display: none; } } @media screen{ body{ padding: 20px 24px; max-width: 1200px; margin: 0 auto; } }
       button{ font: inherit; padding: 8px 14px; border: 1px solid #111827; background: #fff; border-radius: 6px; cursor: pointer; margin-right: 8px; }
     </style></head><body>
-      <div class="actions"><div><button type="button" data-p="print">🖨 Imprimer / Enregistrer en PDF</button><button type="button" data-p="refresh">↻ Actualiser</button><button type="button" data-p="close">Fermer</button></div>
+      <div class="actions"><div><button type="button" data-p="print">${ico('printer')} Imprimer / Enregistrer en PDF</button><button type="button" data-p="refresh">↻ Actualiser</button><button type="button" data-p="close">Fermer</button></div>
         <p class="fix">${v && v.validated_at
           ? 'Semaine validée et verrouillée : pour corriger, le responsable doit d\'abord la rouvrir (Admin › Collaborateurs › Fiches de la semaine › Rouvrir).'
           : 'Une erreur ? Laissez cette fenêtre ouverte, corrigez dans ReproBench (Saisir › liste du jour › Modifier, ou Annuler puis déclarer à nouveau), puis cliquez sur « Actualiser ».'}</p></div>
@@ -225,7 +225,7 @@
       <tbody>${rows}${hpRows}</tbody>
       <tfoot><tr><td>Total déclaré</td>${f.dayTot.map(x => `<td class="n">${h2(x) || '0,00'}</td>`).join('')}<td></td><td class="n">${h2(f.total)}</td><td class="n">${h2(f.theo || null)}</td><td></td></tr>
         <tr><td>Objectif</td>${f.days.map(d => `<td class="n">${h2(d.obj)}</td>`).join('')}<td></td><td class="n">${h2(f.objective)}</td><td></td><td></td></tr>
-        <tr><td>Écart / objectif</td>${f.days.map((d, i) => { if(d.date > t) return '<td></td>'; const e = r2(f.dayTot[i] - d.obj); return `<td class="n ${Math.abs(e) < 0.005 ? 'ok' : e < 0 ? 'bad' : ''}">${Math.abs(e) < 0.005 ? '✓' : (e > 0 ? '+' : '') + h2(e)}</td>`; }).join('')}<td></td><td class="n">${h2(r2(f.total - f.objective))}</td><td></td><td></td></tr></tfoot></table>
+        <tr><td>Écart / objectif</td>${f.days.map((d, i) => { if(d.date > t) return '<td></td>'; const e = r2(f.dayTot[i] - d.obj); return `<td class="n ${Math.abs(e) < 0.005 ? 'ok' : e < 0 ? 'bad' : ''}">${Math.abs(e) < 0.005 ? ico('check', 14) : (e > 0 ? '+' : '') + h2(e)}</td>`; }).join('')}<td></td><td class="n">${h2(r2(f.total - f.objective))}</td><td></td><td></td></tr></tfoot></table>
       <div class="sum"><div>Production<b>${h2(f.prod)} h</b></div><div>Hors production<b>${h2(f.hp)} h</b></div><div>Théorique produit<b>${h2(f.theo)} h</b></div><div>Efficience<b>${f.eff === null ? '—' : Math.round(f.eff * 100) + ' %'}</b></div></div>
       <div class="sig"><div><b>Signature du collaborateur</b><br>${v && v.signed_at ? 'Signée dans ReproBench le ' + dt(v.signed_at) : ''}</div>
         <div><b>Visa du responsable</b><br>${v && v.validated_at ? `Validée le ${dt(v.validated_at)}${f.validator ? ' par ' + esc(f.validator) : ''}` : ''}</div></div>

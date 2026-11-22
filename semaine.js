@@ -194,13 +194,13 @@
       const x = decls.filter(d => d.work_date === day && pred(d)); if(!x.length) return '';
       const t = x.reduce((a, d) => a + Number(d.hours), 0), q = x.reduce((a, d) => a + (d.operation_id ? 0 : d.quantity), 0);
       const pending = x.some(d => d.operation_id && S.openOps.some(o => o.id === d.operation_id));
-      return `${h2(t)}${q ? ` <span class="sw-q">(${q})</span>` : ''}${pending ? ' <span class="sx-mid" title="Étape à poursuivre">⏸</span>' : ''}`;
+      return `${h2(t)}${q ? ` <span class="sw-q">(${q})</span>` : ''}${pending ? ' <span class="sx-mid" title="Étape à poursuivre">' + ico('pause', 14) + '</span>' : ''}`;
     };
     const rowsA = S.acts.filter(a => a.active || decls.some(d => d.activite_id === a.id)).map(a => {
       const st = stats(W, id => id === a.id);
       const open = S.openOps.filter(o => o.activite_id === a.id && decls.some(d => d.operation_id === o.id)).length;
       return `<tr><td>${esc(a.name)}</td>${days.map(d => `<td class="n">${cell(x => x.activite_id === a.id, d)}</td>`).join('')}
-        <td class="n">${st.qte || ''}${open ? ` <span class="sx-mid">+${open} ⏸</span>` : ''}</td><td class="n">${st.decl ? h2(st.decl) : ''}</td>
+        <td class="n">${st.qte || ''}${open ? ` <span class="sx-mid">+${open} ${ico('pause', 14)}</span>` : ''}</td><td class="n">${st.decl ? h2(st.decl) : ''}</td>
         <td class="n">${st.real ? h2(st.theo) : ''}</td><td class="n">${st.real ? `<span class="sx-pill sx-${effCls(st.eff)}">${sgn(st.ecart)}</span>` : ''}</td></tr>`;
     }).join('');
     const hpUsed = S.hp.filter(h => decls.some(d => d.hors_production_id === h.id));
@@ -224,12 +224,12 @@
             if(d > S.today) return `<td class="n sx-small">${o ? h2(o) : ''}</td>`;
             if(!o && !tot[i]) return '<td></td>';
             const cls = Math.abs(r) < 0.01 ? 'sx-ok' : r < 0 ? 'sx-bad' : d === S.today ? 'sx-mid' : 'sx-bad';
-            return `<td class="n ${cls}">${Math.abs(r) < 0.01 ? '✓' : r < 0 ? '+' + h2(-r) : h2(r)}</td>`;
+            return `<td class="n ${cls}">${Math.abs(r) < 0.01 ? ico('check', 14) : r < 0 ? '+' + h2(-r) : h2(r)}</td>`;
           }).join('')}<td colspan="4"></td></tr>
         </tfoot></table></div>
-      <p class="sx-small">Heures (quantité). ⏸ = étape à poursuivre : le temps compte le jour où il est fait, la machine est comptée le jour où elle est finalisée.</p>
+      <p class="sx-small">Heures (quantité). ${ico('pause', 14)} = étape à poursuivre : le temps compte le jour où il est fait, la machine est comptée le jour où elle est finalisée.</p>
       ${weekSignHTML(m)}
-      <div class="sx-row"><button type="button" class="sx-btn sx-primary" data-a="ficheXlsx">⬇ Fiche de la semaine (Excel)</button><button type="button" class="sx-btn" data-a="fichePdf">👁 Voir la fiche (imprimer / PDF)</button>
+      <div class="sx-row"><button type="button" class="sx-btn sx-primary" data-a="ficheXlsx">Fiche de la semaine (Excel)</button><button type="button" class="sx-btn" data-a="fichePdf">${ico('eye')} Voir la fiche (imprimer / PDF)</button>
         <button type="button" class="sx-btn" data-a="exportWeek">⬇ Détail des saisies (CSV)</button><button type="button" class="sx-btn" data-a="exportMine">⬇ Toutes mes données (RGPD)</button></div>`;
   }
 
@@ -240,7 +240,7 @@
     const started = m <= S.today;
     let action = '';
     if(v && v.validated_at) action = '<span class="sx-small">Semaine verrouillée : seul le responsable peut la corriger ou la rouvrir.</span>';
-    else if(started) action = `<button type="button" class="sx-btn sx-sm sx-primary" data-a="signWeek">✍ ${v && v.signed_at ? 'Signer à nouveau' : 'Signer ma semaine'}</button><span class="sx-small">Je confirme que mes déclarations de la semaine sont justes. Le responsable la validera ensuite.</span>`;
+    else if(started) action = `<button type="button" class="sx-btn sx-sm sx-primary" data-a="signWeek">${ico('pen')} ${v && v.signed_at ? 'Signer à nouveau' : 'Signer ma semaine'}</button><span class="sx-small">Je confirme que mes déclarations de la semaine sont justes. Le responsable la validera ensuite.</span>`;
     return `<div class="sx-card sw-sign"><div class="sx-row sx-between"><b>Fiche de la semaine ${isoWeek(m)}</b>${Fiche.statusHTML(v)}</div>
       <span class="sx-small">${esc(Fiche.statusText(v))}</span><div class="sx-row">${action}</div></div>`;
   }

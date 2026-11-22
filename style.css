@@ -1791,3 +1791,70 @@ html[data-theme="light"] .topbar .brand b{ color: var(--copper-text); }
 .pl-delchoices .sx-btn{ justify-self: start; }
 .pl-purge-ok{ background: var(--warn); color: #fff; border-color: var(--warn); }
 .pl-inactive{ margin-top: 14px; }
+
+/* =========================================================================
+   Passe « unslop » (polissage) — d'après unslop de Damir Sokolovsky
+   (https://github.com/heydamir/unslop, CC BY 4.0)
+   Direction : précis, robuste, calme · monde : l'établi d'atelier ·
+   signature : le matricule dans une petite plaque, comme l'étiquette de série.
+   Ce bloc passe après tout le reste : il ne touche que l'apparence.
+   ========================================================================= */
+:root{ --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --ease: cubic-bezier(.22, 1, .36, 1); }
+
+/* Icônes au trait : une taille, la couleur du texte */
+.ico{ display: inline-block; vertical-align: -3px; flex: none; }
+.sx-btn .ico, .btn-primary .ico, button .ico{ vertical-align: -3px; }
+.sx-loupe{ display: inline-flex; align-items: center; color: var(--text-dim); }
+.sx-star{ color: var(--copper-text); display: inline-flex; }
+.btn-logout-icon .ico, .btn-key .ico{ vertical-align: middle; }
+
+/* Typographie calme : pas de capitales, pas d'espacement forcé, poids 400–600 */
+.tab, .btn-primary, .btn-secondary, .sx-btn, .sx-h2, .sx-table th, .sw-lbl, .field-label,
+.pl-filters label, .pl-h3, .sx-pill, .chip, .tag, .fr-name, .eyebrow, .period-btn, .week-table th,
+.summary-label, .hist-label, .sx-seg button, .sx-chip, .week-nav-label{ text-transform: none; letter-spacing: 0; }
+.tab{ font-family: 'Barlow', sans-serif; font-size: 15px; font-weight: 500; }
+.tab.active{ font-weight: 600; }
+.btn-primary, .btn-secondary{ font-family: 'Barlow', sans-serif; font-weight: 600; font-size: 16px; }
+.sx-btn{ font-weight: 500; }
+.sx-h2, .pl-h3{ font-weight: 600; }
+.sx-table th, .sw-lbl, .field-label, .pl-filters label{ font-weight: 500; }
+.sx-title{ font-family: 'Barlow', sans-serif; font-weight: 600; letter-spacing: 0; }
+.pl-name{ font: 600 22px 'Barlow', sans-serif; letter-spacing: 0; }
+/* Oswald seulement pour les grands chiffres */
+.sx-big, .sw-val{ font-family: 'Oswald', sans-serif; font-weight: 500; letter-spacing: 0; }
+.sx-pill{ font-weight: 500; }
+
+/* Couleurs : pas de dégradés, une seule couleur pleine */
+.plate{ background: var(--panel); }
+.progress-fill{ background: var(--copper); }
+.auth-box{ background: var(--panel); }
+#auth-gate{ background: var(--bg); }
+
+/* Rayons : trois valeurs (étiquette 6 · contrôle 10 · carte 14) */
+.sx-card, .sw-kpi, .plate, .pl-acc, .pl-ccard, .sx-prog, .pl-inbox li, .auth-box, .pw-box{ border-radius: var(--r-lg); }
+.sx-btn, .btn-primary, .btn-secondary, .sx-chip, .sx-seg, .sx-stepper, .sx-quick button, .sx-msel, .sx-chp, .sx-wkday,
+input[type="text"], input[type="password"], input[type="date"], input[type="number"], select, textarea{ border-radius: var(--r-md); }
+.sx-seg button{ border-radius: calc(var(--r-md) - 2px); }
+.sx-pill, .pl-acc-n, .pl-count, .tag, .chip{ border-radius: var(--r-sm); }
+
+/* Espacement sur une grille de 4 px pour les éléments principaux */
+.sx-card{ padding: 20px; }
+.sx-chip{ padding: 8px 12px; gap: 8px; }
+.sx-chips{ gap: 8px; }
+.sx-btn{ padding: 8px 16px; }
+.sx-btn.sx-sm{ padding: 4px 12px; min-height: 32px; }
+.sx-pill{ padding: 2px 8px; }
+.sx-step{ gap: 12px; padding: 16px 0; }
+.pl-inbox li{ padding: 12px 16px; }
+.pl-accs, .pl-charts, .sw-kpis{ gap: 12px; }
+
+/* Signature : le matricule dans une plaque, comme l'étiquette de série de la machine */
+.mat{ display: inline-block; font: 500 13px/1.4 'IBM Plex Mono', monospace; letter-spacing: .02em; color: var(--text);
+      padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel-2); white-space: nowrap; }
+.mat-lg{ font-size: 20px; padding: 2px 10px; border-radius: var(--r-sm); }
+button.mat.pl-link{ text-decoration: none; cursor: pointer; }
+button.mat.pl-link:hover{ border-color: var(--copper); }
+
+/* Mouvement : couleurs et surfaces seulement, une seule courbe */
+.sx-btn, .sx-chip, .tab, .pl-ccard, .sx-chp, .sx-wkday{ transition: background-color .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease); }
+.sx-bar span, .pl-hbar-t span, .pl-track span{ transition: none; }
