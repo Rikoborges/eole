@@ -357,7 +357,7 @@
     if(!total) return `<div class="sx-card pl-inbox-empty"><h2 class="sx-h2">${ico('check', 18)} Tout est à jour</h2><p class="sx-small">Aucune fiche à valider, aucune journée incomplète, aucune machine bloquée.</p></div>${doneHTML}`;
     return `<p class="sx-small">${total} point${total > 1 ? 's' : ''} à traiter. Faites l'action, ou « OK » quand c'est vu : la ligne est rangée dans « Traités ».</p>
       ${groups.filter(g => g.items.length).map(g => `<div class="sx-card pl-inbox"><h2 class="sx-h2 sx-mb">${g.title} <span class="pl-acc-n">${g.items.length}</span></h2>
-        <ul>${g.items.slice(0, 30).map(i => `<li class="pl-ib-${i.k}"><div><b>${i.t}</b><span class="sx-small">${i.m}</span></div><div class="sx-row">${i.actions}<button type="button" class="sx-btn sx-sm pl-ok" data-ibok="${esc(i.key)}" data-iblabel="${esc(i.t.replace(/<[^>]+>/g, ''))}" title="Vu : ranger dans « Traités »">${ico('check', 14)} OK</button></div></li>`).join('')}</ul>
+        <ul>${g.items.slice(0, 30).map(i => `<li class="pl-ib-${i.k}"><div><b><span class="pl-dot" aria-hidden="true"></span>${i.t}</b><span class="sx-small">${i.m}</span></div><div class="sx-row">${i.actions}<button type="button" class="sx-btn sx-sm pl-ok" data-ibok="${esc(i.key)}" data-iblabel="${esc(i.t.replace(/<[^>]+>/g, ''))}" title="Vu : ranger dans « Traités »">${ico('check', 14)} OK</button></div></li>`).join('')}</ul>
         ${g.items.length > 30 ? `<p class="sx-small sx-mt">… et ${g.items.length - 30} de plus.</p>` : ''}</div>`).join('')}${doneHTML}`;
   }
 
@@ -397,7 +397,7 @@
           <div class="sx-card"><h2 class="sx-h2">Alertes (${al.length})</h2><div class="pl-scroll">${al.length ? al.map(x => `<div class="sx-alert sx-alert-${x.k}"><b>${esc(x.t)}</b><span>${esc(x.u.display_name || '')}${x.d ? ' · ' + esc(shortDate(x.d)) : ''} · ${esc(x.m)}</span></div>`).join('') : '<p class="sx-small sx-mt">Aucune anomalie sur la période.</p>'}</div></div>
           <div class="sx-card"><h2 class="sx-h2">Activité en direct</h2>${P.feed.length ? `<ul class="pl-feed">${P.feed.map(f => `<li><time>${f.t}</time><span>${f.h}</span></li>`).join('')}</ul>` : '<p class="sx-small sx-mt">Les nouvelles déclarations apparaissent ici dès qu\'elles sont faites.</p>'}</div>
           <div class="sx-card"><h2 class="sx-h2 sx-mb">Exports Excel</h2><div class="sx-row">
-            ${[['detail', 'Détail des saisies'], ['collab', 'Par collaborateur'], ['activite', 'Par activité'], ['operations', 'Opérations']].map(([k, l]) => `<button type="button" class="sx-btn sx-sm" data-export="${k}">⬇ ${l}</button>`).join('')}</div>
+            ${[['detail', 'Détail des saisies'], ['collab', 'Par collaborateur'], ['activite', 'Par activité'], ['operations', 'Opérations']].map(([k, l]) => `<button type="button" class="sx-btn sx-sm" data-export="${k}">${ico('download', 14)} ${l}</button>`).join('')}</div>
             <p class="sx-small sx-mt">Période et filtres affichés ci-dessus.</p></div>
         </div>
       </div>`;
@@ -587,7 +587,7 @@
         <td class="pl-actions">${v && v.validated_at
           ? `<button type="button" class="sx-btn sx-sm" data-unval="${m}" data-uid="${u.user_id}">${P.confirmUnval === m ? 'Confirmer la réouverture' : 'Rouvrir'}</button>`
           : `<button type="button" class="sx-btn sx-sm" data-val="${m}" data-uid="${u.user_id}" ${has || (v && v.signed_at) ? '' : 'disabled'}>Valider</button>`}
-          <button type="button" class="sx-btn sx-sm" data-fx="${m}" data-uid="${u.user_id}">⬇ Excel</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">${ico('eye', 14)} Voir</button></td></tr>`;
+          <button type="button" class="sx-btn sx-sm" data-fx="${m}" data-uid="${u.user_id}">${ico('download', 14)} Excel</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">${ico('eye', 14)} Voir</button></td></tr>`;
     }).join('');
     return `<div class="sx-card sx-tscroll"><h2 class="sx-h2 sx-mb">Fiches de la semaine</h2>
       <table class="sx-table"><thead><tr><th>Semaine</th><th class="n">Déclaré / attendu</th><th>État</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="sx-small">Aucune semaine sur la période.</td></tr>'}</tbody></table>
