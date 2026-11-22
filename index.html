@@ -51,6 +51,7 @@
 
       <button type="button" class="btn-primary auth-btn-full" id="btnLogin">Se connecter</button>
 
+      <button type="button" class="auth-help" id="btnHelpLogin">Besoin d'aide ?</button>
       <details class="guide privacy-note">
         <summary>Confidentialité de vos données <span class="chev">›</span></summary>
         <p>Cette application enregistre votre nom, les marques/modèles des machines traitées, les horaires de service, l'heure de votre première et dernière activité dans l'application chaque jour, vos notes et les photos que vous ajoutez (bon de commande, machine terminée). Ces données servent au suivi interne des services et à l'analyse d'activité, et ne sont visibles que par vous et les comptes administrateurs.</p>
@@ -78,6 +79,8 @@
         <input type="file" id="avatarInput" accept="image/*" class="visually-hidden">
 
         <span class="account-name" id="accountName">…</span>
+
+        <button class="btn-logout-icon btn-help" id="btnHelp" type="button" title="Aide" aria-label="Aide : questions fréquentes"><span data-ico="help"></span></button>
 
         <button class="btn-logout-icon btn-theme" id="btnTheme" type="button" title="Thème : sombre" aria-label="Changer le thème (sombre)">◐</button>
 
@@ -635,5 +638,6 @@
   <script src="semaine.js"></script>
   <script src="pilotage.js"></script>
   <script src="motdepasse.js"></script>
+  <script src="aide.js"></script>
 </body>
 </html>

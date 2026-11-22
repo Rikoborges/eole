@@ -297,6 +297,7 @@ manifest.webmanifest    app instalável (nome, ícones, cores)
 sw.js                   service worker: abre o app mesmo sem rede (sempre busca a versão nova primeiro)
 icons/                  ícones do app (192, 512, Apple)
 fiche.js                ficha semanal: Excel (.xlsx, via ExcelJS carregado só no clique) e versão para imprimir/PDF
+aide.js                 FAQ dentro do app (botão « ? » e « Besoin d'aide ? » no login), com busca
 icons.js                ícones de traço (Lucide, ISC) usados no lugar dos emojis: ico('lock')
 motdepasse.js           botão 🔑 (trocar a própria senha) + troca obrigatória da senha provisória
 script.js               toda a lógica (dados, telas, gráficos, Supabase)
