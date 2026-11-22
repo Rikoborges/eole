@@ -229,8 +229,8 @@
         </tfoot></table></div>
       <p class="sx-small">Heures (quantité). ${ico('pause', 14)} = étape à poursuivre : le temps compte le jour où il est fait, la machine est comptée le jour où elle est finalisée.</p>
       ${weekSignHTML(m)}
-      <div class="sx-row"><button type="button" class="sx-btn sx-primary" data-a="ficheXlsx">Fiche de la semaine (Excel)</button><button type="button" class="sx-btn" data-a="fichePdf">${ico('eye')} Voir la fiche (imprimer / PDF)</button>
-        <button type="button" class="sx-btn" data-a="exportWeek">⬇ Détail des saisies (CSV)</button><button type="button" class="sx-btn" data-a="exportMine">⬇ Toutes mes données (RGPD)</button></div>`;
+      <div class="sx-row"><button type="button" class="sx-btn" data-a="ficheXlsx">${ico('download')} Fiche de la semaine (Excel)</button><button type="button" class="sx-btn" data-a="fichePdf">${ico('eye')} Voir la fiche (imprimer / PDF)</button>
+        <button type="button" class="sx-btn" data-a="exportWeek">${ico('download')} Détail des saisies (CSV)</button><button type="button" class="sx-btn" data-a="exportMine">${ico('download')} Toutes mes données (RGPD)</button></div>`;
   }
 
   // Signature de la semaine (le responsable valide ensuite, la semaine est alors verrouillée)
