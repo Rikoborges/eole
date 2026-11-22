@@ -225,7 +225,7 @@
         <p class="sx-sub">${esc(SX.metierLabel)} · format ${esc(SX.format.label)} · ${obj ? 'objectif du jour ' + hm(obj) : 'pas d\'objectif aujourd\'hui'}</p></div>
       <div class="sx-prog" aria-live="polite">
         <div class="sx-row sx-between"><span class="sx-big">${hm(tot)}${obj ? ` <small>/ ${hm(obj)}</small>` : ''}</span>
-          ${obj ? `<span class="${rest < -0.01 ? 'sx-bad' : Math.abs(rest) < 0.01 ? 'sx-ok' : 'sx-mid'}">${rest < -0.01 ? hm(-rest) + ' de trop' : Math.abs(rest) < 0.01 ? 'Journée complète ✓' : 'Reste à déclarer ' + hm(rest)}</span>` : ''}</div>
+          ${obj ? `<span class="${rest < -0.01 ? 'sx-bad' : Math.abs(rest) < 0.01 ? 'sx-ok' : 'sx-mid'}">${rest < -0.01 ? hm(-rest) + ' de trop' : Math.abs(rest) < 0.01 ? 'Journée complète' : 'Reste à déclarer ' + hm(rest)}</span>` : ''}</div>
         ${obj ? `<div class="sx-bar"><span class="${barCls}" style="width:${Math.min(100, tot / obj * 100)}%"></span></div>` : ''}
       </div>
     </div>
@@ -242,9 +242,9 @@
           ${SX.lastSaved && !f.editId && !op ? '<button type="button" class="sx-btn sx-sm" data-a="repeat">↻ Refaire la même</button>' : ''}
           ${f.editId || op ? '<button type="button" class="sx-btn sx-sm" data-a="cancelForm">Annuler</button>' : ''}
         </div>
-        ${f.workDate ? `<div class="sx-past"><span>📅 Pour le <b>${esc(dayLabel(f.workDate))}</b> · déjà ${hm(dayTotal(SX.viewDate === f.workDate ? SX.viewDecls : []))}${objectiveFor(f.workDate) ? ' sur ' + hm(objectiveFor(f.workDate)) : ''}</span><button type="button" class="sx-link" data-a="pastCancel">Revenir à aujourd'hui</button></div>` : ''}
+        ${f.workDate ? `<div class="sx-past"><span>${ico('calendar')} Pour le <b>${esc(dayLabel(f.workDate))}</b> · déjà ${hm(dayTotal(SX.viewDate === f.workDate ? SX.viewDecls : []))}${objectiveFor(f.workDate) ? ' sur ' + hm(objectiveFor(f.workDate)) : ''}</span><button type="button" class="sx-link" data-a="pastCancel">Revenir à aujourd'hui</button></div>` : ''}
         ${op ? `<div class="sx-opsum"><b>${esc((actById(op.activite_id) || {}).name || '')}</b>
-            <span class="sx-mono">${esc(op.serial || 'sans matricule')} · ${esc(modelLabel(op.model_id) || 'modèle ?')}</span>
+            <span>${op.serial ? `<span class="mat">${esc(op.serial)}</span>` : 'sans matricule'} · ${esc(modelLabel(op.model_id) || 'modèle ?')}</span>
             <span class="sx-small">Commencée le ${esc(shortLabel(op.started_on))} · déjà ${h2(op.total_hours)} h · attendu ${h2(op.std_value)} h</span></div>` : `
         <div class="sx-step"><span class="sx-num">${N()}</span><div>
           <h3>Activité</h3>
@@ -253,7 +253,7 @@
             <button type="button" data-kind="hp" aria-pressed="${f.kind === 'hp'}">Hors production</button>
           </div>
           <div class="sx-chips">${f.kind === 'prod'
-            ? sorted.map(a => `<button type="button" class="sx-chip" data-act="${a.id}" aria-pressed="${f.act === a.id}">${top.includes(a.id) ? '<span class="sx-star" aria-label="fréquent">★</span>' : ''}${esc(a.name)}${a.requires_machine ? ' <small>matricule</small>' : ''}</button>`).join('')
+            ? sorted.map(a => `<button type="button" class="sx-chip" data-act="${a.id}" aria-pressed="${f.act === a.id}">${top.includes(a.id) ? `<span class="sx-star" title="Fréquent" aria-label="fréquent">${ico('star', 14)}</span>` : ''}${esc(a.name)}${a.requires_machine ? ' <small>matricule</small>' : ''}</button>`).join('')
             : SX.hp.map(h => `<button type="button" class="sx-chip" data-hp="${h.id}" aria-pressed="${f.hp === h.id}">${esc(h.label)}</button>`).join('')}</div>
         </div></div>
         ${act && f.kind === 'prod' ? `<p class="sx-attendu" id="sxAttendu">${attenduText(act)}</p>` : ''}
@@ -267,15 +267,15 @@
           <div id="sxLookup"></div>
           <label class="sx-check"><input type="checkbox" id="sxUnreadable" ${f.unreadable ? 'checked' : ''}> Étiquette illisible, compléter plus tard (le responsable verra une alerte)</label>
         </div></div>` : ''}`}
-        <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}${chronoOn() && !f.editId && formKey(f) ? (chronoOfForm() ? (chronoMode() === 'off' ? ' <button type="button" class="sx-chshow" data-a="chronoFull" title="Afficher le chrono" aria-label="Afficher le chrono">⏱</button>' : '') : ' <button type="button" class="sx-chshow" data-a="chronoStart" title="Chronométrer cette tâche (facultatif)">⏱ Chrono</button>') : ''}</h3>
+        <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>${isM ? 'Temps consacré aujourd\'hui' : 'Temps consacré'}${chronoOn() && !f.editId && formKey(f) ? (chronoOfForm() ? (chronoMode() === 'off' ? ' <button type="button" class="sx-chshow" data-a="chronoFull" title="Afficher le chrono" aria-label="Afficher le chrono">' + ico('timer', 14) + '</button>' : '') : ' <button type="button" class="sx-chshow" data-a="chronoStart" title="Chronométrer cette tâche (facultatif)">' + ico('timer', 14) + ' Chrono</button>') : ''}</h3>
           <div class="sx-quick">${[0.25, 0.5, 1, 1.5, 2, 3].map(v => `<button type="button" data-tq="${v}" aria-pressed="false">${h2(v)}</button>`).join('')}</div>
           <div class="sx-row sx-mt"><input type="text" id="sxTime" class="sx-mono sx-time" value="${esc(f.tRaw)}" placeholder="ex : 1h30, 45 min" aria-label="Temps consacré" inputmode="decimal"><span id="sxConv" class="sx-small"></span></div>
           ${chronoInline()}
         </div></div>
         ${isM ? `<div class="sx-step"><span class="sx-num">${N()}</span><div><h3>Statut de l'étape</h3>
           <div class="sx-stchoice">
-            <button type="button" class="fin" data-st="final" aria-pressed="${f.st === 'final'}">✓ Finaliser l'étape<small>La machine est terminée : 1 unité comptée.</small></button>
-            <button type="button" class="pau" data-st="pause" aria-pressed="${f.st === 'pause'}">⏸ Mettre en attente / À poursuivre<small>Le temps compte aujourd'hui, la machine pas encore.</small></button>
+            <button type="button" class="fin" data-st="final" aria-pressed="${f.st === 'final'}">${ico('check')} Finaliser l'étape<small>La machine est terminée : 1 unité comptée.</small></button>
+            <button type="button" class="pau" data-st="pause" aria-pressed="${f.st === 'pause'}">${ico('pause')} Mettre en attente / À poursuivre<small>Le temps compte aujourd'hui, la machine pas encore.</small></button>
           </div><p id="sxStPrev" class="sx-small sx-mt"></p>${f.st === 'final' && act.checklist ? checklistHTML(act) : ''}</div></div>` : ''}
         ${act && f.kind === 'prod' && !isM && act.checklist && !op ? `<div class="sx-step"><span class="sx-num">${N()}</span><div><h3>Checklist</h3>${checklistHTML(act)}</div></div>` : ''}
         <div class="sx-step"><span class="sx-num">${N()}</span><div><h3>Commentaire <small>(facultatif)</small></h3>
@@ -299,8 +299,8 @@
     const g = t => +(p.find(x => x.type === t) || {}).value || 0; return g('hour') * 60 + g('minute'); };
   function endOfDayHTML(obj, rest){
     if(!obj || rest < 0.01 || parisMinutes() < 16 * 60 + 30 || SX.eodHidden === SX.today) return '';
-    return `<div class="sx-eod" role="status"><span>⏰ <b>Il manque ${hm(rest)}</b> pour compléter votre journée.</span>
-      <span class="sx-row"><button type="button" class="sx-btn sx-sm sx-primary" data-a="eodGo">Déclarer maintenant</button><button type="button" class="sx-link" data-a="eodHide">Plus tard</button></span></div>`;
+    return `<div class="sx-eod" role="status"><span>${ico('alarm')} <b>Il manque ${hm(rest)}</b> pour compléter votre journée.</span>
+      <span class="sx-row"><button type="button" class="sx-btn sx-sm" data-a="eodGo">Déclarer maintenant</button><button type="button" class="sx-link" data-a="eodHide">Plus tard</button></span></div>`;
   }
 
   // Bilan de la semaine : le vendredi (et le week-end), « tout est bon ? » avant de signer
@@ -314,13 +314,13 @@
     const bad = days.filter(x => !x.ok && x.d <= SX.today);
     const editable = d => d >= correctionFloor();
     const chips = days.map(x => `<button type="button" class="sx-wkday ${x.ok ? 'ok' : x.over ? 'over' : 'miss'}" data-goday="${x.d}" ${editable(x.d) ? '' : 'disabled'} title="${esc(dayLabel(x.d))}">
-        <b>${esc(dayLabel(x.d, { weekday: 'short' }))}</b><span>${x.ok ? '✓' : x.over ? '+' + hm(x.tot - x.obj) : '−' + hm(x.obj - x.tot)}</span></button>`).join('');
+        <b>${esc(dayLabel(x.d, { weekday: 'short' }))}</b><span>${x.ok ? ico('check', 14) : x.over ? '+' + hm(x.tot - x.obj) : '−' + hm(x.obj - x.tot)}</span></button>`).join('');
     const signed = v && v.signed_at;
     return `<div class="sx-card sx-wkcheck" role="status">
-      <div class="sx-row sx-between"><h2 class="sx-h2">📋 C'est vendredi : votre semaine est-elle juste ?</h2><button type="button" class="sx-link" data-a="weekHide">Plus tard</button></div>
+      <div class="sx-row sx-between"><h2 class="sx-h2">${ico('clipboard', 18)} C'est vendredi : votre semaine est-elle juste ?</h2><button type="button" class="sx-link" data-a="weekHide">Plus tard</button></div>
       <p class="sx-small">${bad.length ? `${bad.length} jour${bad.length > 1 ? 's' : ''} à revoir : touchez un jour pour le corriger ou ajouter ce qui manque.` : 'Tous les jours sont complets. Vérifiez puis signez votre semaine.'}</p>
       <div class="sx-wkdays">${chips}</div>
-      <div class="sx-row">${SX.weekVal !== undefined ? `<button type="button" class="sx-btn sx-sm ${bad.length ? '' : 'sx-primary'}" data-a="weekSign">${signed ? '✍ Signée · signer à nouveau' : '✍ Signer ma semaine'}</button>` : ''}
+      <div class="sx-row">${SX.weekVal !== undefined ? `<button type="button" class="sx-btn sx-sm ${bad.length ? '' : 'sx-primary'}" data-a="weekSign">${ico('pen')} ${signed ? 'Signée · signer à nouveau' : 'Signer ma semaine'}</button>` : ''}
         <button type="button" class="sx-btn sx-sm" data-a="weekOpen">Voir ma fiche de la semaine</button></div>
     </div>`;
   }
@@ -330,10 +330,10 @@
     return `<div class="sx-card sx-ops">
       <h2 class="sx-h2">Mes étapes en cours (${ops.length})</h2>
       ${ops.length ? `<div class="sx-tscroll"><table class="sx-table"><thead><tr><th>Matricule</th><th>Modèle</th><th>Étape</th><th>Début</th><th class="n">Temps consacré</th><th class="n">Attendu</th><th>Statut</th><th></th></tr></thead><tbody>
-        ${ops.map(o => `<tr><td class="sx-mono">${o.serial ? esc(o.serial) : '<span class="sx-bad">à compléter</span>'}</td><td>${esc(modelLabel(o.model_id) || '—')}</td>
+        ${ops.map(o => `<tr><td>${o.serial ? `<span class="mat">${esc(o.serial)}</span>` : '<span class="sx-bad">à compléter</span>'}</td><td>${esc(modelLabel(o.model_id) || '—')}</td>
           <td>${esc((actById(o.activite_id) || {}).name || '')}</td><td>${esc(shortLabel(o.started_on))}</td><td class="n">${h2(o.total_hours)} h</td><td class="n">${h2(o.std_value)} h</td>
           <td>${pill(SX.form.opId === o.id ? 'encours' : o.status)}</td>
-          <td><button type="button" class="sx-btn sx-sm sx-primary" data-resume="${o.id}" ${SX.form.opId === o.id ? 'disabled' : ''}>${SX.form.opId === o.id ? 'Reprise ci-dessous' : 'Reprendre l\'étape'}</button></td></tr>`).join('')}
+          <td><button type="button" class="sx-btn sx-sm" data-resume="${o.id}" ${SX.form.opId === o.id ? 'disabled' : ''}>${SX.form.opId === o.id ? 'Reprise ci-dessous' : 'Reprendre l\'étape'}</button></td></tr>`).join('')}
       </tbody></table></div>`
       : '<p class="sx-small">Aucune étape en cours. Si une machine n\'est pas terminée, choisissez « Mettre en attente » en validant : le temps compte dans la journée et vous la retrouverez ici.</p>'}
     </div>`;
@@ -357,7 +357,7 @@
       <div class="sx-row sx-between sx-mb sx-mt"><span class="sx-small">Jour affiché</span>
         <span class="week-nav sx-daynav"><button type="button" data-day="-1" aria-label="Jour précédent" ${d <= minDate ? 'disabled' : ''}>‹</button><button type="button" data-day="1" aria-label="Jour suivant" ${isToday ? 'disabled' : ''}>›</button></span></div>
       ${isToday ? '' : `<p class="sx-small sx-mb">${hm(dayTotal(list))} déclarées${objectiveFor(d) ? ' sur ' + hm(objectiveFor(d)) : ''} · <button type="button" class="sx-btn sx-sm" data-day="0">Revenir à aujourd'hui</button></p>
-        ${d >= correctionFloor() ? `<button type="button" class="sx-btn sx-sm sx-primary sx-mb" data-a="addPast">＋ Ajouter une déclaration ce jour-là</button>` : '<p class="sx-small sx-mb">🔒 Ce jour n\'est plus modifiable : demandez au responsable.</p>'}`}
+        ${d >= correctionFloor() ? `<button type="button" class="sx-btn sx-sm sx-mb" data-a="addPast">+ Ajouter une déclaration ce jour-là</button>` : '<p class="sx-small sx-mb">' + ico('lock', 14) + ' Ce jour n\'est plus modifiable : demandez au responsable.</p>'}`}
       <ul class="sx-entries">${list.slice().reverse().map(entryHTML).join('') || '<li class="sx-small">Rien de déclaré ce jour-là.</li>'}</ul>
       <p class="sx-small sx-mt">Modifiable ${corrLabel()}. Une déclaration annulée reste visible (barrée) pour garder l'historique.</p>
     </details>`;
@@ -371,14 +371,14 @@
     const name = a ? a.name : h ? h.label : 'Activité';
     return `<li class="sx-entry${d.cancelled ? ' sx-cancel' : ''}">
       <div class="sx-row sx-between"><span><b>${esc(name)}</b>${a && !op ? ` <small>× ${d.quantity}</small>` : ''}${h ? ' <span class="sx-pill sx-dim">hors production</span>' : ''}</span><span class="sx-time-v">${hm(Number(d.hours))}</span></div>
-      ${op ? `<span class="sx-meta sx-mono">${op.serial ? esc(op.serial) : '<span class="sx-bad">Matricule à compléter</span>'} · ${esc(modelLabel(op.model_id) || 'modèle ?')}</span>
+      ${op ? `<span class="sx-meta">${op.serial ? `<span class="mat">${esc(op.serial)}</span>` : '<span class="sx-bad">Matricule à compléter</span>'} · ${esc(modelLabel(op.model_id) || 'modèle ?')}</span>
         <span class="sx-meta">${pill(op.status)} Cumul ${h2(op.total_hours)} h · attendu ${h2(op.std_value)} h${op.status === 'final' && op.std_value !== null ? ` · écart <b class="${op.total_hours - op.std_value > 0.005 ? 'sx-mid' : 'sx-ok'}">${sgn(op.total_hours - op.std_value)} h</b>` : ''}</span>` : ''}
       ${theo !== null ? `<span class="sx-meta">Théorique ${h2(theo)} h · déclaré ${h2(d.hours)} h · écart <b class="${d.hours - theo > 0.005 ? 'sx-mid' : 'sx-ok'}">${sgn(d.hours - theo)} h</b> (standard ${h2(d.std_value)})</span>` : ''}
-      ${Array.isArray(d.checklist) && d.checklist.length ? `<span class="sx-meta">✓ Checklist : ${d.checklist.length} point${d.checklist.length > 1 ? 's' : ''} coché${d.checklist.length > 1 ? 's' : ''}</span>` : ''}
+      ${Array.isArray(d.checklist) && d.checklist.length ? `<span class="sx-meta">${ico('check', 14)} Checklist : ${d.checklist.length} point${d.checklist.length > 1 ? 's' : ''} coché${d.checklist.length > 1 ? 's' : ''}</span>` : ''}
       ${d.note ? `<span class="sx-meta">« ${esc(d.note)} »</span>` : ''}
       ${d.cancelled ? `<span class="sx-meta">Annulée le ${esc(new Date(d.cancelled_at).toLocaleString('fr-FR', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' }))}</span>` : ''}
       ${ed ? `<div class="sx-row">${op ? '' : `<button type="button" class="sx-btn sx-sm" data-edit="${d.id}">Modifier</button>`}<button type="button" class="sx-btn sx-sm sx-danger" data-cancel="${d.id}">${SX.confirmCancel === d.id ? 'Confirmer l\'annulation' : 'Annuler cette déclaration'}</button></div>`
-        : d.cancelled ? '' : '<span class="sx-small">🔒 Verrouillé</span>'}
+        : d.cancelled ? '' : '<span class="sx-small">' + ico('lock', 14) + ' Verrouillé</span>'}
     </li>`;
   }
 
@@ -512,7 +512,7 @@
     const k = formKey(SX.form), others = chronosGet().filter(c => c.key !== k);
     if(!others.length) return '';
     return `<div class="sx-chstrip" aria-label="Tâches commencées"><span class="sx-small">En attente :</span>${others.map(c => `
-      <span class="sx-chchip"><button type="button" data-chr="open" data-cid="${c.id}" title="Revenir à cette tâche"><b>${esc(c.label)}</b> <span class="sx-mono" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span> ▶</button><button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono">✕</button></span>`).join('')}</div>`;
+      <span class="sx-chchip"><button type="button" data-chr="open" data-cid="${c.id}" title="Revenir à cette tâche"><b>${esc(c.label)}</b> <span class="sx-mono" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span> ▶</button><button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono">${ico('x', 14)}</button></span>`).join('')}</div>`;
   }
   // Colonne de droite (ordinateur) : les tâches en pause, un clic pour y revenir
   function chronoPausedSide(){
@@ -527,7 +527,7 @@
           <span class="sx-chp-l">${esc(c.label)}</span>
           <span class="sx-mono sx-chp-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
           <span class="sx-chp-go">▶ Reprendre</span></button>
-        <button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono" title="Oublier ce chrono">✕</button></div>`).join('')}
+        <button type="button" class="sx-chx" data-chr="del" data-cid="${c.id}" aria-label="Oublier ce chrono" title="Oublier ce chrono">${ico('x', 14)}</button></div>`).join('')}
     </div>`;
   }
   // Dans l'étape « Temps » : le chrono de la tâche affichée
@@ -535,11 +535,11 @@
   // dans la colonne de droite sur ordinateur (même contenu, un seul visible)
   function chronoBody(c){
     const long = c.start && chronoMs(c) > 4 * 3600000;
-    return `<div class="sx-row sx-between"><b class="sx-chrono-l">⏱ ${esc(c.label)}</b><span class="sx-row"><span class="sx-pill sx-${c.start ? 'ok' : 'dim'}">${c.start ? 'En marche' : 'En pause'}</span><button type="button" class="sx-link" data-a="chronoMini">Masquer</button></span></div>
+    return `<div class="sx-row sx-between"><b class="sx-chrono-l">${ico('timer')} ${esc(c.label)}</b><span class="sx-row"><span class="sx-pill sx-${c.start ? 'ok' : 'dim'}">${c.start ? 'En marche' : 'En pause'}</span><button type="button" class="sx-link" data-a="chronoMini">Masquer</button></span></div>
       <span class="sx-chrono-t" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
       ${c.prior ? `<span class="sx-small">Déjà déclaré ${hm(c.prior)} · séance <span data-chrono-s="${c.id}">${hms(chronoMs(c))}</span></span>` : ''}
-      <div class="sx-row"><button type="button" class="sx-btn sx-sm sx-primary" data-chr="use" data-cid="${c.id}">Utiliser ce temps</button>
-        <button type="button" class="sx-btn sx-sm" data-chr="${c.start ? 'pause' : 'run'}" data-cid="${c.id}">${c.start ? '⏸ Pause' : '▶ Reprendre'}</button></div>
+      <div class="sx-row"><button type="button" class="sx-btn sx-sm" data-chr="use" data-cid="${c.id}">Utiliser ce temps</button>
+        <button type="button" class="sx-btn sx-sm" data-chr="${c.start ? 'pause' : 'run'}" data-cid="${c.id}">${c.start ? ico('pause', 14) + ' Pause' : ico('play', 14) + ' Reprendre'}</button></div>
       <span class="sx-small">${SX.form.tManual ? 'Vous avez tapé un temps : « Utiliser ce temps » le remplace par celui du chrono.' : 'Le temps se remplit tout seul. « Utiliser ce temps » le fige au besoin.'}</span>
       ${long ? '<span class="sx-small sx-bad">Plus de 4 h sans pause : pensez à mettre en pause (repas, fin de journée).</span>' : ''}`;
   }
@@ -552,7 +552,7 @@
     return `<div class="sx-chmini ${c.start ? 'run' : 'paused'}"><span class="sx-chmini-dot" aria-hidden="true"></span>
       <span class="sx-mono" data-chrono-t="${c.id}">${hms((c.prior || 0) * 3600000 + chronoMs(c))}</span>
       <span class="sx-small sx-chmini-l">${c.start ? '' : 'en pause · '}${esc(c.label)}</span>
-      <button type="button" class="sx-link" data-a="chronoFull">Afficher</button><button type="button" class="sx-link sx-chx-mini" data-a="chronoOff" title="Cacher complètement le chrono (il continue de compter)" aria-label="Cacher complètement le chrono">✕</button></div>`;
+      <button type="button" class="sx-link" data-a="chronoFull">Afficher</button><button type="button" class="sx-link sx-chx-mini" data-a="chronoOff" title="Cacher complètement le chrono (il continue de compter)" aria-label="Cacher complètement le chrono">${ico('x', 14)}</button></div>`;
   }
   function chronoInline(){
     if(!chronoOn() || SX.form.editId) return '';
@@ -619,7 +619,7 @@
   function modelBox(){
     const m = SX.form.model ? modelById(SX.form.model) : null;
     if(m) return `<div class="sx-msel"><span><b class="sx-mono">${esc(m.model)}</b><br><small>${esc(m.brand)}${m.famille ? ' · ' + esc(m.famille) : ''}</small></span><button type="button" class="sx-btn sx-sm" data-a="mChange">Changer</button></div>`;
-    return `<div class="sx-msearch"><span class="sx-loupe" aria-hidden="true">🔍</span><input type="text" id="sxModelQ" class="sx-mono" placeholder="Tapez : 3525, IRAC, KONICA…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sxModelList" aria-autocomplete="list"></div><ul id="sxModelList" class="sx-mlist" role="listbox" hidden></ul>`;
+    return `<div class="sx-msearch"><span class="sx-loupe" aria-hidden="true">${ico('search')}</span><input type="text" id="sxModelQ" class="sx-mono" placeholder="Tapez : 3525, IRAC, KONICA…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sxModelList" aria-autocomplete="list"></div><ul id="sxModelList" class="sx-mlist" role="listbox" hidden></ul>`;
   }
   function renderModelList(){
     const q = document.getElementById('sxModelQ'), ul = document.getElementById('sxModelList');
@@ -823,7 +823,7 @@
     else if(d.a === 'save') save();
     else if(d.a === 'chronoStart') startChrono();
     else if(d.a === 'chronoFull' || d.a === 'chronoMini' || d.a === 'chronoOff'){ try{ localStorage.setItem(miniKey(), d.a === 'chronoMini' ? '1' : d.a === 'chronoOff' ? 'off' : '0'); }catch(e){} render();
-      if(d.a === 'chronoOff') toast('Chrono caché : il compte toujours et remplit le temps. Pour le revoir : ⏱ à côté de « Temps consacré ».'); }
+      if(d.a === 'chronoOff') toast('Chrono caché : il compte toujours et remplit le temps. Pour le revoir : l\'icône chrono à côté de « Temps consacré ».'); }
     else if(d.a === 'addPast'){ const pk = formKey(f); SX.form = Object.assign(blankForm(), { workDate: SX.viewDate, tManual: true }); syncChrono(pk); render(); document.getElementById('sxFormCard').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
     else if(d.a === 'pastCancel'){ SX.form = blankForm(); SX.viewDate = SX.today; await loadDay(); render(); }
     else if(d.a === 'eodGo'){ const c = document.getElementById('sxFormCard'); if(c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }

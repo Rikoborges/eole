@@ -310,7 +310,7 @@
     if(P.valOk) groups.push({ key: 'fiches', title: 'Fiches de la semaine à valider', items: team.flatMap(u => toValidate(u, last8w).map(m => {
       const v = valOf(u.user_id, m), s = stats([u.user_id], [m]);
       return { key: `fiche:${u.user_id}:${m}`, k: v && v.signed_at ? 'mid' : 'dim', t: `${esc(uname(u.user_id))} · S${isoWeek(m)}`, m: `${hm(s.decl + s.hp)} / ${hm(expected(u, [m]))} · ${v && v.signed_at ? 'signée par le collaborateur' : 'pas encore signée'}`,
-               actions: `<button type="button" class="sx-btn sx-sm sx-primary" data-val="${m}" data-uid="${u.user_id}">Valider</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">Voir la fiche</button>` }; })) });
+               actions: `<button type="button" class="sx-btn sx-sm" data-val="${m}" data-uid="${u.user_id}">Valider</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">Voir la fiche</button>` }; })) });
     groups.push({ key: 'jours', title: 'Journées incomplètes (2 dernières semaines)', items: team.map(u => {
       const al = alertsFor(u, last2).filter(a => a.t === 'Temps incomplet' || a.t === 'Temps supérieur à l\'objectif');
       if(!al.length) return null;
@@ -354,10 +354,10 @@
       <div class="pl-acc-body"><ul class="pl-donelist">${done.sort((a, b) => String(b.seen.seen_at).localeCompare(String(a.seen.seen_at))).map(i => `<li><div><b>${i.t}</b><span class="sx-small">${esc(i.group)} · vu le ${esc(new Date(i.seen.seen_at).toLocaleString('fr-FR', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' }))}</span></div>
         <button type="button" class="sx-btn sx-sm" data-ibundo="${esc(i.key)}">Remettre</button></li>`).join('')}</ul>
         <p class="sx-small sx-mt">Un élément rangé revient tout seul s'il change (nouveau jour incomplet, machine de nouveau bloquée…).</p></div></details>` : '';
-    if(!total) return `<div class="sx-card pl-inbox-empty"><h2 class="sx-h2">Tout est à jour ✓</h2><p class="sx-small">Aucune fiche à valider, aucune journée incomplète, aucune machine bloquée.</p></div>${doneHTML}`;
-    return `<p class="sx-small">${total} point${total > 1 ? 's' : ''} à traiter. Faites l'action, ou « ✓ OK » quand c'est vu : la ligne est rangée dans « Traités ».</p>
+    if(!total) return `<div class="sx-card pl-inbox-empty"><h2 class="sx-h2">${ico('check', 18)} Tout est à jour</h2><p class="sx-small">Aucune fiche à valider, aucune journée incomplète, aucune machine bloquée.</p></div>${doneHTML}`;
+    return `<p class="sx-small">${total} point${total > 1 ? 's' : ''} à traiter. Faites l'action, ou « OK » quand c'est vu : la ligne est rangée dans « Traités ».</p>
       ${groups.filter(g => g.items.length).map(g => `<div class="sx-card pl-inbox"><h2 class="sx-h2 sx-mb">${g.title} <span class="pl-acc-n">${g.items.length}</span></h2>
-        <ul>${g.items.slice(0, 30).map(i => `<li class="pl-ib-${i.k}"><div><b>${i.t}</b><span class="sx-small">${i.m}</span></div><div class="sx-row">${i.actions}<button type="button" class="sx-btn sx-sm pl-ok" data-ibok="${esc(i.key)}" data-iblabel="${esc(i.t.replace(/<[^>]+>/g, ''))}" title="Vu : ranger dans « Traités »">✓ OK</button></div></li>`).join('')}</ul>
+        <ul>${g.items.slice(0, 30).map(i => `<li class="pl-ib-${i.k}"><div><b>${i.t}</b><span class="sx-small">${i.m}</span></div><div class="sx-row">${i.actions}<button type="button" class="sx-btn sx-sm pl-ok" data-ibok="${esc(i.key)}" data-iblabel="${esc(i.t.replace(/<[^>]+>/g, ''))}" title="Vu : ranger dans « Traités »">${ico('check', 14)} OK</button></div></li>`).join('')}</ul>
         ${g.items.length > 30 ? `<p class="sx-small sx-mt">… et ${g.items.length - 30} de plus.</p>` : ''}</div>`).join('')}${doneHTML}`;
   }
 
@@ -385,7 +385,7 @@
         <tbody>${team.map(u => { const x = stats([u.user_id], W), na = al.filter(a => a.u === u).length, no = open.filter(o => o.user_id === u.user_id).length;
           return `<tr class="pl-click" data-open="${u.user_id}" tabindex="0"><td><b>${esc(u.display_name || 'Sans nom')}</b>${u.interim ? ' <span class="sx-pill sx-blue">intérim</span>' : ''}</td><td class="sx-small">${esc(metierLabel(u.metier_id))} · ${esc((formatOf(u) || {}).label || '')}</td>
           <td class="n">${h2(expected(u, W))}</td><td class="n">${h2(x.decl)}</td><td class="n">${h2(x.hp)}</td><td class="n">${h2(x.theo)}</td><td class="n">${sgn(x.ecart)}</td>
-          <td class="n sx-${effCls(x.eff)}">${pct(x.eff)}</td><td class="n">${no || ''}</td><td class="n">${na ? `<span class="sx-pill sx-mid">${na}</span>` : '<span class="sx-ok">✓</span>'}</td></tr>`; }).join('')}</tbody></table>
+          <td class="n sx-${effCls(x.eff)}">${pct(x.eff)}</td><td class="n">${no || ''}</td><td class="n">${na ? `<span class="sx-pill sx-mid">${na}</span>` : '<span class="sx-ok" aria-label="aucune">' + ico('check', 14) + '</span>'}</td></tr>`; }).join('')}</tbody></table>
         <p class="sx-small sx-mt">Touchez une ligne pour le détail du collaborateur.</p>` : '<p class="sx-small">Aucun collaborateur avec métier et format renseignés.</p>'}
       </div>
       ${W.day ? dayDetailCard(team, W.day) : ''}
@@ -412,7 +412,7 @@
         ${list.length ? `<ul class="pl-daylist">${list.map(d => {
           const o = d.operation_id && P.ops.find(x => x.id === d.operation_id);
           const name = d.activite_id ? aname(d.activite_id) : ((P.hp.find(h => h.id === d.hors_production_id) || {}).label || '');
-          return `<li class="${d.cancelled ? 'pl-struck' : ''}"><span class="sx-mono">${hm(Number(d.hours))}</span><span>${esc(name)}${d.quantity ? ` <small>× ${d.quantity}</small>` : ''}${o ? ` <small class="sx-mono">${esc(o.serial || '')}</small> ${pill(o.status)}` : ''}${Array.isArray(d.checklist) && d.checklist.length ? ` <small>✓ ${d.checklist.length}</small>` : ''}${d.note ? ` <small>« ${esc(d.note)} »</small>` : ''}${d.cancelled ? ' <small>(annulée)</small>' : ''}</span></li>`; }).join('')}</ul>`
+          return `<li class="${d.cancelled ? 'pl-struck' : ''}"><span class="sx-mono">${hm(Number(d.hours))}</span><span>${esc(name)}${d.quantity ? ` <small>× ${d.quantity}</small>` : ''}${o ? ` <small class="sx-mono">${esc(o.serial || '')}</small> ${pill(o.status)}` : ''}${Array.isArray(d.checklist) && d.checklist.length ? ` <small>${ico('check', 14)} ${d.checklist.length}</small>` : ''}${d.note ? ` <small>« ${esc(d.note)} »</small>` : ''}${d.cancelled ? ' <small>(annulée)</small>' : ''}</span></li>`; }).join('')}</ul>`
           : `<p class="sx-small">${obj ? 'Aucune déclaration.' : 'Jour non travaillé dans son format.'}</p>`}</div>`;
     }).join('');
     return `<div class="sx-card"><h2 class="sx-h2 sx-mb">Déclarations du ${esc(fmtDate(day, { weekday: 'long', day: 'numeric', month: 'long' }))}</h2><div class="pl-daygrid">${blocks}</div></div>`;
@@ -428,7 +428,7 @@
       ${list.map(o => {
         const last = o.last_work_date || o.started_on, n = OPEN.includes(o.status) ? workdaysBetween(last, P.today) : 0;
         const motif = (P.motifs.find(m => m.id === o.motif_id) || {}).label;
-        const row = `<tr class="${o.status === 'annulee' ? 'pl-struck' : ''}"><td class="sx-mono">${o.serial ? `<button type="button" class="pl-link sx-mono" data-mq="${esc(o.serial)}" title="Voir la fiche de la machine">${esc(o.serial)}</button>` : o.imported ? '<span class="sx-small">ancien Suivi</span>' : '<span class="sx-bad">à compléter</span>'}</td><td class="sx-small">${esc((modelById(o.model_id) || {}).model || '—')}</td>
+        const row = `<tr class="${o.status === 'annulee' ? 'pl-struck' : ''}"><td class="sx-mono">${o.serial ? `<button type="button" class="pl-link mat" data-mq="${esc(o.serial)}" title="Voir la fiche de la machine">${esc(o.serial)}</button>` : o.imported ? '<span class="sx-small">ancien Suivi</span>' : '<span class="sx-bad">à compléter</span>'}</td><td class="sx-small">${esc((modelById(o.model_id) || {}).model || '—')}</td>
           <td>${esc(aname(o.activite_id))}</td><td>${esc(uname(o.user_id))}</td><td>${esc(shortDate(o.started_on))}</td><td>${esc(shortDate(last))}${n >= 2 ? ` <span class="sx-pill sx-mid">${n} j</span>` : ''}</td>
           <td class="n">${h2(o.total_hours)} h</td><td class="n">${h2(o.std_value)} h</td>
           <td>${pill(o.status)}${(motif || o.close_comment) ? `<br><span class="sx-small">${esc(motif || '')}${o.close_comment ? ' · ' + esc(o.close_comment) : ''}${o.closed_at ? ' · ' + esc(new Date(o.closed_at).toLocaleString('fr-FR', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' })) : ''}${o.closed_by ? ' · par ' + esc(uname(o.closed_by)) : ''}</span>` : ''}</td>
@@ -586,8 +586,8 @@
         <td class="n">${hm(tot)} <small>/ ${hm(exp)}</small></td><td>${Fiche.statusHTML(v)}</td>
         <td class="pl-actions">${v && v.validated_at
           ? `<button type="button" class="sx-btn sx-sm" data-unval="${m}" data-uid="${u.user_id}">${P.confirmUnval === m ? 'Confirmer la réouverture' : 'Rouvrir'}</button>`
-          : `<button type="button" class="sx-btn sx-sm sx-primary" data-val="${m}" data-uid="${u.user_id}" ${has || (v && v.signed_at) ? '' : 'disabled'}>Valider</button>`}
-          <button type="button" class="sx-btn sx-sm" data-fx="${m}" data-uid="${u.user_id}">⬇ Excel</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">👁 Voir</button></td></tr>`;
+          : `<button type="button" class="sx-btn sx-sm" data-val="${m}" data-uid="${u.user_id}" ${has || (v && v.signed_at) ? '' : 'disabled'}>Valider</button>`}
+          <button type="button" class="sx-btn sx-sm" data-fx="${m}" data-uid="${u.user_id}">⬇ Excel</button><button type="button" class="sx-btn sx-sm" data-fp="${m}" data-uid="${u.user_id}">${ico('eye', 14)} Voir</button></td></tr>`;
     }).join('');
     return `<div class="sx-card sx-tscroll"><h2 class="sx-h2 sx-mb">Fiches de la semaine</h2>
       <table class="sx-table"><thead><tr><th>Semaine</th><th class="n">Déclaré / attendu</th><th>État</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="sx-small">Aucune semaine sur la période.</td></tr>'}</tbody></table>
@@ -703,7 +703,7 @@
   function vMachines(){
     if(P.mq.trim().length >= 3 && (!P.mres || P.mres.q !== P.mq.trim().toUpperCase().replace(/\s+/g, ''))) setTimeout(searchMachines, 0);
     return `<p class="sx-small">Fiche machine : tapez un N° de série (3 caractères minimum). Toute l'histoire de la machine : étapes, collaborateurs, temps, checklists, corrections.</p>
-      <div class="sx-msearch pl-msearch"><span class="sx-loupe" aria-hidden="true">🔍</span><input type="text" id="plMq" class="sx-mono" value="${esc(P.mq)}" placeholder="7019606410YBX" aria-label="Rechercher un N° de série" autocomplete="off"></div>
+      <div class="sx-msearch pl-msearch"><span class="sx-loupe" aria-hidden="true">${ico('search')}</span><input type="text" id="plMq" class="sx-mono" value="${esc(P.mq)}" placeholder="7019606410YBX" aria-label="Rechercher un N° de série" autocomplete="off"></div>
       <div id="plMachines">${machinesResults()}</div>`;
   }
   function recentMachines(){
@@ -748,7 +748,7 @@
     const opIds = new Set(ops.map(o => o.id)), dIds = new Set(r.decls.filter(d => opIds.has(d.operation_id)).map(d => d.id));
     const jr = r.journal.filter(j => opIds.has(j.row_id) || dIds.has(j.row_id));
     return `<div class="sx-card pl-mcard">
-      <div class="sx-row sx-between"><div><h2 class="pl-mserial sx-mono">${esc(serial)}</h2><p class="sx-small">${esc(m.brand || '')} ${esc(m.model || 'modèle non renseigné')}${m.famille ? ' · ' + esc(m.famille) : ''}</p></div>
+      <div class="sx-row sx-between"><div><h2 class="pl-mserial"><span class="mat mat-lg">${esc(serial)}</span></h2><p class="sx-small">${esc(m.brand || '')} ${esc(m.model || 'modèle non renseigné')}${m.famille ? ' · ' + esc(m.famille) : ''}</p></div>
         ${ops.some(o => OPEN.includes(o.status)) ? pill('pause') : fin ? pill('final') : ''}</div>
       <div class="pl-msum"><span><b>${fin}</b> / ${ops.length} étape${ops.length > 1 ? 's' : ''} finalisée${fin > 1 ? 's' : ''}</span><span><b>${h2(total)} h</b> au total</span>
         ${dates.length ? `<span>du <b>${esc(shortDate(dates[0]))}</b> au <b>${esc(shortDate(dates[dates.length - 1]))}</b></span>` : ''}<span>${esc(people.join(', ') || '—')}</span></div>
@@ -758,7 +758,7 @@
         return `<li class="st-${o.status}"><div class="sx-row sx-between"><b>${esc(aname(o.activite_id))}</b>${pill(o.status)}</div>
           <span class="sx-small">${h2(o.total_hours)} h pour ${h2(o.std_value)} h attendues${o.status === 'final' && o.std_value !== null ? ` · écart ${sgn(o.total_hours - o.std_value)} h` : ''}${motif ? ' · ' + esc(motif) : ''}${o.close_comment ? ' « ' + esc(o.close_comment) + ' »' : ''}</span>
           <ul class="pl-segs">${segs.map(d => `<li class="${d.cancelled ? 'pl-struck' : ''}"><span>${esc(shortDate(d.work_date))}</span><span>${esc(uname(d.user_id))}</span><span class="sx-mono">${h2(d.hours)} h</span>
-            <span class="sx-small">${Array.isArray(d.checklist) && d.checklist.length ? '✓ checklist (' + d.checklist.length + ') ' : ''}${d.note ? '« ' + esc(d.note) + ' »' : ''}${d.cancelled ? ' (annulée)' : ''}</span></li>`).join('')}</ul></li>`; }).join('')}</ol>
+            <span class="sx-small">${Array.isArray(d.checklist) && d.checklist.length ? ico('check', 14) + ' checklist (' + d.checklist.length + ') ' : ''}${d.note ? '« ' + esc(d.note) + ' »' : ''}${d.cancelled ? ' (annulée)' : ''}</span></li>`).join('')}</ul></li>`; }).join('')}</ol>
       ${P.journalOk ? `<details class="pl-acc"><summary><span>Modifications</span><span class="pl-acc-n">${jr.length}</span><span class="chev" aria-hidden="true">›</span></summary><div class="pl-acc-body">${journalList(jr, 'Aucune correction sur cette machine.')}</div></details>` : ''}
     </div>`;
   }
@@ -885,7 +885,7 @@
     const q = P.pmq.trim().toUpperCase().replace(/[\s.\-]/g, '');
     const list = q ? P.models.filter(m => (m.model + (m.famille || '') + m.brand).toUpperCase().replace(/[\s.\-]/g, '').includes(q)) : P.models;
     const brands = [...new Set(P.models.map(m => m.brand))].sort();
-    return `<div class="sx-row"><div class="sx-msearch pl-grow"><span class="sx-loupe" aria-hidden="true">🔍</span><input type="text" id="plPmq" class="sx-mono" value="${esc(P.pmq)}" placeholder="Rechercher parmi ${P.models.length} modèles" aria-label="Rechercher un modèle"></div>
+    return `<div class="sx-row"><div class="sx-msearch pl-grow"><span class="sx-loupe" aria-hidden="true">${ico('search')}</span><input type="text" id="plPmq" class="sx-mono" value="${esc(P.pmq)}" placeholder="Rechercher parmi ${P.models.length} modèles" aria-label="Rechercher un modèle"></div>
       <span class="sx-small">${brands.map(b => `${esc(b)} ${P.models.filter(m => m.brand === b).length}`).join(' · ')}</span></div>
       <div id="plModels">${modelsTable(list)}</div>
       <div class="sx-row pl-addrow sx-mt"><input type="text" id="nmD" class="sx-mono" placeholder="Désignation (ex : IRAC3530 REC)" aria-label="Désignation"><input type="text" id="nmF" class="sx-mono pl-num" placeholder="Famille (CA0…)" aria-label="Code famille">

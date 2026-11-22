@@ -642,7 +642,7 @@ function renderParts(){
       ? `<a href="${p.refPhoto}" target="_blank" rel="noopener">
            <img class="ref-photo" src="${p.refPhoto}" alt="${p.fr}" loading="lazy">
          </a>
-         <p class="ref-badge">📷 photo de référence (nécessite internet)</p>`
+         <p class="ref-badge">${ico('camera', 12)} photo de référence (nécessite internet)</p>`
       : `<a class="photo-link" href="${photoUrl}" target="_blank" rel="noopener">
            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
@@ -657,7 +657,7 @@ function renderParts(){
           <p class="fr-name">${p.fr}</p>
         </div>
         <div class="card-badges">
-          ${p.top ? `<span class="top-badge">★ ${p.top}</span>` : ''}
+          ${p.top ? `<span class="top-badge">${ico('star', 12)} ${p.top}</span>` : ''}
           <span class="tag">${CAT_LABEL[p.cat]}</span>
         </div>
       </div>

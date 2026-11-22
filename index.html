@@ -81,9 +81,9 @@
 
         <button class="btn-logout-icon btn-theme" id="btnTheme" type="button" title="Thème : sombre" aria-label="Changer le thème (sombre)">◐</button>
 
-        <button class="btn-logout-icon btn-key" id="btnPassword" type="button" title="Changer mon mot de passe" aria-label="Changer mon mot de passe">🔑</button>
+        <button class="btn-logout-icon btn-key" id="btnPassword" type="button" title="Changer mon mot de passe" aria-label="Changer mon mot de passe"><span data-ico="key"></span></button>
 
-        <button class="btn-logout-icon btn-presence" id="btnPresence" type="button" title="Mon temps de connexion" aria-label="Voir mon temps de connexion" aria-expanded="false" aria-controls="presencePanel" hidden>⏱</button>
+        <button class="btn-logout-icon btn-presence" id="btnPresence" type="button" title="Mon temps de connexion" aria-label="Voir mon temps de connexion" aria-expanded="false" aria-controls="presencePanel" hidden><span data-ico="timer"></span></button>
 
         <button class="btn-logout-icon" id="btnLogout" type="button" title="Se déconnecter" aria-label="Se déconnecter">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -142,7 +142,7 @@
 
       <nav class="filters" id="filters" aria-label="Filtrer par catégorie">
         <button class="chip active" data-cat="all">Toutes</button>
-        <button class="chip chip-top" data-cat="top">★ Top 10</button>
+        <button class="chip chip-top" data-cat="top"><span data-ico="star" data-size="14"></span> Top 10</button>
         <button class="chip" data-cat="limpeza">Nettoyage</button>
         <button class="chip" data-cat="montagem">Montage</button>
         <button class="chip" data-cat="eletrica">Électrique</button>
@@ -621,13 +621,14 @@
 
   <!-- ===================== VISIONNEUSE PHOTO (ADMIN) ===================== -->
   <div id="lightbox" class="lightbox" hidden>
-    <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Fermer">✕</button>
+    <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Fermer"><span data-ico="x" data-size="20"></span></button>
     <img id="lightboxImg" alt="Photo agrandie">
   </div>
 
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.js" integrity="sha384-qafw21c/iciq0VXsi9FzkfoQv5I/V0iqE4lSNcKXPnW9/UTJLnv5CcN4FHxVLnKg" crossorigin="anonymous"></script>
+  <script src="icons.js"></script>
   <script src="script.js"></script>
   <script src="saisie.js"></script>
   <script src="fiche.js"></script>
