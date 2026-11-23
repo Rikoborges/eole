@@ -54,7 +54,7 @@
   const blankForm = () => ({ checks: [], kind: 'prod', act: null, hp: null, qte: 1, serial: '', model: null, unreadable: false,
                              tRaw: '', tManual: false, workDate: null, note: '', editId: null, opId: null, st: null, err: '' });
   const SX = {
-    userId: null, ready: false, loading: false, setupError: null,
+    userId: null, forUser: null, ready: false, loading: false, setupError: null,
     profile: null, format: null, metierLabel: '',
     acts: [], hp: [], models: [], rules: {},
     today: null, viewDate: null,
@@ -69,8 +69,11 @@
   const objectiveFor = s => { const i = weekdayIdx(s); return (i < 5 && SX.format) ? Number(SX.format.day_hours[i]) : 0; };
   const dayTotal = list => r2(list.filter(d => !d.cancelled).reduce((a, d) => a + Number(d.hours), 0));
 
+  // « Déclarer pour… » : le responsable saisit au nom d'un collaborateur (fiche papier)
+  const whoId = () => SX.forUser ? SX.forUser.id : SX.userId;
   function correctionFloor(){
     const t = SX.today, rule = SX.rules.correction || 'day';
+    if(SX.forUser) return addDays(t, -31);   // le responsable peut rattraper un mois
     if(rule === 'h24') return addDays(t, -1);
     if(rule === 'week') return addDays(t, -weekdayIdx(t));
     if(rule === 'days7') return addDays(t, -6);
@@ -111,7 +114,7 @@
 
   /* ---------- chargement ---------- */
   async function loadRefs(){
-    const uid = SX.userId;
+    const uid = whoId();
     const [prof, acts, stds, hp, models, rules, formats, metiers] = await Promise.all([
       sb.from('collaborateurs').select('*').eq('user_id', uid).maybeSingle(),
       sb.from('activites').select('id, metier_id, name, requires_machine, uses_quantity, checklist, sort').eq('active', true).order('sort'),
@@ -140,7 +143,7 @@
   }
 
   async function loadDay(){
-    const uid = SX.userId;
+    const uid = whoId();
     const since = addDays(SX.today, -14);
     const qs = [
       sb.from('declarations').select('*').eq('user_id', uid).eq('work_date', SX.today).order('created_at'),
@@ -187,7 +190,7 @@
     if(!SX.viewDate || !SX.ready) SX.viewDate = SX.today;
     try{
       const ok = await loadRefs();
-      if(ok && SX.profile && SX.profile.metier_id && SX.format){ await loadDay(); if(SX.rules.chrono === true) await pullChronos(); }
+      if(ok && SX.profile && SX.profile.metier_id && SX.format){ await loadDay(); if(chronoOn()) await pullChronos(); }
       SX.ready = true;
     }catch(e){
       console.error('Erreur Saisir:', e);
@@ -200,6 +203,15 @@
   window.initSaisie = initSaisie;
 
   /* ---------- rendu ---------- */
+  function forBanner(){
+    if(!SX.forUser) return '';
+    return `<div class="sx-forbar" role="status"><span>${ico('pen')} Saisie pour <b>${esc(SX.forUser.name)}</b> · chaque déclaration sera marquée « saisie par le responsable ».</span>
+      <button type="button" class="sx-btn sx-sm" data-a="forEnd">Terminer</button></div>`;
+  }
+  // Appelé depuis Collaborateurs (pilotage.js)
+  window.saisieFor = function(u){
+    Object.assign(SX, { forUser: u, ready: false, form: blankForm(), lastSaved: null, confirmCancel: null, viewDate: null, lookup: { serial: '', rows: [] } });
+  };
   function render(){
     fillTimeFromChrono();
     if(SX.setupError){
@@ -207,7 +219,10 @@
       return;
     }
     if(!SX.profile || !SX.profile.metier_id || !SX.format){
-      root.innerHTML = `<div class="sx-card sx-notice"><h2 class="sx-h2">Votre fiche n'est pas encore complète</h2>
+      root.innerHTML = SX.forUser
+        ? `${forBanner()}<div class="sx-card sx-notice"><h2 class="sx-h2">La fiche de ${esc(SX.forUser.name)} n'est pas complète</h2>
+          <p>Indiquez d'abord son <b>métier</b> et son <b>format horaire</b> dans Paramètres › Collaborateurs.</p></div>`
+        : `<div class="sx-card sx-notice"><h2 class="sx-h2">Votre fiche n'est pas encore complète</h2>
         <p>Le responsable des ateliers doit indiquer votre <b>métier</b> et votre <b>format horaire</b> (37 h ou 39 h). Ensuite, vous pourrez déclarer votre activité ici.</p></div>`;
       return;
     }
@@ -219,7 +234,7 @@
     let n = 0; const N = () => ++n;
     const barCls = obj && rest < -0.01 ? 'over' : obj && Math.abs(rest) < 0.01 ? 'full' : '';
 
-    root.innerHTML = `
+    root.innerHTML = `${forBanner()}
     <div class="sx-daybar">
       <div><h2 class="sx-title">${esc(cap(dayLabel(t)))}</h2>
         <p class="sx-sub">${esc(SX.metierLabel)} · format ${esc(SX.format.label)} · ${obj ? 'objectif du jour ' + hm(obj) : 'pas d\'objectif aujourd\'hui'}</p></div>
@@ -298,7 +313,7 @@
   const parisMinutes = () => { const p = new Intl.DateTimeFormat('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
     const g = t => +(p.find(x => x.type === t) || {}).value || 0; return g('hour') * 60 + g('minute'); };
   function endOfDayHTML(obj, rest){
-    if(!obj || rest < 0.01 || parisMinutes() < 16 * 60 + 30 || SX.eodHidden === SX.today) return '';
+    if(SX.forUser || !obj || rest < 0.01 || parisMinutes() < 16 * 60 + 30 || SX.eodHidden === SX.today) return '';
     return `<div class="sx-eod" role="status"><span>${ico('alarm')} <b>Il manque ${hm(rest)}</b> pour compléter votre journée.</span>
       <span class="sx-row"><button type="button" class="sx-btn sx-sm" data-a="eodGo">Déclarer maintenant</button><button type="button" class="sx-link" data-a="eodHide">Plus tard</button></span></div>`;
   }
@@ -306,7 +321,7 @@
   // Bilan de la semaine : le vendredi (et le week-end), « tout est bon ? » avant de signer
   function weekCheckHTML(){
     const wd = weekdayIdx(SX.today);
-    if(wd < 4 || SX.weekHidden === SX.today || !SX.format) return '';
+    if(SX.forUser || wd < 4 || SX.weekHidden === SX.today || !SX.format) return '';
     const monday = addDays(SX.today, -wd), v = SX.weekVal;
     if(v && v.validated_at) return '';
     const days = [0, 1, 2, 3, 4].map(i => { const d = addDays(monday, i), obj = objectiveFor(d), tot = r2(SX.weekDecls.filter(x => x.work_date === d).reduce((a, x) => a + Number(x.hours), 0));
@@ -376,6 +391,7 @@
       ${theo !== null ? `<span class="sx-meta">Théorique ${h2(theo)} h · déclaré ${h2(d.hours)} h · écart <b class="${d.hours - theo > 0.005 ? 'sx-mid' : 'sx-ok'}">${sgn(d.hours - theo)} h</b> (standard ${h2(d.std_value)})</span>` : ''}
       ${Array.isArray(d.checklist) && d.checklist.length ? `<span class="sx-meta">${ico('check', 14)} Checklist : ${d.checklist.length} point${d.checklist.length > 1 ? 's' : ''} coché${d.checklist.length > 1 ? 's' : ''}</span>` : ''}
       ${d.note ? `<span class="sx-meta">« ${esc(d.note)} »</span>` : ''}
+      ${d.saisi_par && d.saisi_par !== d.user_id ? '<span class="sx-meta sx-small">Saisie par le responsable</span>' : ''}
       ${d.cancelled ? `<span class="sx-meta">Annulée le ${esc(new Date(d.cancelled_at).toLocaleString('fr-FR', { timeZone: TZ, dateStyle: 'short', timeStyle: 'short' }))}</span>` : ''}
       ${ed ? `<div class="sx-row">${op ? '' : `<button type="button" class="sx-btn sx-sm" data-edit="${d.id}">Modifier</button>`}<button type="button" class="sx-btn sx-sm sx-danger" data-cancel="${d.id}">${SX.confirmCancel === d.id ? 'Confirmer l\'annulation' : 'Annuler cette déclaration'}</button></div>`
         : d.cancelled ? '' : '<span class="sx-small">' + ico('lock', 14) + ' Verrouillé</span>'}
@@ -477,7 +493,7 @@
   function runOnly(list, id){ // un seul chrono tourne : les autres passent en pause
     list.forEach(c => { if(c.id !== id && c.start){ c.acc = chronoMs(c); c.start = null; } });
   }
-  const chronoOn = () => SX.rules.chrono === true;
+  const chronoOn = () => SX.rules.chrono === true && !SX.forUser; // le chrono reste personnel
   const sessH = c => r2(chronoMs(c) / 3600000);
   // Le formulaire change de tâche : le chrono de l'ancienne (s'il y en a un) se met en
   // pause. Le chrono ne démarre JAMAIS tout seul : seulement si la personne clique
@@ -732,9 +748,9 @@
     const chronosBefore = chronosGet(), formBefore = Object.assign({}, f, { tManual: true, err: '', st: f.st });
     try{
       if(isM){
-        const r = await sb.rpc('declare_machine_step', {
+        const r = await sb.rpc(SX.forUser ? 'declare_machine_step_for' : 'declare_machine_step', Object.assign(SX.forUser ? { p_user: SX.forUser.id } : {}, {
           p_activite: a.id, p_operation: f.opId, p_serial: f.opId ? null : (f.serial.trim() || null),
-          p_model: f.opId ? null : f.model, p_hours: t, p_note: note, p_finalize: f.st === 'final' });
+          p_model: f.opId ? null : f.model, p_hours: t, p_note: note, p_finalize: f.st === 'final' }));
         error = r.error; newId = r.data;
         if(!error && f.st === 'final' && f.checks.length) await sb.from('declarations').update({ checklist: f.checks }).eq('id', r.data);
         msg = f.st === 'final' ? `Étape finalisée · ${esc(a.name)}` : `Temps enregistré (${hm(t)}). L'étape est dans « Mes étapes en cours ».`;
@@ -743,7 +759,7 @@
                         : { activite_id: null, hors_production_id: f.hp, quantity: 0, hours: t, note };
         const r = f.editId
           ? await sb.from('declarations').update(row).eq('id', f.editId).select().single()
-          : await sb.from('declarations').insert(Object.assign({ user_id: SX.userId }, row, f.workDate ? { work_date: f.workDate } : {})).select().single();
+          : await sb.from('declarations').insert(Object.assign({ user_id: whoId() }, row, f.workDate ? { work_date: f.workDate } : {})).select().single();
         error = r.error;
         if(!error){
           if(!f.editId) newId = r.data.id;
@@ -821,6 +837,8 @@
     else if(d.a === 'qm'){ f.qte = Math.max(1, (parseInt(f.qte, 10) || 1) - 1); document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'qp'){ f.qte = (parseInt(f.qte, 10) || 0) + 1; document.getElementById('sxQte').value = f.qte; updConv(); }
     else if(d.a === 'save') save();
+    else if(d.a === 'forEnd'){ Object.assign(SX, { forUser: null, ready: false, form: blankForm(), lastSaved: null, viewDate: null });
+      const t = document.querySelector('.tab[data-view="pilotage"][data-pview="collab"]'); if(t) t.click(); }
     else if(d.a === 'chronoStart') startChrono();
     else if(d.a === 'chronoFull' || d.a === 'chronoMini' || d.a === 'chronoOff'){ try{ localStorage.setItem(miniKey(), d.a === 'chronoMini' ? '1' : d.a === 'chronoOff' ? 'off' : '0'); }catch(e){} render();
       if(d.a === 'chronoOff') toast('Chrono caché : il compte toujours et remplit le temps. Pour le revoir : l\'icône chrono à côté de « Temps consacré ».'); }
@@ -887,7 +905,7 @@
 
   /* ---------- connexion / changement de compte ---------- */
   sb.auth.onAuthStateChange((_event, session) => {
-    if(!session){ if(SX.userId) pauseAllChronos(); Object.assign(SX, { userId: null, ready: false }); root.innerHTML = ''; return; }
+    if(!session){ if(SX.userId) pauseAllChronos(); Object.assign(SX, { userId: null, forUser: null, ready: false }); root.innerHTML = ''; return; }
     setTimeout(() => {
       const view = document.getElementById('view-saisie');
       if(view && view.classList.contains('active')) initSaisie(session.user.id !== SX.userId);

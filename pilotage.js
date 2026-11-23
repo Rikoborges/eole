@@ -656,6 +656,8 @@
           ${al.length ? `<span class="sx-pill sx-mid">${al.length} alerte${al.length > 1 ? 's' : ''}</span>` : '<span class="sx-pill sx-ok">Aucune alerte</span>'}</div>
         <p class="sx-small">${esc(metierLabel(u.metier_id))} · ${esc((formatOf(u) || {}).label || '')}</p>
         <ul class="pl-bullets">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
+        <div class="sx-row sx-mt"><button type="button" class="sx-btn sx-sm" data-a="declFor" data-uid="${u.user_id}" data-name="${esc(u.display_name || 'Sans nom')}">${ico('pen')} Déclarer pour ${esc(u.display_name || 'Sans nom')}</button>
+          <span class="sx-small">Pour une fiche papier : vous saisissez à sa place.</span></div>
       </div>
       <div class="sw-kpis pl-kpis4">
         ${kpi('Déclaré / attendu', hm(s.decl + s.hp), '', `sur ${hm(exp)} · ${pct(fill)}`)}
@@ -679,7 +681,7 @@
         ${acc('decls', 'Déclarations de la période', decls.length, `<ul class="sx-entries">${recent.map(d => {
           const o = d.operation_id && P.ops.find(x => x.id === d.operation_id);
           const name = d.activite_id ? aname(d.activite_id) : ((P.hp.find(h => h.id === d.hors_production_id) || {}).label || '');
-          return `<li class="sx-entry${d.cancelled ? ' sx-cancel' : ''}"><span class="sx-small">${esc(shortDate(d.work_date))}</span><div class="sx-row sx-between"><span><b>${esc(name)}</b>${d.quantity ? ` <small>× ${d.quantity}</small>` : ''}</span><span class="sx-time-v">${hm(Number(d.hours))}</span></div>${o ? `<span class="sx-meta sx-mono">${esc(o.serial || 'sans matricule')} · ${pill(o.status)}</span>` : ''}${d.note ? `<span class="sx-meta">« ${esc(d.note)} »</span>` : ''}</li>`; }).join('') || '<li class="sx-small">Aucune.</li>'}</ul>${decls.length > 30 ? '<p class="sx-small sx-mt">Les 30 plus récentes. Export complet : Atelier › Exports Excel.</p>' : ''}`)}
+          return `<li class="sx-entry${d.cancelled ? ' sx-cancel' : ''}"><span class="sx-small">${esc(shortDate(d.work_date))}</span><div class="sx-row sx-between"><span><b>${esc(name)}</b>${d.quantity ? ` <small>× ${d.quantity}</small>` : ''}</span><span class="sx-time-v">${hm(Number(d.hours))}</span></div>${o ? `<span class="sx-meta sx-mono">${esc(o.serial || 'sans matricule')} · ${pill(o.status)}</span>` : ''}${d.note ? `<span class="sx-meta">« ${esc(d.note)} »</span>` : ''}${d.saisi_par && d.saisi_par !== d.user_id ? '<span class="sx-meta sx-small">Saisie par le responsable</span>' : ''}</li>`; }).join('') || '<li class="sx-small">Aucune.</li>'}</ul>${decls.length > 30 ? '<p class="sx-small sx-mt">Les 30 plus récentes. Export complet : Atelier › Exports Excel.</p>' : ''}`)}
         ${P.journalOk ? acc('journal', 'Historique des modifications', (P.journal || []).filter(j => j.user_id === u.user_id).length, journalList((P.journal || []).filter(j => j.user_id === u.user_id).slice(0, 60), 'Aucune correction ni annulation sur la période chargée.')) : ''}
         ${acc('pres', 'Heures de connexion (masqué)', null, `<p class="sx-small">Visible uniquement par le responsable, jamais par le collaborateur.</p><p class="sx-mono">${pres ? `Aujourd'hui : première activité ${t(pres.first_seen)} · dernière ${t(pres.last_seen)}` : 'Pas de connexion enregistrée aujourd\'hui.'}</p>`)}
       </div>`;
@@ -1132,6 +1134,7 @@
     if(row){ P.selUser = row.dataset.open; P.view = 'collab'; render(); return; }
     const b = e.target.closest('button'); if(!b || b.disabled) return;
     const d = b.dataset;
+    if(d.a === 'declFor'){ if(window.saisieFor && window.switchTab){ window.saisieFor({ id: d.uid, name: d.name }); window.switchTab('saisie', document.querySelector('.tab[data-view="pilotage"][data-pview="collab"]')); window.scrollTo(0, 0); } return; }
     if(d.a === 'collabBack'){ P.selUser = null; P.brandSel = null; render(); return; }
     if(d.val){ const { error } = await sb.rpc('validate_week', { p_user: d.uid, p_monday: d.val }); if(error){ toastPl('Validation impossible : ' + dbError(error)); return; }
       const vs = await sb.from('validations_semaine').select('*').eq('user_id', d.uid).eq('week_monday', d.val).maybeSingle();
