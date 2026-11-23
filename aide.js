@@ -51,6 +51,7 @@
       ['Pas de réseau', 'Un bandeau « Hors ligne » apparaît en haut. Attendez le retour du réseau avant de valider une déclaration.']
     ]},
     { admin: true, title: 'Pour le responsable', items: [
+      ['Un collaborateur remplit sur papier (pas d\'ordinateur ni de téléphone)', 'Collaborateurs › ouvrez sa fiche › <b>Déclarer pour…</b>. L\'onglet Saisir s\'ouvre à son nom (bandeau en haut) : saisissez sa fiche papier comme d\'habitude, puis <b>Terminer</b>. Chaque ligne est marquée « saisie par le responsable ». Le chrono et la signature de semaine restent personnels.'],
       ['Par où commencer chaque jour ?', 'L\'onglet <b>À traiter</b> regroupe ce qui demande une action : fiches à valider, journées incomplètes, machines en attente depuis longtemps, matricules à compléter, comptes bloqués. « OK » range une ligne dans « Traités ».'],
       ['Créer un compte', 'Paramètres › Collaborateurs › « Créer un compte » : nom, identifiant (ou laissé vide : il est créé depuis le nom) et mot de passe provisoire. Puis choisissez le <b>métier</b> et le <b>format horaire</b> : sans eux, la personne ne peut pas déclarer.'],
       ['Mot de passe oublié ou compte bloqué', 'Paramètres › Collaborateurs, colonne Accès : <b>Débloquer</b>, ou <b>Réinitialiser</b> (le mot de passe provisoire s\'affiche une seule fois : notez-le).'],
