@@ -117,6 +117,19 @@
   async function loadGuards(){
     const { data, error } = await sb.rpc('login_guard_status');
     P.guards = error ? [] : (data || []);
+    await loadLogins();
+  }
+  // Identifiant de connexion de chaque compte (adresse technique sans le domaine)
+  const LOGIN_DOMAIN = '@eole-reco.vercel.app';
+  const loginOf = email => !email ? '' : email.endsWith(LOGIN_DOMAIN) ? email.slice(0, -LOGIN_DOMAIN.length) : email;
+  async function loadLogins(){
+    try{
+      const { data: { session } } = await sb.auth.getSession(); if(!session) return;
+      const res = await fetch('/api/list-technicians', { headers: { 'Authorization': `Bearer ${session.access_token}` } });
+      if(!res.ok) return;
+      const body = await res.json();
+      P.logins = Object.fromEntries((body.technicians || []).map(t => [t.id, loginOf(t.email)]));
+    }catch(_){ /* hors ligne ou serveur non configuré : on n'affiche simplement pas l'identifiant */ }
   }
 
   async function loadAll(){
@@ -654,7 +667,7 @@
       <div class="sx-card pl-who">
         <div class="sx-row sx-between"><h2 class="pl-name">${esc(u.display_name || 'Sans nom')}${u.interim ? ' <span class="sx-pill sx-blue">intérim</span>' : ''}</h2>
           ${al.length ? `<span class="sx-pill sx-mid">${al.length} alerte${al.length > 1 ? 's' : ''}</span>` : '<span class="sx-pill sx-ok">Aucune alerte</span>'}</div>
-        <p class="sx-small">${esc(metierLabel(u.metier_id))} · ${esc((formatOf(u) || {}).label || '')}</p>
+        <p class="sx-small">${esc(metierLabel(u.metier_id))} · ${esc((formatOf(u) || {}).label || '')}${(P.logins || {})[u.user_id] ? ` · identifiant <b class="sx-mono">${esc(P.logins[u.user_id])}</b>` : ''}</p>
         <ul class="pl-bullets">${bullets.map(b => `<li>${b}</li>`).join('')}</ul>
         <div class="sx-row sx-mt"><button type="button" class="sx-btn sx-sm" data-a="declFor" data-uid="${u.user_id}" data-name="${esc(u.display_name || 'Sans nom')}">${ico('pen')} Déclarer pour ${esc(u.display_name || 'Sans nom')}</button>
           <span class="sx-small">Pour une fiche papier : vous saisissez à sa place.</span></div>
@@ -818,7 +831,7 @@
   }
   function pCollab(){
     return `<div class="sx-tscroll"><table class="sx-table pl-ptable pl-collab"><thead><tr><th>Nom affiché</th><th>Métier</th><th>Format</th><th>Intérim</th><th>Droits</th><th>Actif</th><th>Accès</th></tr></thead><tbody>
-      ${P.users.filter(u => u.active).map(u => `<tr><td><input type="text" data-cu="${u.user_id}" data-cf="display_name" value="${esc(u.display_name || '')}" aria-label="Nom affiché"></td>
+      ${P.users.filter(u => u.active).map(u => `<tr><td><input type="text" data-cu="${u.user_id}" data-cf="display_name" value="${esc(u.display_name || '')}" aria-label="Nom affiché">${(P.logins || {})[u.user_id] ? `<span class="pl-login">Identifiant : <b>${esc(P.logins[u.user_id])}</b></span>` : ''}</td>
         <td><select data-cu="${u.user_id}" data-cf="metier_id" aria-label="Métier de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.metiers.filter(m => m.active || m.id === u.metier_id).map(m => `<option value="${m.id}" ${u.metier_id === m.id ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></td>
         <td><select data-cu="${u.user_id}" data-cf="format_id" aria-label="Format de ${esc(u.display_name || '')}"><option value="">— à choisir —</option>${P.formats.map(f => `<option value="${f.id}" ${u.format_id === f.id ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></td>
         <td>${cb(`data-cu="${u.user_id}" data-cf="interim"`, u.interim, 'Intérim')}</td>
@@ -826,6 +839,7 @@
         <td>${cb(`data-cu="${u.user_id}" data-cf="active"`, u.active, 'Actif')}</td>
         <td class="pl-access">${accessCell(u)}</td></tr>${P.delPanel === u.user_id ? delPanelRow(u) : ''}`).join('')}</tbody></table></div>
       ${inactiveHTML()}
+      ${P.newAcc ? `<div class="sx-alert sx-alert-mid pl-temppw"><b>Compte créé pour ${esc(P.newAcc.name || P.newAcc.login)}</b><span>Identifiant : <b class="sx-mono">${esc(P.newAcc.login)}</b></span><span>Mot de passe provisoire : <b class="sx-mono">${esc(P.newAcc.password)}</b></span><span>Notez-les et donnez-les à la personne (l'identifiant reste visible sous son nom ci-dessus). Choisissez maintenant son métier et son format.</span><button type="button" class="sx-btn sx-sm" data-a="hideNewAcc">J'ai noté</button></div>` : ''}
       ${P.tempPw ? `<div class="sx-alert sx-alert-mid pl-temppw"><b>Mot de passe provisoire de ${esc(uname(P.tempPw.user))}</b><span class="sx-mono">${esc(P.tempPw.password)}</span><span>Notez-le et donnez-le à la personne : il ne sera plus affiché. Elle devra choisir le sien à la connexion.</span><button type="button" class="sx-btn sx-sm" data-a="hideTempPw">J'ai noté</button></div>` : ''}
       <p class="sx-small sx-mt">Un intérimaire reçoit en général le métier Aide technique ; vous pouvez le changer. « Admin » donne accès au mode Admin (Atelier, Opérations… Paramètres). <b>Supprimer</b> : au choix, retirer l'accès en gardant l'historique, ou tout effacer définitivement.</p>
       <h3 class="pl-h3">Créer un compte</h3>
@@ -841,7 +855,9 @@
     const status = locked ? `<span class="sx-pill sx-bad">Bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))}</span>`
       : u.must_change_password ? '<span class="sx-pill sx-mid">Mot de passe provisoire</span>'
       : g && g.failures ? `<span class="sx-pill sx-mid">${g.failures} essai${g.failures > 1 ? 's' : ''} faux</span>` : '<span class="sx-pill sx-ok">OK</span>';
-    return `${status}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button>${u.user_id === P.me ? '' : `<button type="button" class="sx-btn sx-sm sx-danger" data-delopen="${u.user_id}" title="Supprimer ce compte">Supprimer</button>`}</div>`;
+    const info = u.info_vue_at ? `<span class="sx-small pl-infovu" title="Notice « Vos données » lue">${ico('check', 12)} Informé le ${esc(new Date(u.info_vue_at).toLocaleDateString('fr-FR', { timeZone: TZ }))}</span>`
+      : 'info_vue_at' in u ? '<span class="sx-small pl-infovu">Notice données pas encore lue</span>' : '';
+    return `${status}${info}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button>${u.user_id === P.me ? '' : `<button type="button" class="sx-btn sx-sm sx-danger" data-delopen="${u.user_id}" title="Supprimer ce compte">Supprimer</button>`}</div>`;
   }
   function pActs(){
     return P.metiers.map(m => `<h3 class="pl-h3">${esc(m.label)}${m.active ? '' : ' <span class="sx-pill sx-dim">désactivé</span>'}</h3>
@@ -960,6 +976,7 @@
   async function onParamClick(d){
     if(d.ptab){ P.pTab = d.ptab; P.confirmDel = null; render(); return true; }
     if(d.a === 'hideTempPw'){ P.tempPw = null; render(); return true; }
+    if(d.a === 'hideNewAcc'){ P.newAcc = null; render(); return true; }
     if(d.unlock){
       const { error } = await sb.rpc('unlock_login', { p_user: d.unlock });
       toastPl(error ? 'Erreur : ' + dbError(error) : 'Compte débloqué.');
@@ -1038,8 +1055,9 @@
           body: JSON.stringify({ name, email, password }) });
         const body = await res.json().catch(() => ({}));
         if(!res.ok){ toastPl(body.error || 'Erreur lors de la création du compte.'); return true; }
-        await loadRefs(); render();
-        toastPl(email.endsWith('@eole-reco.vercel.app') ? `Compte créé. Identifiant de connexion : ${email.replace('@eole-reco.vercel.app', '')}` : `Compte créé pour ${body.email || email}. Choisissez maintenant son métier et son format.`);
+        P.newAcc = { name, login: loginOf(body.email || email), password };
+        await loadRefs(); await loadGuards(); render();
+        toastPl('Compte créé : notez l\'identifiant et le mot de passe affichés.');
       }catch(err){ console.error(err); toastPl('Erreur réseau : réessayez.'); }
       return true;
     }

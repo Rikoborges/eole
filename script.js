@@ -151,7 +151,9 @@ async function handleLogin(){
     // l'adresse technique paul.durand@eole-reco.vercel.app (domaine du site, accepté par
     // Supabase qui refuse les « .local »), jamais utilisée pour envoyer un e-mail.
     let email = document.getElementById('authEmail').value.trim().toLowerCase();
-    if(email && !email.includes('@')) email += '@eole-reco.vercel.app';
+    // Même transformation qu'à la création du compte : « Paul D. » → « paul.d »,
+    // « Hélène Martin » → « helene.martin » (accents, espaces et majuscules acceptés).
+    if(email && !email.includes('@')) email = email.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9._-]+/g, '.').replace(/^\.+|\.+$/g, '') + '@eole-reco.vercel.app';
     const password = document.getElementById('authPassword').value;
 
     if(!email || !password){
