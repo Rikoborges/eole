@@ -34,7 +34,8 @@ module.exports = async function handler(req, res) {
   const callerClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
-  const { data: isAdmin, error: adminCheckError } = await callerClient.rpc('is_admin');
+  // is_responsable inclut is_admin : Marc (Admin par sa fiche) doit voir les identifiants
+  const { data: isAdmin, error: adminCheckError } = await callerClient.rpc('is_responsable');
   if (adminCheckError || !isAdmin) {
     return res.status(403).json({ error: 'Accès réservé aux administrateurs.' });
   }

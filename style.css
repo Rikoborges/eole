@@ -1913,3 +1913,5 @@ b, strong{ font-weight: 600; }
 .sx-forbar{ display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 0 12px; padding: 12px 16px;
   border: 1px solid var(--copper); border-left-width: 4px; border-radius: var(--r-md, 10px); background: var(--panel); color: var(--text); font-size: 15px; }
 .sx-forbar .ico{ vertical-align: -3px; }
+.pl-login{ display: block; margin-top: 4px; font-size: 12px; color: var(--text-dim); }
+.pl-login b{ font-family: var(--f-mono, ui-monospace, Menlo, Consolas, monospace); color: var(--text); font-weight: 500; }
