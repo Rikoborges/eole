@@ -5,8 +5,8 @@
    pour que l'application s'ouvre quand même. Les données (Supabase) ne sont
    jamais mises en cache ici.
    ========================================================================= */
-const CACHE = 'reprobench-v14';
-const SHELL = ['/', '/index.html', '/style.css', '/theme.js', '/script.js', '/saisie.js', '/icons.js', '/fiche.js', '/semaine.js', '/pilotage.js', '/motdepasse.js', '/aide.js',
+const CACHE = 'reprobench-v15';
+const SHELL = ['/', '/index.html', '/style.css', '/theme.js', '/script.js', '/saisie.js', '/icons.js', '/fiche.js', '/semaine.js', '/pilotage.js', '/motdepasse.js', '/infodonnees.js', '/aide.js',
                '/favicon.svg', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', e => {

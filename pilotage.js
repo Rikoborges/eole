@@ -855,7 +855,9 @@
     const status = locked ? `<span class="sx-pill sx-bad">Bloqué jusqu'à ${esc(new Date(g.locked_until).toLocaleTimeString('fr-FR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }))}</span>`
       : u.must_change_password ? '<span class="sx-pill sx-mid">Mot de passe provisoire</span>'
       : g && g.failures ? `<span class="sx-pill sx-mid">${g.failures} essai${g.failures > 1 ? 's' : ''} faux</span>` : '<span class="sx-pill sx-ok">OK</span>';
-    return `${status}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button>${u.user_id === P.me ? '' : `<button type="button" class="sx-btn sx-sm sx-danger" data-delopen="${u.user_id}" title="Supprimer ce compte">Supprimer</button>`}</div>`;
+    const info = u.info_vue_at ? `<span class="sx-small pl-infovu" title="Notice « Vos données » lue">${ico('check', 12)} Informé le ${esc(new Date(u.info_vue_at).toLocaleDateString('fr-FR', { timeZone: TZ }))}</span>`
+      : 'info_vue_at' in u ? '<span class="sx-small pl-infovu">Notice données pas encore lue</span>' : '';
+    return `${status}${info}<div class="sx-row">${locked || (g && g.failures) ? `<button type="button" class="sx-btn sx-sm" data-unlock="${u.user_id}">Débloquer</button>` : ''}<button type="button" class="sx-btn sx-sm" data-resetpw="${u.user_id}" title="Donner un nouveau mot de passe provisoire">${P.confirmReset === u.user_id ? 'Confirmer ?' : 'Réinitialiser'}</button>${u.user_id === P.me ? '' : `<button type="button" class="sx-btn sx-sm sx-danger" data-delopen="${u.user_id}" title="Supprimer ce compte">Supprimer</button>`}</div>`;
   }
   function pActs(){
     return P.metiers.map(m => `<h3 class="pl-h3">${esc(m.label)}${m.active ? '' : ' <span class="sx-pill sx-dim">désactivé</span>'}</h3>

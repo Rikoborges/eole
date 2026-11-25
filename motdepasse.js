@@ -59,6 +59,7 @@
         if(error){ err(/same/i.test(error.message) ? 'Le nouveau mot de passe doit être différent de l\'ancien.' : 'Erreur : ' + error.message); btn.disabled = false; return; }
         await sb.rpc('clear_must_change_password');
         dlg.remove(); dlg = null;
+        if(forced && window.checkInfoDonnees) window.checkInfoDonnees(session.user.id);
         const t = document.createElement('div'); t.className = 'sx-toast'; t.setAttribute('role', 'status'); t.textContent = 'Mot de passe enregistré.';
         document.body.appendChild(t); setTimeout(() => t.remove(), 4000);
       }catch(e){ err('Erreur inattendue : ' + e.message); btn.disabled = false; }
@@ -74,7 +75,8 @@
     if(!session) return;
     setTimeout(async () => {
       const { data, error } = await sb.from('collaborateurs').select('must_change_password').eq('user_id', session.user.id).maybeSingle();
-      if(!error && data && data.must_change_password && !dlg) open(true);
+      if(!error && data && data.must_change_password){ if(!dlg) open(true); return; }
+      if(window.checkInfoDonnees) window.checkInfoDonnees(session.user.id);   // notice « Vos données »
     }, 0);
   });
 })();
